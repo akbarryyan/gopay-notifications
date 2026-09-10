@@ -166,10 +166,12 @@ Postgres dipilih sejak awal meski SQLite cukup untuk tahap ini, karena sub-proje
 | Manifest | **Config plugin** — `android/` di-generate ulang tiap prebuild |
 | Database | **Room** (dimiliki native) |
 | Pengiriman | **WorkManager** + OkHttp |
-| Secret | **expo-secure-store** |
+| Secret | **EncryptedSharedPreferences** (native) |
 | Navigasi | **React Navigation** |
 
 Expo Go tidak dapat dipakai sama sekali — ia berisi kumpulan native module tetap sehingga Kotlin buatan sendiri tidak akan masuk. Yang dipakai adalah development build: aplikasi sendiri berisi Kotlin sendiri, tetap dengan hot reload.
+
+`expo-secure-store` **tidak** dipakai meski disebut di [detail-project.md §3.3](../../detail-project.md): ia hanya dapat dibaca dari JavaScript, sementara `EventUploadWorker` membaca `device_secret` justru ketika runtime JS sudah mati. Secret disimpan di `EncryptedSharedPreferences` di sisi native, yang memakai Android Keystore yang sama di baliknya — mekanisme perlindungannya identik, pemiliknya saja yang berpindah. Ini konsekuensi langsung dari §2.1.
 
 **Library di dokumen yang gugur:**
 
@@ -177,7 +179,8 @@ Expo Go tidak dapat dipakai sama sekali — ia berisi kumpulan native module tet
 |---|---|
 | MMKV | Konfigurasi harus terbaca WorkManager saat app tertutup — MMKV dari sisi JS tidak bisa |
 | expo-sqlite | Native memiliki database; dua penulis ke satu file adalah sumber bug |
-| Axios (untuk event) | Pengiriman terjadi di Kotlin. Masih boleh dipakai untuk *Test Connection* dari UI |
+| Axios | Seluruh jaringan terjadi di Kotlin (OkHttp), termasuk *Test Connection* — agar penandatanganan HMAC hanya punya satu implementasi |
+| expo-secure-store | Tidak terbaca oleh WorkManager saat JS mati; diganti EncryptedSharedPreferences native |
 
 **WorkManager** dipilih karena menjamin eksekusi walau proses mati, punya constraint `NetworkType.CONNECTED` (tidak perlu polling — Android yang membangunkan saat jaringan pulih), punya exponential backoff bawaan, dan memulihkan antreannya sendiri setelah device restart.
 
@@ -400,6 +403,7 @@ Seluruhnya sudah disetujui. Dicatat agar perbedaan antara dokumen dan kenyataan 
 | 3 | §3.3 MMKV | Konfigurasi di sisi native | WorkManager harus bisa membacanya saat app tertutup |
 | 4 | §3.4 SQLite via RN | Room, dimiliki native | Dua penulis ke satu file adalah sumber bug |
 | 5 | §3.2 Axios untuk pengiriman | OkHttp di Kotlin | Pengiriman terjadi di native |
+| 5b | §3.3 credential di secure storage Android | EncryptedSharedPreferences native, bukan expo-secure-store | expo-secure-store tidak terbaca WorkManager saat JS mati |
 | 6 | §16 `payment.amount` | `amount_hint` di tingkat atas | `payment.amount` terbaca seolah HP menyatakan sebuah pembayaran |
 | 7 | §27 sembilan status | Lima status | Empat status menggambarkan momen yang tak dapat diamati terpisah |
 | 8 | §31 boot handling | Tanpa `BOOT_COMPLETED` receiver | Sistem sudah melakukannya |
