@@ -107,8 +107,26 @@ go run ./cmd/devicetool -name "HP GoPay Utama"  # cetak Device ID + Secret
 
 ### Mobile
 
-Selalu dengan `APP_VARIANT=development` dan `ANDROID_SERIAL`, karena adb kadang
-menampilkan dua entri untuk HP yang sama dan Expo lalu gagal menemukannya.
+Selalu dengan `APP_VARIANT=development` dan `ANDROID_SERIAL`.
+
+adb menyambung ulang sendiri lewat mDNS sehingga muncul **dua entri untuk HP yang
+sama** — satu lewat IP, satu bernama `adb-c62dac4f-4meRBj (2)._adb-tls-connect._tcp`.
+Expo memotong nama mDNS itu lalu gagal dengan `Could not find device with name`.
+Matikan penemuan otomatisnya sekali di awal sesi:
+
+```bash
+export ADB_MDNS_AUTO_CONNECT=0
+adb kill-server && adb start-server
+adb connect 192.168.1.66:41721
+adb devices          # harus tinggal satu baris
+```
+
+Bila APK sudah terbangun tetapi pemasangannya yang gagal, pasang langsung tanpa
+build ulang:
+
+```bash
+adb -s 192.168.1.66:41721 install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
 
 ```bash
 cd mobile

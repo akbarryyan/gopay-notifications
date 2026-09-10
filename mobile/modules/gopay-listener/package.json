@@ -1,0 +1,7 @@
+{
+  "name": "gopay-listener",
+  "version": "1.0.0",
+  "description": "Native notification listener untuk GoPay Notification Bridge",
+  "main": "index.ts",
+  "private": true
+}

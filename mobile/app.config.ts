@@ -23,6 +23,18 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-dev-client',
+    // Menyuntikkan NotificationListenerService ke AndroidManifest.
+    './plugins/withGopayListener',
+    // HTTP polos hanya untuk host development, dan hanya di build development.
+    // 192.168.1.162 = alamat LAN laptop; 10.0.2.2 = host dari emulator.
+    ...(IS_DEV
+      ? [
+          ['./plugins/withDevCleartext', { hosts: ['192.168.1.162', '10.0.2.2'] }] as [
+            string,
+            unknown,
+          ],
+        ]
+      : []),
     [
       'expo-build-properties',
       {
