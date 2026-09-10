@@ -1,0 +1,57 @@
+package store_test
+
+import (
+	"context"
+	"os"
+	"testing"
+
+	"github.com/akbar/gopay-notifications/backend/internal/store"
+)
+
+// testStore membuka koneksi ke database test dan mengosongkan seluruh tabel.
+// Dipakai ulang oleh test lain di paket ini.
+func testStore(t *testing.T) *store.Store {
+	t.Helper()
+
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Fatal("TEST_DATABASE_URL belum diset. Jalankan: make db-up migrate")
+	}
+
+	ctx := context.Background()
+	s, err := store.New(ctx, url)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	t.Cleanup(s.Close)
+
+	_, err = s.Pool().Exec(ctx,
+		"TRUNCATE notification_events, devices RESTART IDENTITY CASCADE")
+	if err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+	return s
+}
+
+func TestNewConnectsAndTablesExist(t *testing.T) {
+	s := testStore(t)
+
+	var n int
+	err := s.Pool().QueryRow(context.Background(),
+		`SELECT count(*) FROM information_schema.tables
+		 WHERE table_schema = 'public'
+		   AND table_name IN ('devices', 'notification_events')`).Scan(&n)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("jumlah tabel = %d, mau 2 — migrasi belum dijalankan?", n)
+	}
+}
+
+func TestNewRejectsBadURL(t *testing.T) {
+	_, err := store.New(context.Background(), "postgres://nobody@127.0.0.1:1/none?sslmode=disable")
+	if err == nil {
+		t.Fatal("mau error untuk URL yang tidak bisa dihubungi, dapat nil")
+	}
+}
