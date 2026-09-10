@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/secretbox"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 	"github.com/jackc/pgx/v5"
 )
 

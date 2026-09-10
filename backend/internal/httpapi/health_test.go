@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
 )
 
 var fixedNow = time.Unix(1789036200, 0)

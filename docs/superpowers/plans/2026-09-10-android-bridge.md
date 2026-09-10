@@ -777,7 +777,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
 )
 
 func main() {

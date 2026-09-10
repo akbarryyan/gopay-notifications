@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/akbar/gopay-notifications/backend/internal/secretbox"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 )
 
 func key32() []byte {

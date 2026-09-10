@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
 )
 
 var secret = []byte("secret-device-01")

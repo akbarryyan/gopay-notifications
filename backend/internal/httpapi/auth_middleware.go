@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 type ctxKey int

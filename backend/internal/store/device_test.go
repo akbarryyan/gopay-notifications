@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func encKey() []byte {

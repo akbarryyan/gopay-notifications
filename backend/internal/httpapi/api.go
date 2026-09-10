@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 type API struct {

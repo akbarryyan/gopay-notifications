@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/akbar/gopay-notifications/backend/internal/secretbox"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 )
 
 type Config struct {

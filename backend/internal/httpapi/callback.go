@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 // eventIDPattern mengikat bentuk event_id ke formula di api-contract.md §4.2.

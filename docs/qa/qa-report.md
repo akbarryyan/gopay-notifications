@@ -18,10 +18,10 @@ Seluruh sisi Android (M2–M6) belum dikerjakan.
 
 ```
 $ make test
-ok  github.com/akbar/gopay-notifications/backend/internal/auth       0.003s
-ok  github.com/akbar/gopay-notifications/backend/internal/httpapi    0.610s
-ok  github.com/akbar/gopay-notifications/backend/internal/secretbox  0.004s
-ok  github.com/akbar/gopay-notifications/backend/internal/store      0.273s
+ok  github.com/akbarryyan/gopay-notifications/backend/internal/auth       0.003s
+ok  github.com/akbarryyan/gopay-notifications/backend/internal/httpapi    0.610s
+ok  github.com/akbarryyan/gopay-notifications/backend/internal/secretbox  0.004s
+ok  github.com/akbarryyan/gopay-notifications/backend/internal/store      0.273s
 
 $ go test ./... -race -count=1 -p 1
 ok  .../internal/auth 1.019s   ok .../internal/httpapi 1.983s

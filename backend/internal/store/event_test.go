@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func seedDevice(t *testing.T, s *store.Store) {

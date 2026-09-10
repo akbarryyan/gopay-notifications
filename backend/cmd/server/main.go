@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/config"
-	"github.com/akbar/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func main() {

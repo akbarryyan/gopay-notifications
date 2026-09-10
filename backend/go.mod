@@ -1,4 +1,4 @@
-module github.com/akbar/gopay-notifications/backend
+module github.com/akbarryyan/gopay-notifications/backend
 
 go 1.26.5
 

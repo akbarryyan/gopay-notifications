@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 // testStore membuka koneksi ke database test dan mengosongkan seluruh tabel.

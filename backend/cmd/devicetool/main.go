@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/akbar/gopay-notifications/backend/internal/config"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func main() {

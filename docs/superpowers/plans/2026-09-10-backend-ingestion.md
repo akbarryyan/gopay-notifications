@@ -43,7 +43,7 @@
 
 ```bash
 mkdir -p backend && cd backend
-go mod init github.com/akbar/gopay-notifications/backend
+go mod init github.com/akbarryyan/gopay-notifications/backend
 go get github.com/jackc/pgx/v5@latest
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
@@ -139,7 +139,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 // TestPool membuka koneksi ke database test dan mengosongkan seluruh tabel.
@@ -271,7 +271,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/akbar/gopay-notifications/backend/internal/secretbox"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 )
 
 func key32() []byte {
@@ -457,7 +457,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
 )
 
 var secret = []byte("secret-device-01")
@@ -651,7 +651,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func encKey() []byte {
@@ -754,7 +754,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/secretbox"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -835,7 +835,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/akbar/gopay-notifications/backend/internal/secretbox"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 )
 
 type Config struct {
@@ -893,8 +893,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/akbar/gopay-notifications/backend/internal/config"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func main() {
@@ -1009,7 +1009,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func seedDevice(t *testing.T, s *store.Store) {
@@ -1282,7 +1282,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
 )
 
 var fixedNow = time.Unix(1789036200, 0)
@@ -1346,7 +1346,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 type API struct {
@@ -1435,9 +1435,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/config"
-	"github.com/akbar/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 func main() {
@@ -1541,9 +1541,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
-	"github.com/akbar/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 const testSecret = "secret-untuk-test"
@@ -1750,8 +1750,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 type ctxKey int
@@ -2121,7 +2121,7 @@ func openTestStore(t *testing.T) *store.Store {
 }
 ```
 
-Tambahkan `"context"`, `"os"`, dan `"github.com/akbar/gopay-notifications/backend/internal/store"` ke blok import berkas test ini.
+Tambahkan `"context"`, `"os"`, dan `"github.com/akbarryyan/gopay-notifications/backend/internal/store"` ke blok import berkas test ini.
 
 - [ ] **Step 3: Jalankan test, pastikan gagal**
 
@@ -2140,7 +2140,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 // eventIDPattern mengikat bentuk event_id ke formula di api-contract.md §4.2.

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akbar/gopay-notifications/backend/internal/auth"
-	"github.com/akbar/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbar/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 const testSecret = "secret-untuk-test"
