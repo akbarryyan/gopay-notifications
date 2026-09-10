@@ -108,7 +108,7 @@ Diambil dari perangkat target dengan `adb shell dumpsys notification --noredact`
 | BigText | identik dengan text |
 | Notification id / tag | `-1` / `null` — **konstan untuk semua notifikasi GoPay** |
 | Channel | `promotional_notifications` ("Promotions and Marketing") |
-| Perangkat | ColorOS (OPPO/Realme/OnePlus) |
+| Perangkat | **OPPO CPH2365, Android 13, ColorOS** |
 
 Empat hal yang mengikat desain:
 
@@ -321,7 +321,7 @@ Risiko terbesar bukan Android melainkan lapisan hemat baterai Xiaomi/Oppo/Vivo/S
 3. Saat setup, aplikasi mengarahkan user mematikan optimasi baterai untuk aplikasi ini.
 4. Dashboard menampilkan **berapa lama sejak event terakhir**. Bila ColorOS diam-diam membunuh service, gejalanya terlihat sebagai "tidak ada event selama 3 hari" alih-alih tidak terlihat sama sekali.
 
-**Perangkat target menjalankan ColorOS**, salah satu yang paling agresif. Langkah berikut wajib, bukan opsional, dan masuk daftar `NEEDS-DEVICE` di M2:
+**Perangkat target adalah OPPO CPH2365 dengan Android 13 (ColorOS)**, salah satu yang paling agresif. Langkah berikut wajib, bukan opsional, dan masuk daftar `NEEDS-DEVICE` di M2:
 
 - Settings → Baterai → Manajemen baterai aplikasi → aplikasi ini → **Izinkan aktivitas latar belakang**, jangan dioptimalkan
 - Settings → Apps → Manajemen aplikasi → aplikasi ini → **Izinkan mulai otomatis**

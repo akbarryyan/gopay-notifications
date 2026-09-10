@@ -6,7 +6,7 @@
 
 **Architecture:** Kotlin memiliki seluruh pipeline data (tangkap → simpan → kirim → retry lewat WorkManager). TypeScript hanya UI dan konfigurasi, membaca data lewat Expo local module. React Native tidak pernah membuka database dan tidak pernah mengirim event.
 
-**Tech Stack:** Expo SDK 52+ dengan prebuild dan development build, Expo Modules API (Kotlin), Room, WorkManager, OkHttp, EncryptedSharedPreferences, React Navigation.
+**Tech Stack:** Expo SDK 57 (RN 0.86, React 19) dengan prebuild dan development build, Expo Modules API (Kotlin), Room, WorkManager, OkHttp, EncryptedSharedPreferences, React Navigation.
 
 **Milestone:** M2–M6 dari [spec §8](../specs/2026-09-10-ingestion-and-android-bridge-design.md). Membutuhkan backend dari [plan backend](2026-09-10-backend-ingestion.md) sudah jalan di VPS.
 
@@ -70,9 +70,10 @@ const config: ExpoConfig = {
       'expo-build-properties',
       {
         android: {
+          // Hanya minSdkVersion yang dipatok. compileSdk dan targetSdk
+          // dibiarkan mengikuti bawaan Expo SDK 57 — memaksanya ke versi
+          // lebih rendah justru merusak pustaka yang menuntut versi baru.
           minSdkVersion: 26,
-          compileSdkVersion: 35,
-          targetSdkVersion: 35,
         },
       },
     ],
@@ -82,7 +83,9 @@ const config: ExpoConfig = {
 export default config
 ```
 
-`minSdkVersion: 26` dipilih karena `EncryptedSharedPreferences` mensyaratkan API 23+ dan `requestRebind` mensyaratkan API 24+; 26 memberi ruang aman dan mencakup seluruh perangkat yang relevan.
+`minSdkVersion: 26` dipilih karena `EncryptedSharedPreferences` mensyaratkan API 23+, `requestRebind` mensyaratkan API 24+, dan `java.time` (dipakai untuk `received_at` ISO 8601) mensyaratkan API 26+.
+
+Perangkat target menjalankan **Android 13**, jauh di atas batas itu.
 
 - [ ] **Step 3: Hapus `app.json` bawaan**
 
@@ -1694,16 +1697,37 @@ git commit -m "feat(mobile): konfigurasi terenkripsi dan penyimpanan Discovery"
 ```kotlin
 package expo.modules.gopaylistener
 
+import android.os.Bundle
+
 /**
  * Jalur satu arah dari service ke module, dipakai hanya untuk menyegarkan UI
  * saat aplikasi sedang dibuka.
  *
- * Ini murni kosmetik. Bila UI mati, listener bernilai null dan tidak ada yang
- * hilang — pengiriman tetap berjalan lewat WorkManager.
+ * Ini murni kosmetik. Bila UI mati tidak ada observer terdaftar dan tidak ada
+ * yang hilang — pengiriman tetap berjalan lewat WorkManager.
+ *
+ * Observer disimpan di objek statis, sehingga module WAJIB mendaftarkannya
+ * lewat WeakReference (lihat Task 8 Step 3) agar instance module tidak
+ * tertahan di memori setelah UI ditutup.
  */
 object CaptureBus {
-    @Volatile
-    var listener: ((Map<String, Any?>) -> Unit)? = null
+
+    private val observers = mutableSetOf<(Bundle) -> Unit>()
+
+    @Synchronized
+    fun register(observer: (Bundle) -> Unit) {
+        observers.add(observer)
+    }
+
+    @Synchronized
+    fun unregister(observer: (Bundle) -> Unit) {
+        observers.remove(observer)
+    }
+
+    @Synchronized
+    fun emit(payload: Bundle) {
+        observers.forEach { it(payload) }
+    }
 }
 ```
 
@@ -1717,6 +1741,7 @@ package expo.modules.gopaylistener
 import android.app.Notification
 import android.content.ComponentName
 import android.service.notification.NotificationListenerService
+import androidx.core.os.bundleOf
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import expo.modules.gopaylistener.config.Settings
@@ -1816,8 +1841,9 @@ class GoPayListenerService : NotificationListenerService() {
                     UploadScheduler.enqueue(app)
                 }
 
-                CaptureBus.listener?.invoke(
-                    mapOf(
+                // sendEvent menuntut Bundle, bukan Map.
+                CaptureBus.emit(
+                    bundleOf(
                         "eventId" to entity.eventId,
                         "title" to entity.title,
                         "text" to entity.text,
@@ -1841,15 +1867,32 @@ Perhatikan yang **tidak** ditulis ke Logcat: isi notifikasi, nominal, dan nama p
 
 Tambahkan di dalam `ModuleDefinition`:
 
+Tambahkan properti pada kelas module, di luar `definition()`:
+
+```kotlin
+    private var captureObserver: ((android.os.Bundle) -> Unit)? = null
+```
+
+Lalu di dalam `ModuleDefinition`:
+
 ```kotlin
         Events("onNotificationCaptured")
 
-        OnStartObserving {
-            CaptureBus.listener = { payload -> sendEvent("onNotificationCaptured", payload) }
+        // Nama event wajib disebut pada OnStartObserving/OnStopObserving.
+        // WeakReference dipakai karena observer disimpan di objek statis
+        // CaptureBus; tanpa itu instance module tertahan setelah UI ditutup.
+        OnStartObserving("onNotificationCaptured") {
+            val weakModule = java.lang.ref.WeakReference(this@GopayListenerModule)
+            val observer: (android.os.Bundle) -> Unit = { payload ->
+                weakModule.get()?.sendEvent("onNotificationCaptured", payload)
+            }
+            captureObserver = observer
+            CaptureBus.register(observer)
         }
 
-        OnStopObserving {
-            CaptureBus.listener = null
+        OnStopObserving("onNotificationCaptured") {
+            captureObserver?.let { CaptureBus.unregister(it) }
+            captureObserver = null
         }
 
         Function("getStatus") {

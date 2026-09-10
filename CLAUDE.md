@@ -47,10 +47,86 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 
 ## Perangkat target
 
-ColorOS (OPPO/Realme/OnePlus) — pembunuh background process paling agresif. Setiap keputusan soal ketahanan service harus diuji di sana, tidak boleh diasumsikan dari perilaku Android standar.
+OPPO CPH2365, Android 13, ColorOS — pembunuh background process paling agresif. Tersambung lewat adb wifi di `192.168.1.66:41721`; pakai `ANDROID_SERIAL` agar tooling tidak bingung bila muncul dua entri adb untuk HP yang sama. Setiap keputusan soal ketahanan service harus diuji di sana, tidak boleh diasumsikan dari perilaku Android standar.
 
 Notifikasi transfer masuk GoPay memakai channel **"Promotions and Marketing"**. Jangan pernah menyarankan mematikan channel itu — mematikannya mematikan seluruh sistem tanpa gejala.
 
+## Pembagian kerja
+
+**Claude menulis kode; Akbar menjalankan build dan server.** Jangan menjalankan
+`expo run:android`, `gradlew`, `npm run`, `go run ./cmd/server`, `expo start`,
+atau `docker compose up`. Tulis kodenya, lalu berikan perintahnya untuk
+dijalankan Akbar, dan tunggu keluarannya ditempelkan.
+
+Perintah baca-saja yang cepat masih boleh dijalankan sendiri: `git status`,
+`adb devices`, `adb shell pm list packages`, `go vet`, `go build`, `grep`.
+
+Untuk laporan QA, butir yang menuntut build atau server ditandai `NEEDS-DEVICE`
+sampai Akbar menempelkan buktinya — tidak pernah `PASS` berdasarkan penalaran.
+
 ## Perintah
 
-Belum ada — `backend/` dan `mobile/` belum dibuat. Bagian ini diisi saat M1 dan M2.
+### Backend
+
+```bash
+cd backend
+make db-up            # Postgres di :5433 lewat docker compose
+make migrate          # goose up
+make test             # db-up + migrate + go test ./... -p 1
+```
+
+`-p 1` wajib. Paket `store` dan `httpapi` sama-sama `TRUNCATE` database test yang
+sama, dan Go menjalankan paket secara paralel — tanpa `-p 1` keduanya saling
+menghapus data dan gagal secara acak, padahal sendiri-sendiri lulus.
+
+Menjalankan server secara lokal:
+
+```bash
+cd backend
+export DATABASE_URL='postgres://gopay:gopay@localhost:5433/gopay_test?sslmode=disable'
+export DEVICE_SECRET_KEY=$(go run ./cmd/devicetool -genkey)
+export LISTEN_ADDR=127.0.0.1:8098
+go run ./cmd/server
+```
+
+Jebakan yang sudah pernah kena: bila server versi lama masih memegang port,
+`go build -o` ke path binary yang sedang berjalan gagal dengan *text file busy*,
+dan endpoint baru membalas 404 karena yang melayani adalah binary lama. Matikan
+berdasarkan port, bukan pola nama:
+
+```bash
+pid=$(ss -ltnpH 'sport = :8098' | grep -oP 'pid=\K[0-9]+' | head -1) && kill "$pid"
+```
+
+Membuat device:
+
+```bash
+go run ./cmd/devicetool -genkey                 # cetak DEVICE_SECRET_KEY
+go run ./cmd/devicetool -name "HP GoPay Utama"  # cetak Device ID + Secret
+```
+
+### Mobile
+
+Selalu dengan `APP_VARIANT=development` dan `ANDROID_SERIAL`, karena adb kadang
+menampilkan dua entri untuk HP yang sama dan Expo lalu gagal menemukannya.
+
+```bash
+cd mobile
+export ANDROID_SERIAL=192.168.1.66:41721
+export APP_VARIANT=development
+
+npx expo prebuild --platform android --clean   # regenerate android/ dari config plugin
+npx expo run:android                           # build + pasang ke HP (lama saat pertama)
+npx expo start --dev-client                    # dev server, setelah aplikasi terpasang
+npx tsc --noEmit                               # periksa tipe
+```
+
+Unit test Kotlin:
+
+```bash
+cd mobile/android
+./gradlew :gopay-listener:testDebugUnitTest
+```
+
+`android/` tidak di-commit dan tidak boleh diedit manual — seluruh perubahan
+manifest ditulis sebagai config plugin di `mobile/plugins/`.
