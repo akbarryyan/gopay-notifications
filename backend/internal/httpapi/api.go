@@ -27,6 +27,7 @@ func New(s *store.Store, encKey []byte, now func() time.Time) *API {
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", a.handleHealth)
+	mux.Handle("GET /api/v1/device/me", a.requireDevice(http.HandlerFunc(a.handleDeviceMe)))
 	return mux
 }
 

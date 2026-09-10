@@ -12,5 +12,8 @@ db-down:
 migrate:
 	$(GOOSE) -dir migrations postgres "$(TEST_DATABASE_URL)" up
 
+# -p 1 wajib: paket store dan httpapi sama-sama TRUNCATE database test yang
+# sama. Tanpa ini Go menjalankan keduanya paralel dan mereka saling menghapus
+# data di tengah jalan — gagal secara acak, bukan karena kodenya salah.
 test: db-up migrate
-	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test ./... -count=1
+	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test ./... -count=1 -p 1
