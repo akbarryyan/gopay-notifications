@@ -51,7 +51,7 @@ Butir yang belum tersentuh milestone berjalan ditandai `PENDING`, **bukan dihila
 | `FAIL` | Terbukti tidak bekerja | Wajib menyertakan bukti gagal + dugaan penyebab |
 | `BLOCKED` | Tertahan hal lain | Wajib menyebutkan apa yang menahan |
 | `PENDING` | Di luar cakupan milestone ini | — |
-| `NEEDS-DEVICE` | Hanya dapat dijalankan oleh pemilik HP | Wajib menyertakan langkah persis + hasil yang diharapkan |
+| `NEEDS-DEVICE` | Hanya dapat dijalankan oleh pemilik perangkat atau infrastruktur (HP, VPS) | Wajib menyertakan langkah persis + hasil yang diharapkan |
 
 Tidak ada status lain. Tidak ada "sebagian lulus" — pecah jadi beberapa baris.
 
@@ -83,6 +83,8 @@ Bukti yang **tidak** sah:
 ## 6. `NEEDS-DEVICE`
 
 Sebagian besar hal yang paling mungkin gagal di project ini berada di luar jangkauan otomatisasi: transfer GoPay sungguhan, restart HP, mode pesawat, HP didiamkan semalaman, Notification Access dicabut lalu diberikan lagi, dan perilaku pembunuh proses bawaan OEM.
+
+Hal yang menuntut akses VPS juga masuk kategori ini — sertifikat HTTPS sungguhan, basic auth Caddy, dan systemd tidak dapat diverifikasi dari mesin development.
 
 Butir semacam ini **tidak boleh** ditandai `PASS` berdasarkan penalaran. Tandai `NEEDS-DEVICE` dan sertakan:
 

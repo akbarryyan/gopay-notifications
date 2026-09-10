@@ -1,0 +1,23 @@
+[Unit]
+Description=GoPay notification ingestion
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=gopay
+Group=gopay
+WorkingDirectory=/opt/gopay-ingestion
+EnvironmentFile=/opt/gopay-ingestion/.env
+ExecStart=/opt/gopay-ingestion/server
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gopay-ingestion
+
+[Install]
+WantedBy=multi-user.target

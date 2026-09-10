@@ -1,0 +1,17 @@
+gopay.example.com {
+	encode zstd gzip
+
+	# /events dilindungi basic auth — ini yang dibuka di browser.
+	# Hash dibuat dengan: caddy hash-password
+	@events path /api/v1/events*
+	basic_auth @events {
+		admin GANTI_DENGAN_HASH_BCRYPT
+	}
+
+	reverse_proxy 127.0.0.1:8080
+
+	log {
+		output file /var/log/caddy/gopay.log
+		format json
+	}
+}
