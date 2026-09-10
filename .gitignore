@@ -15,3 +15,8 @@ tmp/
 # ikut ter-commit.
 /mobile/android/
 /mobile/ios/
+
+# Artefak build gradle di dalam local module. Pola diakhiri "/" supaya hanya
+# direktori yang cocok — berkas build.gradle tetap ter-track.
+/mobile/modules/*/android/build/
+/mobile/modules/*/android/.gradle/
