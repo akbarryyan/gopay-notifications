@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1 — Backend Go: `/health`, `/callback`, HMAC, Postgres, idempotency
+**Milestone terakhir diperiksa:** M1 selesai · M2 sebagian (aplikasi terpasang, Notification Access aktif)
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 21 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 4 · `PENDING` 44
+**Ringkasan:** `PASS` 26 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 4 · `PENDING` 39
 
 ---
 
@@ -12,7 +12,9 @@ Seluruh sisi backend selesai dan terbukti bekerja di mesin development: 4 paket,
 
 Yang **belum** terbukti adalah apa pun yang menuntut VPS: sertifikat HTTPS sungguhan, basic auth Caddy, dan systemd. Berkas konfigurasinya sudah ditulis dan build silang `linux/amd64` berhasil, tetapi tidak satu pun dapat diverifikasi dari mesin development. Empat butir itu ditandai `NEEDS-DEVICE`.
 
-Seluruh sisi Android (M2–M6) belum dikerjakan.
+**M2 sebagian selesai.** Aplikasi terpasang dan berjalan di OPPO CPH2365, `NotificationListenerService` terdaftar di APK yang benar-benar terpasang, dan Notification Access sudah diberikan sehingga status ikatan menunjukkan `ya`. Yang belum: konfirmasi setelan anti-ColorOS, dan penangkapan notifikasi GoPay sungguhan yang baru ada setelah Task 8.
+
+`AmountParser`, `EventIdBuilder`, dan `Signer` beserta 20 unit testnya sudah ditulis tetapi **belum dijalankan** — Claude tidak menjalankan build di project ini, jadi statusnya `NEEDS-DEVICE` sampai Akbar menempelkan keluaran gradle. Vektor uji `SignerTest` dihasilkan dari implementasi Go, bukan dikarang, sehingga kedua implementasi HMAC dipaksa sepakat.
 
 **Bukti pokok — seluruh test:**
 
@@ -55,13 +57,20 @@ Empat butir menunggu akses VPS. Langkahnya ada di [`backend/deploy/README.md`](.
 
 Selain itu, `devicetool -name "HP GoPay Utama"` perlu dijalankan di VPS untuk menghasilkan `Device ID` dan `Device Secret` sungguhan yang dipakai M4.
 
+Dua butir lagi menunggu mesin development Akbar, karena Claude tidak menjalankan build:
+
+| # | Langkah | Hasil yang diharapkan | Laporkan |
+|---|---|---|---|
+| 5 | Empat setelan anti-ColorOS untuk **GoPay Bridge (Dev)**: izinkan aktivitas latar belakang, izinkan mulai otomatis, kunci di recent apps, matikan optimasi siaga tidur | Status di aplikasi tetap `aktif` + `ya` sesudahnya | Konfirmasi keempatnya selesai |
+| 6 | `cd mobile/android && ./gradlew :gopay-listener:testDebugUnitTest` | 20 test lulus: `AmountParserTest` (8), `EventIdBuilderTest` (5), `SignerTest` (7) | Keluaran ringkasnya |
+
 ---
 
 ## 3. Functional Requirements — [prd.md §11](../prd.md)
 
 | # | Requirement | Milestone | Status | Bukti |
 |---|---|---|---|---|
-| FR-01 | Notification Access terdeteksi | M2 | `PENDING` | — |
+| FR-01 | Notification Access terdeteksi | M2 | `PASS` | Setelah izin diberikan di HP, layar menampilkan `Notification Access: aktif` dan `Listener terikat: ya` — dilaporkan Akbar 2026-09-10 |
 | FR-02 | Notification Listener menerima event | M2 | `PENDING` | — |
 | FR-03 | Hanya memproses event GoPay | M3 | `PENDING` | — |
 | FR-04 | Parsing jadi event terstruktur | M3 | `PENDING` | — |
@@ -99,10 +108,10 @@ Selain itu, `devicetool -name "HP GoPay Utama"` perlu dijalankan di VPS untuk me
 
 | Butir | Milestone | Status | Bukti |
 |---|---|---|---|
-| Aplikasi berjalan di Android | M2 | `PENDING` | — |
-| TypeScript sebagai application language | M2 | `PENDING` | — |
-| Kotlin untuk Notification Listener | M2 | `PENDING` | — |
-| Notification Access dapat diaktifkan | M2 | `PENDING` | — |
+| Aplikasi berjalan di Android | M2 | `PASS` | `adb shell pm list packages` → `package:id.manjo.gopaybridge.dev`; aplikasi terbuka di OPPO CPH2365 |
+| TypeScript sebagai application language | M2 | `PASS` | `npx tsc --noEmit` bersih; `App.tsx` dan `modules/gopay-listener/index.ts` |
+| Kotlin untuk Notification Listener | M2 | `PASS` | `adb shell dumpsys package id.manjo.gopaybridge.dev` menampilkan `expo.modules.gopaylistener.GoPayListenerService` dengan permission `BIND_NOTIFICATION_LISTENER_SERVICE` dan action `android.service.notification.NotificationListenerService` |
+| Notification Access dapat diaktifkan | M2 | `PASS` | Tombol membuka `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`; izin diberikan dan status berubah jadi aktif |
 | Listener berjalan di background | M6 | `PENDING` | — |
 | Notifikasi GoPay terdeteksi | M2 | `PENDING` | — |
 | Notifikasi aplikasi lain diabaikan | M3 | `PENDING` | — |
@@ -162,7 +171,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Sub-project 3; di luar cakupan M1 |
 | Mode Discovery default mati, tidak mengirim keluar | `PENDING` | Sisi Android, M2 |
 | Channel "Promotions and Marketing" GoPay masih aktif | `NEEDS-DEVICE` | Perlu HP — diperiksa di M2 |
-| Setup ColorOS selesai | `NEEDS-DEVICE` | Perlu HP — diperiksa di M2 |
+| Setup ColorOS selesai | `NEEDS-DEVICE` | Empat langkah di §2 no. 5 — belum dikonfirmasi |
 
 ---
 
