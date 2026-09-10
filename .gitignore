@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+android/
+ios/
+*.apk
+*.keystore
+.env
+.env.*
+!.env.example
+backend/bin/
+tmp/
+.DS_Store
