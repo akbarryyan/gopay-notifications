@@ -82,10 +82,10 @@ Di sisi Android, secret disimpan dengan `expo-secure-store` dan **tidak pernah**
   "device_id": "dev_01ABC",
   "source": "gopay",
   "notification": {
-    "package_name": "com.example.gopay",
-    "title": "Kamu menerima Rp25.000",
-    "text": "dari Budi Santoso",
-    "big_text": null,
+    "package_name": "com.gojek.gopay",
+    "title": "Transfer masuk",
+    "text": "Rp25.000 dari icaangg udah masuk ke GoPay kamu.",
+    "big_text": "Rp25.000 dari icaangg udah masuk ke GoPay kamu.",
     "posted_at": 1789036200000
   },
   "amount_hint": 25000,
@@ -102,7 +102,7 @@ Di sisi Android, secret disimpan dengan `expo-secure-store` dan **tidak pernah**
 | `notification.title` | string \| null | ya | Mentah, apa adanya |
 | `notification.text` | string \| null | ya | Mentah, apa adanya |
 | `notification.big_text` | string \| null | ya | Sering null |
-| `notification.posted_at` | number | ya | Unix epoch **milidetik**, dari Android |
+| `notification.posted_at` | number | ya | Unix epoch **milidetik**. Berisi `Notification.when`; bila 0, berisi `sbn.postTime` |
 | `amount_hint` | number \| null | ya | **Petunjuk display-only**, lihat §4.3 |
 | `received_at` | string | ya | ISO 8601 dengan offset zona waktu |
 
@@ -111,12 +111,39 @@ Seluruh field notifikasi bersifat opsional isinya (boleh `null`) tetapi **wajib 
 ### 4.2 Pembentukan `event_id`
 
 ```
-event_id = "evt_" + sha256( packageName | notificationKey | postTime | title | text )[:32]
+event_id = "evt_" + sha256( packageName | title | text | when )[:32]
 ```
+
+`when` adalah `Notification.when`; bila 0, dipakai `sbn.postTime`.
 
 Deterministik, tanpa random. Android memanggil `onNotificationPosted` berkali-kali untuk notifikasi yang sama; hash membuat pengulangan itu menghasilkan id identik sehingga tersaring sendiri.
 
-### 4.3 Arti `amount_hint`
+`notificationKey` dan `postTime` sengaja **tidak** dipakai: GoPay memakai id `-1` tanpa tag sehingga key-nya konstan dan tidak menyumbang apa pun, sementara `postTime` berubah tiap notifikasi di-posting ulang sehingga justru memecah satu transfer menjadi beberapa event.
+
+### 4.3 Aturan arah transaksi (backend)
+
+Backend memakai **allowlist judul**, bukan blocklist:
+
+```
+title dalam allowlist   →  boleh dicocokkan ke pembayaran
+apa pun selain itu      →  disimpan, tidak pernah dianggap uang masuk
+```
+
+Allowlist awal berisi satu entri, dikonfirmasi dari perangkat target:
+
+```
+"Transfer masuk"
+```
+
+Allowlist adalah **konfigurasi, bukan kode** — menambah judul tidak menuntut deploy.
+
+Sifat kegagalannya disengaja: notifikasi yang belum pernah dilihat tertolak otomatis, sehingga pembayaran dapat *terlewat* tetapi tidak pernah *salah dianggap lunas*. Celah "terlewat" ditutup oleh `GET /events`, tempat event tak dikenali tetap terlihat untuk ditinjau.
+
+Format nominal yang wajib ditangani parser backend, dikonfirmasi dari perangkat target: `Rp1`, `Rp25.000`, `Rp 25.000`, `Rp25,000`.
+
+---
+
+### 4.4 Arti `amount_hint`
 
 Namanya sengaja canggung. Ini **bukan** pernyataan bahwa sebuah pembayaran terjadi.
 
@@ -126,7 +153,7 @@ Namanya sengaja canggung. Ini **bukan** pernyataan bahwa sebuah pembayaran terja
 
 Alasannya ada di [spec §2.2](superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md).
 
-### 4.4 Response
+### 4.5 Response
 
 **Diterima:**
 
@@ -146,7 +173,7 @@ Alasannya ada di [spec §2.2](superpowers/specs/2026-09-10-ingestion-and-android
 { "success": false, "error": "clock_skew", "message": "...", "server_time": 1789036500 }
 ```
 
-### 4.5 Tabel kode → tindakan HP
+### 4.6 Tabel kode → tindakan HP
 
 Tabel ini menentukan perilaku `EventUploadWorker` dan **wajib** diuji langsung terhadapnya.
 
@@ -166,7 +193,7 @@ Tabel ini menentukan perilaku `EventUploadWorker` dan **wajib** diuji langsung t
 
 `invalid_signature` dan `clock_skew` sama-sama 401 tetapi **wajib** dibedakan. Keduanya menuntut tindakan yang sama sekali berbeda: yang satu berarti secret salah, yang satu berarti jam HP perlu disetel. Tanpa pembedaan ini gejalanya identik dan menghabiskan waktu debugging.
 
-### 4.6 Idempotency di sisi backend
+### 4.7 Idempotency di sisi backend
 
 ```sql
 INSERT INTO notification_events (...) VALUES (...)
@@ -175,7 +202,7 @@ ON CONFLICT (event_id) DO NOTHING
 
 Jumlah baris terpengaruh menentukan `accepted` (1) atau `duplicate` (0). Tidak boleh memakai `SELECT` lebih dulu lalu `INSERT` — cara itu salah bila dua request identik tiba bersamaan.
 
-### 4.7 Pengiriman
+### 4.8 Pengiriman
 
 Satu event per request, dikirim berurutan dari antrean. Bukan batch. Bila satu event gagal permanen, event lain di antrean tetap jalan.
 

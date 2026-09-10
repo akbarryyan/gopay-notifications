@@ -40,8 +40,16 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 - **Native adalah satu-satunya pemilik database.** TypeScript membaca lewat native module, tidak pernah membuka file DB sendiri.
 - **Parsing nominal di HP bersifat display-only.** Backend melakukan ekstraksi otoritatifnya sendiri dari teks mentah.
 - **Arah transaksi (uang masuk vs keluar) ditentukan backend, bukan HP.** Salah dalam hal ini berarti order ditandai lunas padahal tidak ada uang masuk.
-- **Package GoPay tidak di-hardcode.** Disimpan sebagai daftar yang dapat diedit; ditemukan lewat mode Discovery.
+- **Package GoPay `com.gojek.gopay`** — terkonfirmasi di perangkat, tetapi tetap disimpan sebagai daftar yang dapat diedit, bukan konstanta di kode.
+- **Arah transaksi ditentukan allowlist judul, bukan blocklist.** Entri awal: `Transfer masuk`. Yang tidak dikenali ditolak, bukan ditebak.
+- **`event_id` dihitung dari `packageName | title | text | when`** — bukan dari `notificationKey` (konstan di GoPay) atau `postTime` (berubah tiap repost).
 - **Tanda tangan HMAC dihitung dari byte mentah body**, diverifikasi sebelum decode JSON.
+
+## Perangkat target
+
+ColorOS (OPPO/Realme/OnePlus) — pembunuh background process paling agresif. Setiap keputusan soal ketahanan service harus diuji di sana, tidak boleh diasumsikan dari perilaku Android standar.
+
+Notifikasi transfer masuk GoPay memakai channel **"Promotions and Marketing"**. Jangan pernah menyarankan mematikan channel itu — mematikannya mematikan seluruh sistem tanpa gejala.
 
 ## Perintah
 

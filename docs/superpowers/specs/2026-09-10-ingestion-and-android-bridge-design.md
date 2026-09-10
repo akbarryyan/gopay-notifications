@@ -69,16 +69,22 @@ Baris kedua berbahaya: membayar Rp25.000 ke merchant juga memicu notifikasi beri
 
 Untuk mengurangi noise promo, Settings menyediakan **daftar kata-diabaikan** yang dapat diedit tanpa rebuild. Default konservatif — bila ragu, tetap kirim. Lebih baik backend menolak sepuluh promo daripada satu transfer asli tersaring diam-diam di HP.
 
+**Aturan arah di backend berupa allowlist judul, bukan blocklist.** Hanya judul yang terdaftar yang boleh dicocokkan ke pembayaran; apa pun selain itu disimpan tetapi tidak pernah dianggap uang masuk. Konsekuensinya notifikasi yang belum pernah dilihat tertolak otomatis — kegagalannya bersifat aman: pembayaran bisa terlewat, tetapi tidak pernah salah dianggap lunas.
+
+Celah "terlewat" ditutup oleh visibilitas: setiap event tetap tersimpan dan terlihat di `GET /events`. Bila suatu saat muncul transfer masuk berjudul lain (dari bank, dari QRIS), event-nya terlihat sebagai tidak dikenali dan judulnya tinggal ditambahkan. Allowlist adalah **konfigurasi, bukan kode** — menambah judul tidak menuntut deploy.
+
+Karena keamanan sudah dijamin allowlist di backend, daftar kata-diabaikan di HP berfungsi murni sebagai pengurang noise dan **default-nya kosong**.
+
 **Catatan privasi:** notifikasi transfer pribadi memuat nama pengirim, dan nama itu ikut terkirim ke backend. Diperlukan untuk matching, tetapi harus tercermin dalam kebijakan retensi.
 
 ### 2.4 Package GoPay tidak di-hardcode
 
-Package identifier tidak diketahui saat spec ini ditulis dan tidak boleh ditebak — salah satu huruf saja membuat aplikasi tidak pernah menerima satu event pun, dengan gejala yang identik dengan Notification Access belum aktif.
+Package sudah terkonfirmasi di perangkat target sebagai `com.gojek.gopay` (lihat §2.6), tetapi tetap **tidak di-hardcode**. Salah satu huruf saja membuat aplikasi tidak pernah menerima satu event pun, dengan gejala yang identik dengan Notification Access belum aktif — dan nama package dapat berubah antar versi aplikasi.
 
 - Package yang dipantau disimpan sebagai **daftar**, dapat diedit di Settings tanpa rebuild.
 - **Mode Discovery** di layar Debug: default mati, mati otomatis setelah 10 menit, mencatat *hanya* nama package dan judul ke penyimpanan lokal, **tidak pernah mengirim apa pun keluar HP**.
 
-Ini menyelesaikan Open Question #1 dan #2 di [prd.md §20](../../prd.md) secara mandiri di lapangan.
+Mode Discovery tetap dibangun meski package sudah diketahui: ia yang akan dipakai bila GoPay mengganti package di masa depan, dan untuk memeriksa apa yang sebenarnya sampai ke listener saat sesuatu tidak bekerja.
 
 ### 2.5 Auth memakai HMAC signature
 
@@ -89,6 +95,32 @@ Bearer token ditolak karena token ikut terkirim di setiap request; satu kebocora
 Yang tidak dilindungi: HP yang jatuh ke tangan orang dan di-root. Penangkalnya bukan kriptografi melainkan kemampuan **mencabut device** dari sisi backend.
 
 Distribusi secret: di-generate di backend, ditempel manual sekali di Settings, disimpan dengan `expo-secure-store`. Tidak perlu alur pairing untuk satu device.
+
+### 2.6 Data lapangan terkonfirmasi (2026-09-10)
+
+Diambil dari perangkat target dengan `adb shell dumpsys notification --noredact` atas satu transfer masuk sungguhan.
+
+| | |
+|---|---|
+| Package | `com.gojek.gopay` |
+| Title | `Transfer masuk` |
+| Text | `Rp1 dari icaangg udah masuk ke GoPay kamu.` |
+| BigText | identik dengan text |
+| Notification id / tag | `-1` / `null` — **konstan untuk semua notifikasi GoPay** |
+| Channel | `promotional_notifications` ("Promotions and Marketing") |
+| Perangkat | ColorOS (OPPO/Realme/OnePlus) |
+
+Empat hal yang mengikat desain:
+
+**Judul `Transfer masuk` adalah pembeda arah yang bersih.** Ia menjadi entri pertama allowlist backend.
+
+**Format nominal `Rp1`** — tanpa spasi, tanpa pemisah ribuan untuk angka kecil. Parser wajib menangani `Rp1` sekaligus `Rp25.000`.
+
+**Channel-nya adalah channel promosi.** Notifikasi transaksi dan notifikasi promo berbagi channel yang sama, sehingga channel tidak dapat dipakai sebagai penyaring. Lebih penting: **channel "Promotions and Marketing" tidak boleh dimatikan di HP** — mematikannya ikut mematikan notifikasi transfer masuk, dan seluruh sistem berhenti bekerja tanpa gejala yang jelas. Ini masuk pemeriksaan QA.
+
+**Id notifikasi konstan** — dasar perubahan formula `event_id` di §4.1.
+
+Sampel notifikasi uang keluar dan promo sengaja **tidak dikumpulkan**. Dengan pendekatan allowlist, keduanya tidak perlu dikenali — cukup tidak cocok dengan allowlist, dan itu terjadi dengan sendirinya.
 
 ---
 
@@ -158,12 +190,20 @@ Expo Go tidak dapat dipakai sama sekali — ia berisi kumpulan native module tet
 Dibuat di Kotlin, deterministik, tanpa random:
 
 ```
-event_id = "evt_" + sha256( packageName | notificationKey | postTime | title | text )[:32]
+event_id = "evt_" + sha256( packageName | title | text | when )[:32]
 ```
+
+`when` adalah `Notification.when` — timestamp yang ditetapkan aplikasi. Bila bernilai 0, dipakai `sbn.postTime` sebagai cadangan.
 
 Android memanggil `onNotificationPosted` berkali-kali untuk notifikasi yang sama (saat di-update, saat grup berubah). Dengan UUID acak, satu transfer bisa terkirim tiga kali sebagai tiga event berbeda dan backend tidak punya cara tahu itu satu. Dengan hash, ketiganya menghasilkan id identik dan tersaring sendiri.
 
-Dua transfer asli dengan nominal dan pengirim sama tetap aman dibedakan karena `postTime` beresolusi milidetik.
+**Dua bahan sengaja tidak dipakai**, berdasarkan temuan lapangan di §2.6:
+
+`notificationKey` tidak dipakai karena GoPay memakai id `-1` tanpa tag untuk seluruh notifikasinya, sehingga key-nya identik untuk setiap notifikasi dan tidak menyumbang apa pun ke hash.
+
+`postTime` tidak dipakai sebagai bahan utama karena nilainya **berubah setiap kali notifikasi di-posting ulang**. Memakainya berarti satu transfer yang di-repost GoPay menghasilkan dua `event_id` berbeda dan terkirim dua kali — persis kebalikan dari tujuan formula ini. `when` bertahan lintas repost.
+
+Dua transfer asli dari pengirim yang sama dengan nominal sama tetap aman dibedakan karena `when` beresolusi milidetik.
 
 ### 4.2 Tabel `events` di HP (Room)
 
@@ -276,6 +316,16 @@ Risiko terbesar bukan Android melainkan lapisan hemat baterai Xiaomi/Oppo/Vivo/S
 1. `onListenerDisconnected` memanggil `requestRebind`.
 2. Dashboard menampilkan **status ikatan yang sebenarnya**, bukan sekadar "izin sudah diberikan". Selisih antara keduanya justru gejala HP membunuh service.
 3. Saat setup, aplikasi mengarahkan user mematikan optimasi baterai untuk aplikasi ini.
+4. Dashboard menampilkan **berapa lama sejak event terakhir**. Bila ColorOS diam-diam membunuh service, gejalanya terlihat sebagai "tidak ada event selama 3 hari" alih-alih tidak terlihat sama sekali.
+
+**Perangkat target menjalankan ColorOS**, salah satu yang paling agresif. Langkah berikut wajib, bukan opsional, dan masuk daftar `NEEDS-DEVICE` di M2:
+
+- Settings → Baterai → Manajemen baterai aplikasi → aplikasi ini → **Izinkan aktivitas latar belakang**, jangan dioptimalkan
+- Settings → Apps → Manajemen aplikasi → aplikasi ini → **Izinkan mulai otomatis**
+- Di layar recent apps, **kunci** aplikasi agar tidak ikut terhapus saat *clear all*
+- Settings → Baterai → **Optimasi siaga tidur** → matikan
+
+Keputusan "tanpa foreground service" tetap berlaku, tetapi M6 yang menentukan apakah ia bertahan. Bila uji ketahanan gagal di perangkat ini, foreground service ditambahkan.
 
 ### 6.5 Layar
 
@@ -327,13 +377,13 @@ Daftar di [detail-project.md §35](../../detail-project.md) dipakai apa adanya, 
 |---|---|
 | **M0** | Repo, `git init`, kontrak API, aturan QA |
 | **M1** | Backend Go jalan di VPS: `/health`, `/callback`, HMAC, Postgres, idempotency |
-| **M2** | Aplikasi terpasang di HP, Notification Access aktif, **mode Discovery menangkap package GoPay asli + contoh teks** ← titik penentu |
+| **M2** | Aplikasi terpasang di HP, Notification Access aktif, setup ColorOS selesai, **listener benar-benar menangkap notifikasi GoPay sungguhan** ← titik penentu |
 | **M3** | Room, penangkapan event, `event_id`, parser nominal |
 | **M4** | WorkManager + pengiriman ber-HMAC + retry — **transfer sungguhan sampai ke VPS** |
 | **M5** | Dashboard, History, Settings, Debug |
 | **M6** | Uji ketahanan: restart, mode pesawat, didiamkan berhari-hari |
 
-M2 sengaja mendahului pembangunan pipeline. Di sanalah dua asumsi terbesar project ini diuji: bahwa notifikasi GoPay bisa ditangkap sama sekali, dan bahwa isinya cukup informatif untuk dicocokkan nanti.
+M2 sengaja mendahului pembangunan pipeline. Isi notifikasi sudah terbukti memadai lewat §2.6, sehingga yang tersisa untuk dibuktikan adalah yang tidak dapat dibuktikan lewat `adb`: bahwa `NotificationListenerService` kita sendiri benar-benar menerima event itu di perangkat ColorOS, dan tetap menerimanya setelah beberapa jam.
 
 M1 mendahului M2 karena begitu backend hidup, ia sekaligus menjadi alat ukur — setiap event yang dikirim HP dapat langsung dilihat masuk atau tidak.
 
@@ -364,8 +414,9 @@ Merujuk [prd.md §20](../../prd.md):
 
 | # | Pertanyaan | Jawaban |
 |---|---|---|
-| 1 | Package identifier GoPay | Belum diketahui — ditemukan di M2 lewat mode Discovery, disimpan sebagai daftar yang dapat diedit |
-| 2 | Format notifikasi sebenarnya | Sampel dikumpulkan di M2 |
+| 1 | Package identifier GoPay | **`com.gojek.gopay`** — terkonfirmasi, lihat §2.6. Tetap disimpan sebagai daftar yang dapat diedit |
+| 2 | Format notifikasi sebenarnya | **Terkonfirmasi**, lihat §2.6 |
+| 3 | Informasi yang tersedia pada notifikasi | **Terkonfirmasi**: title, text, bigText, when. Tidak ada nomor referensi transaksi |
 | 4 | Teknologi backend | Go + PostgreSQL + Caddy di VPS |
 | 5 | Format endpoint callback | `POST /api/v1/callback/gopay`, lihat `api-contract.md` |
 | 6 | Mekanisme authentication | HMAC-SHA256 + toleransi timestamp ±5 menit |
@@ -379,4 +430,6 @@ Merujuk [prd.md §20](../../prd.md):
 | 14 | Heartbeat dari device | Tidak. `last_seen_at` diperbarui dari request yang memang terjadi |
 | 15 | Menangani perubahan format notifikasi | Aturan otoritatif di backend, cukup deploy — tanpa rilis APK |
 
-Nomor 3 (informasi apa saja yang tersedia pada notifikasi) baru terjawab di M2.
+Seluruh Open Question yang berada dalam cakupan sub-project 1 + 2 kini terjawab. Nomor 8 dan 9 tetap menjadi urusan sub-project 3.
+
+Satu hal yang terkonfirmasi dan penting untuk sub-project 3: notifikasi **tidak memuat nomor referensi transaksi apa pun**. Ini mengunci pendekatan nominal unik sebagai satu-satunya jalur matching yang praktis.

@@ -2,7 +2,7 @@
 
 **Milestone terakhir diperiksa:** M0 — Repo, kontrak API, aturan QA
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 0 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 0 · `PENDING` 62
+**Ringkasan:** `PASS` 0 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 0 · `PENDING` 65
 
 ---
 
@@ -86,7 +86,7 @@ Belum ada. Bagian ini akan terisi mulai M2, dan merupakan bagian yang menuntut t
 
 ---
 
-## 6. Tabel kode → tindakan — [api-contract.md §4.5](../api-contract.md)
+## 6. Tabel kode → tindakan — [api-contract.md §4.6](../api-contract.md)
 
 | Kondisi | Tindakan yang diharapkan | Milestone | Status | Bukti |
 |---|---|---|---|---|
@@ -102,7 +102,7 @@ Belum ada. Bagian ini akan terisi mulai M2, dan merupakan bagian yang menuntut t
 
 ---
 
-## 7. Pemeriksaan keamanan — [qa-rules.md §9](qa-rules.md)
+## 7. Pemeriksaan keamanan & prasyarat lingkungan — [qa-rules.md §9](qa-rules.md)
 
 | Pemeriksaan | Status | Bukti |
 |---|---|---|
@@ -114,6 +114,9 @@ Belum ada. Bagian ini akan terisi mulai M2, dan merupakan bagian yang menuntut t
 | Idempotency memakai constraint database | `PENDING` | — |
 | Build production menolak HTTP polos | `PENDING` | — |
 | Mode Discovery default mati, tidak mengirim keluar | `PENDING` | — |
+| Aturan arah berupa allowlist, bukan blocklist | `PENDING` | — |
+| Channel "Promotions and Marketing" GoPay masih aktif | `PENDING` | — |
+| Setup ColorOS selesai (background, auto-start, lock, siaga tidur) | `PENDING` | — |
 
 ---
 
@@ -133,4 +136,10 @@ Tidak berlaku — ini baseline.
 
 ## 10. Temuan & tindak lanjut
 
-Satu hal yang perlu diketahui sejak sekarang: **package identifier GoPay belum diketahui** dan sengaja tidak ditebak. Ia ditemukan di M2 lewat mode Discovery. Sampai saat itu, seluruh butir yang bergantung pada penyaringan GoPay tidak dapat diverifikasi dengan cara apa pun.
+**Diselesaikan sebelum M1 dimulai.** Package identifier, format notifikasi, dan bentuk teks transfer masuk sudah terkonfirmasi langsung dari perangkat target lewat `adb` — lihat §2.6 spec. Ini menutup Open Question #1, #2, dan #3 di PRD tanpa menunggu M2, dan membuat aturan parsing backend disusun dari teks sungguhan alih-alih tebakan.
+
+**Dua risiko yang perlu diawasi:**
+
+Perangkat target menjalankan **ColorOS**, salah satu pembunuh background process paling agresif. Keputusan "tanpa foreground service" di §6.3 spec belum terbukti bertahan di sana — M6 yang akan menentukan, dan bila gagal, foreground service ditambahkan.
+
+Notifikasi transfer masuk memakai channel **"Promotions and Marketing"**. Mematikan channel itu di HP akan mematikan seluruh sistem tanpa gejala yang jelas, sehingga statusnya diperiksa tiap siklus QA.

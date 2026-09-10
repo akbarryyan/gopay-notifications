@@ -37,7 +37,7 @@ Laporan wajib memuat tabel yang memetakan **setiap** butir berikut ke bukti konk
 - `FR-01` sampai `FR-10` dari [prd.md §11](../prd.md)
 - Seluruh kotak centang [Acceptance Criteria di prd.md §16](../prd.md)
 - Seluruh kotak centang [Definition of Done di detail-project.md §42](../detail-project.md)
-- Seluruh baris tabel kode → tindakan di [api-contract.md §4.5](../api-contract.md)
+- Seluruh baris tabel kode → tindakan di [api-contract.md §4.6](../api-contract.md)
 
 Butir yang belum tersentuh milestone berjalan ditandai `PENDING`, **bukan dihilangkan dari tabel**. Yang hilang dari tabel tidak akan pernah teringat lagi.
 
@@ -113,7 +113,7 @@ Tujuannya agar perbedaan antara dokumen dan kenyataan selalu terlihat, dan tidak
 
 ---
 
-## 9. Pemeriksaan keamanan wajib
+## 9. Pemeriksaan keamanan & prasyarat lingkungan
 
 Dijalankan setiap siklus QA, tanpa kecuali, karena endpoint ini menentukan order ditandai lunas:
 
@@ -125,6 +125,12 @@ Dijalankan setiap siklus QA, tanpa kecuali, karena endpoint ini menentukan order
 - [ ] Idempotency memakai constraint database, bukan `SELECT` lebih dulu.
 - [ ] Build production menolak HTTP polos.
 - [ ] Mode Discovery default mati dan tidak pernah mengirim apa pun keluar HP.
+- [ ] Aturan arah transaksi berupa **allowlist** judul, bukan blocklist.
+
+Prasyarat lingkungan di HP — bukan soal kode, tetapi kegagalannya membuat seluruh sistem diam tanpa gejala:
+
+- [ ] Channel notifikasi **"Promotions and Marketing"** milik `com.gojek.gopay` masih aktif. Notifikasi transfer masuk memakai channel ini; mematikannya mematikan seluruh sistem.
+- [ ] Setup ColorOS selesai: aktivitas latar belakang diizinkan, auto-start aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati.
 
 ---
 
@@ -143,7 +149,7 @@ Milestone terakhir diperiksa · tanggal · ringkasan hitungan status
 ## 3. Functional Requirements (FR-01..FR-10)
 ## 4. Acceptance Criteria (prd.md §16)
 ## 5. Definition of Done (detail-project.md §42)
-## 6. Tabel kode → tindakan (api-contract.md §4.5)
+## 6. Tabel kode → tindakan (api-contract.md §4.6)
 ## 7. Pemeriksaan keamanan
 ## 8. Penyimpangan dari spec
 ## 9. Regresi
