@@ -1,7 +1,5 @@
 node_modules/
 .expo/
-android/
-ios/
 *.apk
 *.keystore
 .env
@@ -11,9 +9,9 @@ backend/bin/
 tmp/
 .DS_Store
 
-# Expo / React Native
-mobile/node_modules/
-mobile/.expo/
-mobile/android/
-mobile/ios/
-mobile/*.apk
+# Hanya folder hasil prebuild yang diabaikan. Jangan pakai pola "android/"
+# telanjang — itu cocok dengan direktori bernama android di level mana pun,
+# termasuk mobile/modules/<nama>/android/ yang berisi kode Kotlin dan WAJIB
+# ikut ter-commit.
+/mobile/android/
+/mobile/ios/
