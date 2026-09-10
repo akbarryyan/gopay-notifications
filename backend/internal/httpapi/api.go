@@ -28,6 +28,7 @@ func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", a.handleHealth)
 	mux.Handle("GET /api/v1/device/me", a.requireDevice(http.HandlerFunc(a.handleDeviceMe)))
+	mux.Handle("POST /api/v1/callback/gopay", a.requireDevice(http.HandlerFunc(a.handleCallback)))
 	return mux
 }
 
