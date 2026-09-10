@@ -2,7 +2,7 @@
 
 **Milestone terakhir diperiksa:** M1 selesai · M2 sebagian (aplikasi terpasang, Notification Access aktif)
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 26 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 4 · `PENDING` 39
+**Ringkasan:** `PASS` 28 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 3 · `PENDING` 39
 
 ---
 
@@ -14,7 +14,9 @@ Yang **belum** terbukti adalah apa pun yang menuntut VPS: sertifikat HTTPS sungg
 
 **M2 sebagian selesai.** Aplikasi terpasang dan berjalan di OPPO CPH2365, `NotificationListenerService` terdaftar di APK yang benar-benar terpasang, dan Notification Access sudah diberikan sehingga status ikatan menunjukkan `ya`. Yang belum: konfirmasi setelan anti-ColorOS, dan penangkapan notifikasi GoPay sungguhan yang baru ada setelah Task 8.
 
-`AmountParser`, `EventIdBuilder`, dan `Signer` beserta 20 unit testnya sudah ditulis tetapi **belum dijalankan** — Claude tidak menjalankan build di project ini, jadi statusnya `NEEDS-DEVICE` sampai Akbar menempelkan keluaran gradle. Vektor uji `SignerTest` dihasilkan dari implementasi Go, bukan dikarang, sehingga kedua implementasi HMAC dipaksa sepakat.
+`AmountParser`, `EventIdBuilder`, dan `Signer` lulus seluruh 20 unit testnya. Empat di antaranya membandingkan keluaran Kotlin dengan vektor yang dihasilkan dari implementasi Go di `backend/internal/auth` — kedua implementasi HMAC karena itu terbukti sepakat, bukan sekadar sama-sama tampak benar.
+
+Setelan anti-ColorOS sudah dikerjakan. Ketahanannya belum terbukti: itu baru diuji di M6, saat HP didiamkan semalaman.
 
 **Bukti pokok — seluruh test:**
 
@@ -57,12 +59,7 @@ Empat butir menunggu akses VPS. Langkahnya ada di [`backend/deploy/README.md`](.
 
 Selain itu, `devicetool -name "HP GoPay Utama"` perlu dijalankan di VPS untuk menghasilkan `Device ID` dan `Device Secret` sungguhan yang dipakai M4.
 
-Dua butir lagi menunggu mesin development Akbar, karena Claude tidak menjalankan build:
-
-| # | Langkah | Hasil yang diharapkan | Laporkan |
-|---|---|---|---|
-| 5 | Empat setelan anti-ColorOS untuk **GoPay Bridge (Dev)**: izinkan aktivitas latar belakang, izinkan mulai otomatis, kunci di recent apps, matikan optimasi siaga tidur | Status di aplikasi tetap `aktif` + `ya` sesudahnya | Konfirmasi keempatnya selesai |
-| 6 | `cd mobile/android && ./gradlew :gopay-listener:testDebugUnitTest` | 20 test lulus: `AmountParserTest` (8), `EventIdBuilderTest` (5), `SignerTest` (7) | Keluaran ringkasnya |
+Dua butir sisi Android yang sempat menunggu sudah selesai 2026-09-10: setelan anti-ColorOS dan unit test Kotlin. Keduanya kini tercatat sebagai `PASS` di bawah.
 
 ---
 
@@ -73,7 +70,8 @@ Dua butir lagi menunggu mesin development Akbar, karena Claude tidak menjalankan
 | FR-01 | Notification Access terdeteksi | M2 | `PASS` | Setelah izin diberikan di HP, layar menampilkan `Notification Access: aktif` dan `Listener terikat: ya` — dilaporkan Akbar 2026-09-10 |
 | FR-02 | Notification Listener menerima event | M2 | `PENDING` | — |
 | FR-03 | Hanya memproses event GoPay | M3 | `PENDING` | — |
-| FR-04 | Parsing jadi event terstruktur | M3 | `PENDING` | — |
+| FR-04 | Parsing nominal dan `event_id` (unit) | M3 | `PASS` | `./gradlew :gopay-listener:testDebugUnitTest` → BUILD SUCCESSFUL; `build/test-results/testDebugUnitTest/*.xml` mencatat `tests=20 failures=0 errors=0 skipped=0` (AmountParserTest 8, EventIdBuilderTest 5, SignerTest 7) |
+| FR-04 | Notifikasi jadi event terstruktur (pipeline) | M3 | `PENDING` | Butuh Task 8 |
 | FR-05 | Kirim event via HTTPS | M4 | `PENDING` | Sisi penerima siap; pengirim belum ada |
 | FR-06 | Autentikasi request — sisi backend | M1 | `PASS` | `TestVerifyRejectsModifiedBody`, `TestVerifyRejectsWrongSecret`, `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, `TestAuthRejectsDisabledDevice`, `TestAuthRejectsMissingHeaders` (3 subtest), e2e no. 3 |
 | FR-06 | Autentikasi request — sisi Android | M4 | `PENDING` | — |
@@ -171,7 +169,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Sub-project 3; di luar cakupan M1 |
 | Mode Discovery default mati, tidak mengirim keluar | `PENDING` | Sisi Android, M2 |
 | Channel "Promotions and Marketing" GoPay masih aktif | `NEEDS-DEVICE` | Perlu HP — diperiksa di M2 |
-| Setup ColorOS selesai | `NEEDS-DEVICE` | Empat langkah di §2 no. 5 — belum dikonfirmasi |
+| Setup ColorOS selesai | `PASS` | Keempat setelan dikerjakan Akbar 2026-09-10: aktivitas latar belakang diizinkan, mulai otomatis aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati. Ketahanannya baru diuji di M6 |
 
 ---
 
