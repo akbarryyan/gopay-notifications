@@ -2,7 +2,7 @@
 
 **Milestone terakhir diperiksa:** M1, M2, M3 selesai · **M4 terbukti lewat backend lokal** — pembayaran sungguhan menempuh seluruh rantai sampai tersimpan di Postgres
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 59 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 7
+**Ringkasan:** `PASS` 60 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 6
 
 ---
 
@@ -147,7 +147,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Credential tidak hardcoded | M1 | `PASS` | `grep -rn 'DEVICE_SECRET_KEY' --include='*.go'` hanya menemukan pembacaan `os.Getenv` di `internal/config/config.go:33` dan teks bantuan flag |
 | Menangani network failure | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 | Dapat diuji saat UI tidak terbuka | M6 | `PENDING` | — |
-| Diuji pada physical Android device | M6 | `PENDING` | — |
+| Diuji pada physical Android device | M6 | `PASS` | Seluruh pengujian sejak M2 dilakukan di OPPO CPH2365 Android 13 dengan pembayaran QRIS sungguhan — penangkapan, penyaringan, penyimpanan, pengiriman, retry, dan kegagalan autentikasi |
 
 ---
 
@@ -160,10 +160,10 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | `200 accepted` | → `SENT` | `PASS` | `TestCallbackFirstTimeReturnsAccepted`, e2e no. 1, dan terbukti di perangkat: Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
 | `200 duplicate` | → `SENT`, bukan error | `PASS` | `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2 |
 | `400 invalid_payload` | → `FAILED`, tanpa retry | `PASS` | `TestCallbackRejectsMalformedJSON`, `TestCallbackRejectsInvalidFields` (7 subtest) |
-| `401 invalid_signature` | → `FAILED`, peringatan kredensial | `PASS` | `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, e2e no. 3 |
+| `401 invalid_signature` | → `FAILED`, peringatan kredensial | `PASS` | `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, e2e no. 3, dan **terbukti di perangkat**: Device Secret sengaja disalahkan → pembayaran sungguhan langsung `FAILED` dengan `invalid_signature` dan berhenti mencoba; setelah secret diperbaiki, Kirim ulang menghasilkan `SENT` dengan `Backend: accepted` dan baris masuk `gopay_dev` pukul 16:21:53. 2026-09-11 |
 | `401 clock_skew` | → `FAILED`, pesan jam meleset + jam server | `PASS` | `TestAuthRejectsClockSkewWithServerTime`, e2e no. 4 (`server_time` disertakan) |
 | `403 device_disabled` | → `FAILED`, tanpa retry | `PASS` | `TestAuthRejectsDisabledDevice` |
-| `429` | tetap `PENDING`, hormati `Retry-After` | `PENDING` | Perilaku sisi HP, M4 |
+| `429` | tetap `PENDING`, hormati `Retry-After` | `PENDING` | Backend kita tidak menerapkan rate limiting sehingga `429` tidak dapat dihasilkan darinya; ia hanya mungkin datang dari Caddy di depan. Pemetaannya diuji `ResponseMapperTest`, perilaku di perangkat belum pernah terpicu |
 | `5xx` | tetap `PENDING`, retry | `PENDING` | Perilaku sisi HP, M4 |
 | timeout / jaringan mati | tetap `PENDING`, retry | `PASS` | Backend ditolak koneksinya (server mati) → `IOException` → `Retry("network")`, event bertahan `PENDING` lalu terkirim saat server hidup. Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 
