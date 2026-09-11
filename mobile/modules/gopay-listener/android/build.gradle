@@ -38,9 +38,17 @@ dependencies {
   // antara keduanya.
   implementation 'androidx.security:security-crypto:1.1.0'
 
+  implementation 'androidx.work:work-runtime-ktx:2.11.2'
+  // OkHttp 4.x, bukan 5.x. API 5 mengubah bentuk response.body dan memindahkan
+  // mockwebserver ke paket baru; 4.12.0 sudah cukup dan jauh lebih dikenal.
+  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
   testImplementation 'junit:junit:4.13.2'
   // Room butuh runtime Android; Robolectric menyediakannya di JVM sehingga
   // test DAO tidak memerlukan emulator atau perangkat.
   testImplementation 'org.robolectric:robolectric:4.14.1'
   testImplementation 'androidx.test:core:1.6.1'
+  // Menguji bentuk request yang benar-benar dikirim — header dan byte body —
+  // tanpa menyentuh jaringan sungguhan.
+  testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
 }

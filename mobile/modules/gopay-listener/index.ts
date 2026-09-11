@@ -25,6 +25,22 @@ export interface DiscoveryEntry {
   seenAt: number
 }
 
+export interface BackendHealth {
+  configured: boolean
+  reachable: boolean
+  serverTime?: number | null
+  /** Selisih jam server dikurangi jam HP, dalam detik. */
+  skewSeconds?: number | null
+  /** true bila selisihnya melebihi toleransi backend (±300 detik). */
+  clockOutOfSync?: boolean
+}
+
+export interface ConnectionTest {
+  ok: boolean
+  deviceName?: string
+  error?: string
+}
+
 interface GopayListenerModule {
   /** Apakah user sudah memberi Notification Access lewat Android Settings. */
   isNotificationAccessGranted(): boolean
@@ -44,6 +60,11 @@ interface GopayListenerModule {
   stopDiscovery(): void
   getDiscoveryEntries(): DiscoveryEntry[]
   clearDiscovery(): void
+
+  /** Status backend untuk Dashboard, sekaligus deteksi jam HP yang meleset. */
+  checkBackend(): Promise<BackendHealth>
+  /** Tombol Test Connection di Settings. */
+  testConnection(): Promise<ConnectionTest>
 }
 
 export default requireNativeModule<GopayListenerModule>('GopayListener')

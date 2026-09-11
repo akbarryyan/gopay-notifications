@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings as AndroidSettings
 import expo.modules.gopaylistener.config.Settings
 import expo.modules.gopaylistener.discovery.DiscoveryLog
+import expo.modules.gopaylistener.net.Uploader
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -95,6 +96,37 @@ class GopayListenerModule : Module() {
 
         Function("clearDiscovery") {
             DiscoveryLog.clear(context)
+        }
+
+        /**
+         * Status backend untuk Dashboard. Sekaligus mendeteksi jam HP yang
+         * meleset SEBELUM ada event yang dikirim — tanpa ini, gejalanya
+         * muncul belakangan sebagai kegagalan autentikasi yang membingungkan.
+         */
+        AsyncFunction("checkBackend") {
+            val url = Settings(context).backendUrl
+            if (url.isEmpty()) {
+                return@AsyncFunction mapOf("configured" to false, "reachable" to false)
+            }
+
+            val (reachable, serverTime) = Uploader.health(url)
+            val skewSeconds = serverTime?.let { it - System.currentTimeMillis() / 1000 }
+
+            mapOf(
+                "configured" to true,
+                "reachable" to reachable,
+                "serverTime" to serverTime,
+                "skewSeconds" to skewSeconds,
+                // Batas yang sama dengan backend, agar peringatan muncul
+                // sebelum request sungguhan ditolak.
+                "clockOutOfSync" to (skewSeconds != null && kotlin.math.abs(skewSeconds) > 300),
+            )
+        }
+
+        AsyncFunction("testConnection") {
+            val cfg = Settings(context).config()
+                ?: return@AsyncFunction mapOf("ok" to false, "error" to "belum_dikonfigurasi")
+            Uploader.deviceMe(cfg)
         }
     }
 
