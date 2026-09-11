@@ -4,8 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings as AndroidSettings
 import expo.modules.gopaylistener.config.Settings
+import android.os.Bundle
+import expo.modules.gopaylistener.db.AppDatabase
+import expo.modules.gopaylistener.db.EventEntity
+import expo.modules.gopaylistener.db.EventStatus
 import expo.modules.gopaylistener.discovery.DiscoveryLog
 import expo.modules.gopaylistener.net.Uploader
+import expo.modules.gopaylistener.work.UploadScheduler
+import java.lang.ref.WeakReference
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -30,8 +36,28 @@ class GopayListenerModule : Module() {
     private val context: Context
         get() = requireNotNull(appContext.reactContext) { "reactContext tidak tersedia" }
 
+    private var captureObserver: ((Bundle) -> Unit)? = null
+
     override fun definition() = ModuleDefinition {
         Name("GopayListener")
+
+        Events(EVENT_CAPTURED)
+
+        // WeakReference wajib: observer disimpan di objek statis CaptureBus,
+        // dan tanpa ini instance module tertahan di memori setelah UI ditutup.
+        OnStartObserving(EVENT_CAPTURED) {
+            val weakModule = WeakReference(this@GopayListenerModule)
+            val observer: (Bundle) -> Unit = { payload ->
+                weakModule.get()?.sendEvent(EVENT_CAPTURED, payload)
+            }
+            captureObserver = observer
+            CaptureBus.register(observer)
+        }
+
+        OnStopObserving(EVENT_CAPTURED) {
+            captureObserver?.let { CaptureBus.unregister(it) }
+            captureObserver = null
+        }
 
         Function("isNotificationAccessGranted") {
             isAccessGranted()
@@ -128,6 +154,50 @@ class GopayListenerModule : Module() {
                 ?: return@AsyncFunction mapOf("ok" to false, "error" to "belum_dikonfigurasi")
             Uploader.deviceMe(cfg)
         }
+
+        Function("getStatus") {
+            val dao = AppDatabase.get(context).events()
+            mapOf(
+                "notificationAccessGranted" to isAccessGranted(),
+                "listenerConnected" to GoPayListenerService.isConnected,
+                "pendingCount" to dao.countByStatus(EventStatus.PENDING),
+                "sendingCount" to dao.countByStatus(EventStatus.SENDING),
+                "failedCount" to dao.countByStatus(EventStatus.FAILED),
+                "lastEvent" to dao.latest()?.let { toMap(it) },
+            )
+        }
+
+        Function("getEvents") { limit: Int ->
+            AppDatabase.get(context).events().recent(limit.coerceIn(1, 500)).map { toMap(it) }
+        }
+
+        Function("retryEvent") { eventId: String ->
+            AppDatabase.get(context).events().rescheduleForRetry(eventId, "dikirim ulang manual")
+            UploadScheduler.enqueue(context)
+        }
+
+        Function("clearHistory") {
+            AppDatabase.get(context).events().purgeOlderThan(System.currentTimeMillis())
+        }
+    }
+
+    private fun toMap(e: EventEntity): Map<String, Any?> = mapOf(
+        "eventId" to e.eventId,
+        "packageName" to e.packageName,
+        "title" to e.title,
+        "text" to e.text,
+        "amountHint" to e.amountHint,
+        "postedAt" to e.postedAt,
+        "receivedAt" to e.receivedAt,
+        "status" to e.status.name,
+        "attemptCount" to e.attemptCount,
+        "lastError" to e.lastError,
+        "backendStatus" to e.backendStatus,
+        "sentAt" to e.sentAt,
+    )
+
+    private companion object {
+        const val EVENT_CAPTURED = "onNotificationCaptured"
     }
 
     private fun isAccessGranted(): Boolean {

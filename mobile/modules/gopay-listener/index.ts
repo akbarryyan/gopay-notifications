@@ -25,6 +25,44 @@ export interface DiscoveryEntry {
   seenAt: number
 }
 
+export type EventStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'IGNORED'
+
+export interface BridgeEvent {
+  eventId: string
+  packageName: string
+  title: string | null
+  text: string | null
+  /** Display-only. Backend melakukan ekstraksi otoritatifnya sendiri. */
+  amountHint: number | null
+  postedAt: number
+  receivedAt: number
+  status: EventStatus
+  attemptCount: number
+  lastError: string | null
+  backendStatus: string | null
+  sentAt: number | null
+}
+
+export interface BridgeStatus {
+  notificationAccessGranted: boolean
+  /** Bisa false walau izin aktif — gejala service dibunuh OEM. */
+  listenerConnected: boolean
+  pendingCount: number
+  sendingCount: number
+  failedCount: number
+  lastEvent: BridgeEvent | null
+}
+
+/** Payload event realtime; hanya untuk menyegarkan UI yang sedang terbuka. */
+export interface CapturedEvent {
+  eventId: string
+  title: string | null
+  text: string | null
+  amountHint?: number
+  receivedAt: number
+  status: EventStatus
+}
+
 export interface BackendHealth {
   configured: boolean
   reachable: boolean
@@ -65,6 +103,17 @@ interface GopayListenerModule {
   checkBackend(): Promise<BackendHealth>
   /** Tombol Test Connection di Settings. */
   testConnection(): Promise<ConnectionTest>
+
+  getStatus(): BridgeStatus
+  getEvents(limit: number): BridgeEvent[]
+  /** Mengantre ulang event FAILED secara manual. */
+  retryEvent(eventId: string): void
+  clearHistory(): void
+
+  addListener(
+    event: 'onNotificationCaptured',
+    handler: (e: CapturedEvent) => void,
+  ): { remove(): void }
 }
 
 export default requireNativeModule<GopayListenerModule>('GopayListener')
