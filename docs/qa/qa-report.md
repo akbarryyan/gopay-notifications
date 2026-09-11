@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1 selesai · M2 sebagian (aplikasi terpasang, Notification Access aktif)
+**Milestone terakhir diperiksa:** M1 selesai · M2 sebagian · M3 sebagian — 49 unit test Kotlin lulus
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 28 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 3 · `PENDING` 39
+**Ringkasan:** `PASS` 33 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 4 · `PENDING` 36
 
 ---
 
@@ -69,7 +69,15 @@ Dua butir sisi Android yang sempat menunggu sudah selesai 2026-09-10: setelan an
 | 6 | Terima satu pembayaran sungguhan, jangan swipe notifikasinya, lalu `adb shell dumpsys notification --noredact` | `android.title` dan `android.text` notifikasi pembayaran masuk | Kedua nilainya |
 | 7 | Periksa teks notifikasi itu | Ada tidaknya **nomor referensi transaksi** | Ya atau tidak, beserta bentuknya |
 
-Butir 7 menentukan bentuk sub-project 3: referensi transaksi membuat matching eksak dan menggugurkan seluruh rencana nominal unik.
+Butir 5–7 **selesai 2026-09-11**; hasilnya tercatat di §2.6.2 spec. Notifikasi merchant tidak memuat nomor referensi, sehingga nominal unik tetap satu-satunya jalur matching di sub-project 3.
+
+Satu butir baru dari Task 7:
+
+| # | Langkah | Hasil yang diharapkan | Laporkan |
+|---|---|---|---|
+| 8 | Isi Device Secret lewat layar Settings, tutup paksa aplikasi, buka lagi | `hasDeviceSecret` tetap `true` — membuktikan `EncryptedSharedPreferences` benar-benar menulis dan membaca lewat Android Keystore | Hasilnya |
+
+Butir 8 tidak dapat diuji di JVM: Robolectric tidak mengemulasi Android Keystore, sehingga 10 test `SettingsTest` membuktikan logika penyimpanannya, bukan enkripsinya.
 
 ---
 
@@ -87,7 +95,7 @@ Butir 7 menentukan bentuk sub-project 3: referensi transaksi membuat matching ek
 | FR-06 | Autentikasi request — sisi Android | M4 | `PENDING` | — |
 | FR-07 | Retry untuk error yang dapat dipulihkan | M4 | `PENDING` | — |
 | FR-08 | Pencegahan duplikat — sisi backend | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce` (8 goroutine, `-count=20 -race`), `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2 dan 5 |
-| FR-08 | Pencegahan duplikat — sisi Android | M3 | `PENDING` | — |
+| FR-08 | Pencegahan duplikat — sisi Android | M3 | `PASS` | `EventDaoTest.menolak event_id yang sama tanpa melempar exception` — primary key menolak penyisipan kedua dan mengembalikan `-1`. `./gradlew :gopay-listener:testDebugUnitTest` → `tests=49 failures=0 errors=0 skipped=0` (AmountParser 10, EventIdBuilder 5, Signer 7, EventDao 12, Settings 10, DiscoveryLog 5) |
 | FR-09 | Pencatatan status event | M3 | `PENDING` | — |
 | FR-10 | Indikator listener aktif | M5 | `PENDING` | — |
 
@@ -125,7 +133,8 @@ Butir 7 menentukan bentuk sub-project 3: referensi transaksi membuat matching ek
 | Notifikasi aplikasi lain diabaikan | M3 | `PENDING` | — |
 | Data notification dapat diekstrak | M3 | `PENDING` | — |
 | Event ID dibuat | M3 | `PENDING` | — |
-| Event tersimpan lokal di HP | M3 | `PENDING` | — |
+| Lapisan penyimpanan lokal (Room) | M3 | `PASS` | 12 test `EventDaoTest`, termasuk pembacaan kolom mentah yang mengunci enum tersimpan sebagai TEXT `PENDING` |
+| Event tersimpan lokal dari notifikasi sungguhan | M3 | `PENDING` | Butuh pipeline Task 8 |
 | Event tersimpan di backend | M1 | `PASS` | `TestCallbackStoresRawPayloadVerbatim`, e2e no. 7 (`GET /events` mengembalikan event) |
 | Event dapat dikirim ke backend | M4 | `PENDING` | — |
 | HTTPS untuk production | M1 | `NEEDS-DEVICE` | `Caddyfile` ditulis, build silang OK; sertifikat belum diverifikasi — lihat §2 no. 1 |
@@ -168,17 +177,20 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Pemeriksaan | Status | Bukti |
 |---|---|---|
 | Tidak ada secret ter-hardcode (backend) | `PASS` | `grep -rn 'DEVICE_SECRET_KEY' --include='*.go'` → hanya `os.Getenv` dan teks flag |
-| Tidak ada secret ter-hardcode (Android) | `PENDING` | — |
+| Tidak ada secret ter-hardcode (Android) | `PASS` | `grep -rniE 'secret=\|password=\|token=\|apikey' android/src/main` → hanya `KEY_DEVICE_SECRET = "device_secret"`, nama kunci penyimpanan, bukan nilai |
 | Tidak ada secret/tanda tangan di log (backend) | `PASS` | `grep -rn 'slog\.' internal/ cmd/ \| grep -iE 'secret\|signature'` → kosong; e2e no. 8 → 0 kemunculan secret di log server |
-| Tidak ada secret/tanda tangan di log (Android) | `PENDING` | — |
+| Tidak ada secret/tanda tangan di log (Android) | `PASS` | `grep -rn 'Log\.' android/src/main` → dua panggilan, keduanya tentang status ikatan listener tanpa isi sensitif. Diperiksa ulang setelah Task 8 menambah logging pipeline |
 | `hmac.Equal` dipakai, bukan `==` | `PASS` | `internal/auth/hmac.go:38` → `return hmac.Equal([]byte(want), []byte(gotSignature))` |
 | Body diverifikasi mentah sebelum decode | `PASS` | `auth_middleware.go:71` `io.ReadAll` → `:90` `auth.Verify(...)`; `json.Unmarshal` baru di `callback.go:50`, setelah middleware |
 | Toleransi timestamp ditegakkan di kedua batas | `PASS` | `TestCheckSkewBoundaries` — 7 subtest, termasuk ±299/±300/±301 detik |
 | Idempotency memakai constraint database | `PASS` | `migrations/00001_init.sql:13` `event_id TEXT NOT NULL UNIQUE`; `event.go:35` `ON CONFLICT (event_id) DO NOTHING`; `event.go:42` `RowsAffected() == 1` |
 | Build production menolak HTTP polos | `NEEDS-DEVICE` | Perlu Caddy di VPS — lihat §2 no. 4 |
-| Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Sub-project 3; di luar cakupan M1 |
-| Mode Discovery default mati, tidak mengirim keluar | `PENDING` | Sisi Android, M2 |
-| Channel "Promotions and Marketing" GoPay masih aktif | `NEEDS-DEVICE` | Perlu HP — diperiksa di M2 |
+| Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Ditegakkan backend di sub-project 3. Entri awal `Pembayaran QRIS statis diterima` sudah tercatat di kontrak API |
+| Mode Discovery default mati dan mati sendiri | `PASS` | `SettingsTest.discovery mati secara default` dan `discovery aktif hanya sampai batas waktunya`; `startDiscovery` membatasi 1–10 menit |
+| Mode Discovery tidak mengirim apa pun keluar HP | `PENDING` | Butuh pipeline Task 8 |
+| Channel "Promotions and Marketing" `com.gojek.gopaymerchant` masih aktif | `NEEDS-DEVICE` | Perlu HP — diperiksa di M2 |
+| Enkripsi konfigurasi terbukti di perangkat | `NEEDS-DEVICE` | `EncryptedSharedPreferences` tidak dapat diuji di JVM — Robolectric tidak mengemulasi Android Keystore. Lihat §2 no. 8 |
+| `monitoredPackages` berisi tepat satu entri | `PASS` | `SettingsTest.daftar package default berisi tepat satu entri merchant`; `EventIdBuilderTest` membuktikan `com.gojek.gopay` dan `com.gojek.gopaymerchant` menghasilkan `event_id` berbeda untuk teks identik |
 | Setup ColorOS selesai | `PASS` | Keempat setelan dikerjakan Akbar 2026-09-10: aktivitas latar belakang diizinkan, mulai otomatis aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati. Ketahanannya baru diuji di M6 |
 
 ---
