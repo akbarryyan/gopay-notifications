@@ -1,18 +1,51 @@
 import { useCallback, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import GopayListener, { type DiscoveryEntry } from '../../modules/gopay-listener'
-import { formatWaktu } from '../lib/format'
+import GopayListener, {
+  type BridgeEvent,
+  type DiscoveryEntry,
+} from '../../modules/gopay-listener'
+import { formatRupiah, formatWaktu } from '../lib/format'
 
 export default function DebugScreen() {
   const [entries, setEntries] = useState<DiscoveryEntry[]>([])
   const [aktifSampai, setAktifSampai] = useState(0)
+  const [terakhir, setTerakhir] = useState<BridgeEvent | null>(null)
 
   const muat = useCallback(() => {
     setEntries(GopayListener.getDiscoveryEntries())
     setAktifSampai(GopayListener.getSettings().discoveryUntilMs)
+    setTerakhir(GopayListener.getEvents(1)[0] ?? null)
   }, [])
   useFocusEffect(muat)
+
+  /**
+   * Mengantre ulang event yang sudah ada, apa pun statusnya.
+   *
+   * Ini satu-satunya cara menguji seluruh rantai pengiriman tanpa menunggu
+   * pembayaran sungguhan. Pada event yang sudah SENT, backend akan menjawab
+   * `duplicate` — dan itu justru yang ingin dibuktikan: kiriman ulang tidak
+   * pernah menghasilkan pembayaran ganda.
+   */
+  function kirimUlangTerakhir() {
+    if (!terakhir) return
+    Alert.alert(
+      'Kirim ulang event terakhir?',
+      `${formatRupiah(terakhir.amountHint)} · status ${terakhir.status}\n\n` +
+        'Bila event ini sudah pernah diterima backend, jawabannya akan ' +
+        '`duplicate` dan statusnya tetap SENT.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Kirim',
+          onPress: () => {
+            GopayListener.retryEvent(terakhir.eventId)
+            muat()
+          },
+        },
+      ],
+    )
+  }
 
   const aktif = aktifSampai > Date.now()
 
@@ -66,6 +99,22 @@ export default function DebugScreen() {
             <Text style={styles.tombolSekunderTeks}>Muat ulang</Text>
           </TouchableOpacity>
 
+          <View style={styles.pemisah} />
+
+          <Text style={styles.status}>
+            {terakhir
+              ? `Event terakhir: ${formatRupiah(terakhir.amountHint)} · ${terakhir.status}`
+              : 'Belum ada event untuk dikirim ulang.'}
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.tombolSekunder, !terakhir && styles.tombolMati]}
+            disabled={!terakhir}
+            onPress={kirimUlangTerakhir}
+          >
+            <Text style={styles.tombolSekunderTeks}>Kirim ulang event terakhir</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.tombolSekunder}
             onPress={() => {
@@ -108,4 +157,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tombolSekunderTeks: { fontSize: 14 },
+  tombolMati: { opacity: 0.4 },
+  pemisah: { height: 12 },
 })
