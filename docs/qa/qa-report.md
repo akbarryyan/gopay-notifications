@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1 selesai · **M2 selesai** · **M3 selesai** — 85 unit test Kotlin lulus, pembayaran sungguhan tertangkap dan disaring dengan benar di perangkat
+**Milestone terakhir diperiksa:** M1, M2, M3 selesai · **M4 terbukti lewat backend lokal** — pembayaran sungguhan menempuh seluruh rantai sampai tersimpan di Postgres
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 56 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 13
+**Ringkasan:** `PASS` 59 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 11
 
 ---
 
@@ -86,7 +86,8 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | FR-03 | Hanya memproses event GoPay Merchant | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 | FR-04 | Parsing nominal dan `event_id` (unit) | M3 | `PASS` | `./gradlew :gopay-listener:testDebugUnitTest` → BUILD SUCCESSFUL; `build/test-results/testDebugUnitTest/*.xml` mencatat `tests=20 failures=0 errors=0 skipped=0` (AmountParserTest 8, EventIdBuilderTest 5, SignerTest 7) |
 | FR-04 | Notifikasi jadi event terstruktur (pipeline) | M3 | `PASS` | Pembayaran QRIS sungguhan muncul di Riwayat dengan nominal dan status `PENDING`. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| FR-05 | Kirim event via HTTPS | M4 | `PENDING` | Sisi penerima siap; pengirim belum ada |
+| FR-05 | Kirim event ke backend (jalur HTTP) | M4 | `PASS` | Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
+| FR-05 | Kirim event via **HTTPS** | M4 | `PENDING` | Jalur pengiriman terbukti, tetapi lewat HTTP ke backend lokal. HTTPS menuntut VPS dengan sertifikat |
 | FR-06 | Autentikasi request — sisi backend | M1 | `PASS` | `TestVerifyRejectsModifiedBody`, `TestVerifyRejectsWrongSecret`, `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, `TestAuthRejectsDisabledDevice`, `TestAuthRejectsMissingHeaders` (3 subtest), e2e no. 3 |
 | FR-06 | Autentikasi request — sisi Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
 | FR-07 | Retry untuk error yang dapat dipulihkan | M4 | `PENDING` | — |
@@ -105,7 +106,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Aplikasi mendeteksi notifikasi baru | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap dan muncul di Riwayat. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Membedakan GoPay Merchant dari aplikasi lain | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 | Notifikasi jadi event terstruktur | M3 | `PASS` | Event memuat nominal hasil parsing dan status; Dashboard menampilkan "Event terakhir". Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| Event terkirim via HTTPS | M4 | `PENDING` | — |
+| Event terkirim via HTTPS | M4 | `PENDING` | Pengiriman terbukti lewat HTTP lokal; HTTPS menunggu VPS |
 | Backend mengidentifikasi perangkat pengirim | M1 | `PASS` | `TestAuthAcceptsValidSignature`, `TestTouchDeviceSetsLastSeenAt`, e2e no. 6 (`last_seen_at` = `t`) |
 | Event sama tidak diproses dua kali | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce`, e2e no. 5 (tepat 1 baris setelah 2 kiriman identik) |
 | Event terkirim setelah koneksi normal kembali | M4 | `PENDING` | — |
@@ -132,7 +133,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Lapisan penyimpanan lokal (Room) | M3 | `PASS` | 12 test `EventDaoTest`, termasuk pembacaan kolom mentah yang mengunci enum tersimpan sebagai TEXT `PENDING` |
 | Event tersimpan lokal dari notifikasi sungguhan | M3 | `PASS` | Event bertahan di Riwayat setelah pembayaran sungguhan. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Event tersimpan di backend | M1 | `PASS` | `TestCallbackStoresRawPayloadVerbatim`, e2e no. 7 (`GET /events` mengembalikan event) |
-| Event dapat dikirim ke backend | M4 | `PENDING` | — |
+| Event dapat dikirim ke backend | M4 | `PASS` | Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
 | HTTPS untuk production | M1 | `NEEDS-DEVICE` | `Caddyfile` ditulis, build silang OK; sertifikat belum diverifikasi — lihat §2 no. 1 |
 | Authentication ditegakkan backend | M1 | `PASS` | Sama dengan FR-06 sisi backend |
 | Authentication dikirim Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
@@ -156,7 +157,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 
 | Kondisi | Tindakan yang diharapkan | Status | Bukti |
 |---|---|---|---|
-| `200 accepted` | → `SENT` | `PASS` | `TestCallbackFirstTimeReturnsAccepted`, e2e no. 1 |
+| `200 accepted` | → `SENT` | `PASS` | `TestCallbackFirstTimeReturnsAccepted`, e2e no. 1, dan terbukti di perangkat: Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
 | `200 duplicate` | → `SENT`, bukan error | `PASS` | `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2 |
 | `400 invalid_payload` | → `FAILED`, tanpa retry | `PASS` | `TestCallbackRejectsMalformedJSON`, `TestCallbackRejectsInvalidFields` (7 subtest) |
 | `401 invalid_signature` | → `FAILED`, peringatan kredensial | `PASS` | `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, e2e no. 3 |
@@ -183,7 +184,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Build production menolak HTTP polos | `NEEDS-DEVICE` | Perlu Caddy di VPS — lihat §2 no. 4 |
 | Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Ditegakkan backend di sub-project 3. Entri awal `Pembayaran QRIS statis diterima` sudah tercatat di kontrak API |
 | Mode Discovery default mati dan mati sendiri | `PASS` | `SettingsTest.discovery mati secara default` dan `discovery aktif hanya sampai batas waktunya`; `startDiscovery` membatasi 1–10 menit |
-| Mode Discovery tidak mengirim apa pun keluar HP | `PENDING` | Butuh pipeline Task 8 |
+| Mode Discovery tidak mengirim apa pun keluar HP | `PASS` | Setelah mode Discovery aktif dan WhatsApp tertangkap, `SELECT count(*) FILTER (WHERE package_name <> 'com.gojek.gopaymerchant')` di `gopay_dev` → **0**. Hanya pembayaran yang pernah terkirim |
 | Channel "Promotions and Marketing" `com.gojek.gopaymerchant` masih aktif | `PASS` | Notifikasi pembayaran sungguhan sampai ke listener, yang hanya mungkin bila channel-nya aktif. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Enkripsi konfigurasi terbukti di perangkat | `PASS` | Device Secret diisi, aplikasi ditutup paksa, dibuka lagi — field menampilkan `tersimpan`, bukan `belum diisi`. Membuktikan `EncryptedSharedPreferences` menulis dan membaca lewat Android Keystore. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | `monitoredPackages` berisi tepat satu entri | `PASS` | `SettingsTest.daftar package default berisi tepat satu entri merchant`; `EventIdBuilderTest` membuktikan `com.gojek.gopay` dan `com.gojek.gopaymerchant` menghasilkan `event_id` berbeda untuk teks identik |
@@ -209,6 +210,22 @@ Penyimpangan baru yang tidak terdaftar: **tidak ada**.
 Tidak berlaku — ini siklus QA pertama yang memuat implementasi.
 
 Satu catatan untuk siklus berikutnya: target `test` di `Makefile` **wajib** memakai `-p 1`. Paket `store` dan `httpapi` sama-sama `TRUNCATE` database test yang sama, dan Go menjalankan paket secara paralel secara default — keduanya saling menghapus data di tengah jalan dan gagal secara acak, padahal sendiri-sendiri lulus. Menghapus `-p 1` akan memunculkan kembali kegagalan yang menyesatkan itu.
+
+---
+
+## 9b. Performance — [prd.md §12](../prd.md)
+
+Diukur dari satu pembayaran sungguhan, membandingkan `posted_at` (waktu GoPay memasang notifikasi), `received_at` (saat listener menangkapnya), dan `ingested_at` (saat tersimpan di Postgres):
+
+```
+303 ms  notifikasi → ditangkap HP
+ 89 ms  ditangkap → tersimpan di Postgres
+392 ms  TOTAL
+```
+
+PRD §12 menuntut "delay seminimal mungkin" tanpa angka pasti. Kurang dari setengah detik dari notifikasi muncul sampai tercatat di database, termasuk penandatanganan HMAC dan perjalanan lewat WiFi, memenuhi maksud itu dengan jelas.
+
+Angka ini diambil di jaringan lokal. Lewat internet ke VPS, bagian kedua akan bertambah sebesar latensi jaringan.
 
 ---
 
