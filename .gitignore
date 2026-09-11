@@ -4,7 +4,9 @@ node_modules/
 *.keystore
 .env
 .env.*
-!.env.example
+# Pola berjangkar nama persis tidak cukup: .env.uat.example dan
+# .env.dev.example ikut terabaikan oleh .env.* dan diam-diam tidak ter-commit.
+!.env*.example
 backend/bin/
 tmp/
 .DS_Store

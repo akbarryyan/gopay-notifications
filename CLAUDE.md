@@ -72,7 +72,7 @@ sampai Akbar menempelkan buktinya — tidak pernah `PASS` berdasarkan penalaran.
 ```bash
 cd backend
 make db-up            # Postgres di :5433 lewat docker compose
-make migrate          # goose up
+make migrate          # goose up, database test
 make test             # db-up + migrate + go test ./... -p 1
 ```
 
@@ -80,15 +80,35 @@ make test             # db-up + migrate + go test ./... -p 1
 sama, dan Go menjalankan paket secara paralel — tanpa `-p 1` keduanya saling
 menghapus data dan gagal secara acak, padahal sendiri-sendiri lulus.
 
-Menjalankan server secara lokal:
+**Dua database di instance Postgres yang sama**, dan bedanya penting:
+
+| | Dipakai untuk | Umur data |
+|---|---|---|
+| `gopay_test` | `make test` | **dihapus tiap kali test jalan** (`TRUNCATE`) |
+| `gopay_dev` | backend lokal untuk aplikasi varian `development` | bertahan |
+
+Jangan pernah mengarahkan HP ke `gopay_test`: `make test` berikutnya akan
+menghapus event sungguhan tanpa peringatan.
+
+Menjalankan backend lokal supaya HP dapat menghubunginya:
 
 ```bash
 cd backend
-export DATABASE_URL='postgres://gopay:gopay@localhost:5433/gopay_test?sslmode=disable'
-export DEVICE_SECRET_KEY=$(go run ./cmd/devicetool -genkey)
-export LISTEN_ADDR=127.0.0.1:8098
-go run ./cmd/server
+cp .env.dev.example .env.dev
+echo "DEVICE_SECRET_KEY=$(make -s dev-key)" >> .env.dev
+
+make run-dev        # buat gopay_dev bila belum ada, migrasi, lalu jalankan server
+make dev-device     # cetak Device ID + Secret untuk diisi di HP
+make dev-url        # cetak Backend URL sesuai alamat LAN laptop saat ini
 ```
+
+Dua hal yang mudah salah dan sudah dijaga di `.env.dev.example`:
+
+- `LISTEN_ADDR` wajib `0.0.0.0:8080`, bukan `127.0.0.1` — HP di LAN tidak akan
+  pernah bisa menghubungi server yang hanya mengikat ke localhost.
+- `DEVICE_SECRET_KEY` wajib tetap antar restart. Kunci baru membuat secret
+  device yang sudah tersimpan tidak dapat didekripsi, dan device harus dibuat
+  ulang tiap kali server dinyalakan.
 
 Jebakan yang sudah pernah kena: bila server versi lama masih memegang port,
 `go build -o` ke path binary yang sedang berjalan gagal dengan *text file busy*,
@@ -99,12 +119,15 @@ berdasarkan port, bukan pola nama:
 pid=$(ss -ltnpH 'sport = :8098' | grep -oP 'pid=\K[0-9]+' | head -1) && kill "$pid"
 ```
 
-Membuat device:
+Membuat device di lingkungan lain (UAT/produksi), dengan env yang sesuai:
 
 ```bash
 go run ./cmd/devicetool -genkey                 # cetak DEVICE_SECRET_KEY
 go run ./cmd/devicetool -name "HP GoPay Utama"  # cetak Device ID + Secret
 ```
+
+`make db-down` menghapus volume Docker — **`gopay_dev` ikut hilang**, bukan
+hanya data test.
 
 ### Lingkungan
 
