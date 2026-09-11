@@ -35,7 +35,7 @@
 
 **Interfaces:**
 - Consumes: tidak ada.
-- Produces: aplikasi terpasang di perangkat dengan nama paket `id.manjo.gopaybridge`.
+- Produces: aplikasi terpasang di perangkat dengan nama paket `id.akbarryyan.gopaybridge`.
 
 - [ ] **Step 1: Buat project Expo**
 
@@ -61,7 +61,7 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   android: {
-    package: IS_DEV ? 'id.manjo.gopaybridge.dev' : 'id.manjo.gopaybridge',
+    package: IS_DEV ? 'id.akbarryyan.gopaybridge.dev' : 'id.akbarryyan.gopaybridge',
     permissions: ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE'],
   },
   plugins: [
@@ -123,7 +123,7 @@ APP_VARIANT=development npx expo run:android
 adb shell pm list packages | grep gopaybridge
 ```
 
-Expected: `package:id.manjo.gopaybridge.dev`
+Expected: `package:id.akbarryyan.gopaybridge.dev`
 
 Layar aplikasi harus terbuka sendiri di HP dan menampilkan teks bawaan template.
 
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
 cd mobile
 APP_VARIANT=development npx expo prebuild --clean
 APP_VARIANT=development npx expo run:android
-adb shell dumpsys package id.manjo.gopaybridge.dev | grep -A 3 GoPayListenerService
+adb shell dumpsys package id.akbarryyan.gopaybridge.dev | grep -A 3 GoPayListenerService
 ```
 
 Expected: keluaran memuat `expo.modules.gopaylistener.GoPayListenerService` dengan permission `BIND_NOTIFICATION_LISTENER_SERVICE`.
@@ -3261,7 +3261,7 @@ cd mobile && APP_VARIANT=development npx expo run:android
 adb shell dumpsys jobscheduler | grep -i gopaybridge | head -20
 ```
 
-Expected: keluaran memuat job milik `id.manjo.gopaybridge.dev`.
+Expected: keluaran memuat job milik `id.akbarryyan.gopaybridge.dev`.
 
 - [ ] **Step 4: Jalankan seluruh test otomatis sekali lagi**
 

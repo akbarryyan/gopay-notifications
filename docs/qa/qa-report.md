@@ -124,7 +124,7 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 
 | Butir | Milestone | Status | Bukti |
 |---|---|---|---|
-| Aplikasi berjalan di Android | M2 | `PASS` | `adb shell pm list packages` → `package:id.manjo.gopaybridge.dev`; aplikasi terbuka di OPPO CPH2365 |
+| Aplikasi berjalan di Android | M2 | `PASS` | `adb shell pm list packages` → `package:id.manjo.gopaybridge.dev`; aplikasi terbuka di OPPO CPH2365. **Catatan:** package diganti jadi `id.akbarryyan.gopaybridge` pada 2026-09-11 setelah bukti ini diambil; perlu diverifikasi ulang setelah build berikutnya |
 | TypeScript sebagai application language | M2 | `PASS` | `npx tsc --noEmit` bersih; `App.tsx` dan `modules/gopay-listener/index.ts` |
 | Kotlin untuk Notification Listener | M2 | `PASS` | `adb shell dumpsys package id.manjo.gopaybridge.dev` menampilkan `expo.modules.gopaylistener.GoPayListenerService` dengan permission `BIND_NOTIFICATION_LISTENER_SERVICE` dan action `android.service.notification.NotificationListenerService` |
 | Notification Access dapat diaktifkan | M2 | `PASS` | Tombol membuka `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`; izin diberikan dan status berubah jadi aktif |

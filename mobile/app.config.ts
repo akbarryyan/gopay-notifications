@@ -16,18 +16,18 @@ const VARIANT = (process.env.APP_VARIANT ?? 'production') as Variant
 const VARIANTS: Record<Variant, { name: string; package: string; cleartext: boolean }> = {
   development: {
     name: 'GoPay Bridge (Dev)',
-    package: 'id.manjo.gopaybridge.dev',
+    package: 'id.akbarryyan.gopaybridge.dev',
     // HTTP polos hanya di sini, untuk Metro dan backend yang jalan di laptop.
     cleartext: true,
   },
   uat: {
     name: 'GoPay Bridge (UAT)',
-    package: 'id.manjo.gopaybridge.uat',
+    package: 'id.akbarryyan.gopaybridge.uat',
     cleartext: false,
   },
   production: {
     name: 'GoPay Bridge',
-    package: 'id.manjo.gopaybridge',
+    package: 'id.akbarryyan.gopaybridge',
     cleartext: false,
   },
 }

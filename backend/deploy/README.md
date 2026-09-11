@@ -10,7 +10,7 @@ Dua lingkungan berjalan di VPS yang sama, terpisah penuh:
 | User sistem | `gopay` | `gopay-uat` |
 | Database | `gopay` | `gopay_uat` |
 | `DEVICE_SECRET_KEY` | sendiri | **berbeda**, jangan dipakai ulang |
-| Aplikasi Android | `id.manjo.gopaybridge` | `id.manjo.gopaybridge.uat` |
+| Aplikasi Android | `id.akbarryyan.gopaybridge` | `id.akbarryyan.gopaybridge.uat` |
 
 Device terdaftar **per database**. Karena itu HP UAT yang salah diarahkan ke
 backend produksi akan ditolak `401 invalid_signature` — secret-nya tidak ada di

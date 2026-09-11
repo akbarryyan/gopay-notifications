@@ -113,9 +113,9 @@ disandera Android di sandbox masing-masing:
 
 | Varian | Package | Backend |
 |---|---|---|
-| `development` | `id.manjo.gopaybridge.dev` | laptop, HTTP polos diizinkan |
-| `uat` | `id.manjo.gopaybridge.uat` | `uat.<domain>`, port 8081 |
-| `production` | `id.manjo.gopaybridge` | `<domain>`, port 8080 |
+| `development` | `id.akbarryyan.gopaybridge.dev` | laptop, HTTP polos diizinkan |
+| `uat` | `id.akbarryyan.gopaybridge.uat` | `uat.<domain>`, port 8081 |
+| `production` | `id.akbarryyan.gopaybridge` | `<domain>`, port 8080 |
 
 `DEVICE_SECRET_KEY` UAT dan produksi **wajib berbeda**. Device terdaftar per
 database, jadi HP UAT yang salah diarahkan ke produksi ditolak
