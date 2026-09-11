@@ -61,6 +61,16 @@ Selain itu, `devicetool -name "HP GoPay Utama"` perlu dijalankan di VPS untuk me
 
 Dua butir sisi Android yang sempat menunggu sudah selesai 2026-09-10: setelan anti-ColorOS dan unit test Kotlin. Keduanya kini tercatat sebagai `PASS` di bawah.
 
+**Perubahan scope 2026-09-11** menambah tiga butir baru. Sumber pembayaran berpindah dari akun GoPay pribadi ke **GoPay Merchant**, sepenuhnya, sehingga package dan judul notifikasi yang terkonfirmasi sehari sebelumnya tidak lagi berlaku sebagai nilai produksi:
+
+| # | Langkah | Hasil yang diharapkan | Laporkan |
+|---|---|---|---|
+| 5 | `adb shell pm list packages \| grep -i -E 'gojek\|gopay\|gobiz\|merchant'` | Nama package aplikasi GoPay Merchant | Keluarannya |
+| 6 | Terima satu pembayaran sungguhan, jangan swipe notifikasinya, lalu `adb shell dumpsys notification --noredact` | `android.title` dan `android.text` notifikasi pembayaran masuk | Kedua nilainya |
+| 7 | Periksa teks notifikasi itu | Ada tidaknya **nomor referensi transaksi** | Ya atau tidak, beserta bentuknya |
+
+Butir 7 menentukan bentuk sub-project 3: referensi transaksi membuat matching eksak dan menggugurkan seluruh rencana nominal unik.
+
 ---
 
 ## 3. Functional Requirements — [prd.md §11](../prd.md)
@@ -202,4 +212,12 @@ Satu catatan untuk siklus berikutnya: target `test` di `Makefile` **wajib** mema
 
 **Yang menghalangi M1 dinyatakan tuntas:** akses VPS. Empat butir di §2 dan pembuatan device sungguhan tidak dapat dikerjakan dari mesin development.
 
-**Langkah berikutnya:** M2 — scaffold Expo dan development build di HP. M2 tidak bergantung pada VPS, jadi dapat dikerjakan paralel dengan deploy.
+**Perubahan scope 2026-09-11 membatalkan sebagian temuan lapangan.** Package identifier dan bentuk teks yang dikonfirmasi sebelum M1 berasal dari akun GoPay **pribadi**. Sumber pembayaran kini berpindah sepenuhnya ke **GoPay Merchant**, sehingga Open Question #1, #2, dan #3 kembali terbuka.
+
+Biayanya nol baris kode. Package adalah daftar yang dapat diedit di Settings, dan aturan arah adalah konfigurasi backend — keduanya sengaja dirancang demikian di §2.3 dan §2.4 spec justru untuk kemungkinan seperti ini. Yang berubah hanya data.
+
+Yang tetap berlaku dari pengamatan kemarin adalah bentuknya, bukan nilainya: notification id konstan, `Notification.when` bertahan lintas repost, format nominal `Rp1` tanpa pemisah, dan notifikasi transaksi dapat datang lewat channel promosi. Keempatnya mendasari formula `event_id` dan tidak tersentuh.
+
+**Risiko yang justru hilang:** akun merchant hampir hanya menerima, sehingga notifikasi pembayaran **keluar** dengan nominal sama — bahaya utama yang diuraikan di §2.3 spec — praktis tidak ada lagi.
+
+**Langkah berikutnya:** Task 6 (Room) dan Task 7 (konfigurasi terenkripsi). Keduanya tidak bergantung pada VPS maupun pada sampel notifikasi merchant, jadi dikerjakan sementara §2 butir 5–7 dikumpulkan.
