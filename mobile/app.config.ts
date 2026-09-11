@@ -25,16 +25,6 @@ const config: ExpoConfig = {
     'expo-dev-client',
     // Menyuntikkan NotificationListenerService ke AndroidManifest.
     './plugins/withGopayListener',
-    // HTTP polos hanya untuk host development, dan hanya di build development.
-    // 192.168.1.162 = alamat LAN laptop; 10.0.2.2 = host dari emulator.
-    ...(IS_DEV
-      ? [
-          ['./plugins/withDevCleartext', { hosts: ['192.168.1.162', '10.0.2.2'] }] as [
-            string,
-            unknown,
-          ],
-        ]
-      : []),
     [
       'expo-build-properties',
       {
@@ -46,6 +36,12 @@ const config: ExpoConfig = {
           // 26 dipilih karena EncryptedSharedPreferences menuntut API 23,
           // requestRebind menuntut 24, dan java.time menuntut 26.
           minSdkVersion: 26,
+
+          // HTTP polos HANYA di build development, untuk Metro dan backend
+          // yang jalan di laptop. Build production tidak menyetelnya sama
+          // sekali, dan Android sejak targetSdk 28 memblokir cleartext secara
+          // default — jadi production tetap HTTPS-only tanpa konfigurasi apa pun.
+          usesCleartextTraffic: IS_DEV,
         },
       },
     ],

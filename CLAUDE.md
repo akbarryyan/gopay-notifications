@@ -149,3 +149,9 @@ cd mobile/android
 
 `android/` tidak di-commit dan tidak boleh diedit manual — seluruh perubahan
 manifest ditulis sebagai config plugin di `mobile/plugins/`.
+
+HTTP polos hanya aktif di build development lewat `usesCleartextTraffic` di
+`expo-build-properties`. Jangan menggantinya dengan daftar host yang disebut
+satu per satu: alamat LAN laptop berubah tiap ganti jaringan, dan
+`base-config cleartextTrafficPermitted="false"` ikut memblokir Metro sehingga
+aplikasi gagal start.

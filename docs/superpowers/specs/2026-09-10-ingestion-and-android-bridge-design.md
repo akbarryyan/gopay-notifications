@@ -416,7 +416,9 @@ Keputusan "tanpa foreground service" tetap berlaku, tetapi M6 yang menentukan ap
 - **Bahasa UI:** Indonesia.
 - **Distribusi:** APK dari EAS Build, dipasang manual. Play Store dihindari — kebijakan mereka soal notification listener ketat dan distribusi publik tidak dibutuhkan.
 - **Jumlah device:** satu, tetapi skema `device_id` + secret sudah mendukung banyak device tanpa perubahan.
-- **Cleartext HTTP:** Android 9+ memblokir HTTP polos. Network security config mengizinkan **hanya** alamat development tertentu dan hanya aktif di build development; build production tetap HTTPS-only. Diatur lewat config plugin, bukan edit manifest manual.
+- **Cleartext HTTP:** Android 9+ memblokir HTTP polos. Build **development** menyetel `usesCleartextTraffic: true` lewat `expo-build-properties`, sehingga Metro dan backend yang jalan di laptop dapat dihubungi. Build **production** tidak menyetelnya sama sekali, dan Android sejak targetSdk 28 memblokir cleartext secara default — jadi production tetap HTTPS-only tanpa konfigurasi apa pun.
+
+  Rancangan awal memakai config plugin dengan daftar host development yang disebut satu per satu. Itu dibuang setelah terbukti rapuh: alamat LAN laptop berubah setiap ganti jaringan, dan `base-config cleartextTrafficPermitted="false"` ikut memblokir koneksi ke Metro sehingga aplikasi gagal start. Manfaat membatasi host hanya berlaku di build yang memang tidak pernah dirilis, sementara biayanya menghentikan pekerjaan setiap kali IP berpindah.
 
 ---
 
@@ -481,6 +483,7 @@ Seluruhnya sudah disetujui. Dicatat agar perbedaan antara dokumen dan kenyataan 
 | 8 | §31 boot handling | Tanpa `BOOT_COMPLETED` receiver | Sistem sudah melakukannya |
 | 9 | §16 `/api/callback/gopay` | `/api/v1/callback/gopay` | Versioning murah sekarang, mahal nanti |
 | 10 | §10 parser nominal di HP | Tetap ada, tapi display-only; backend otoritatif | Perubahan format GoPay tidak memaksa rilis APK |
+| 11 | §6.6 cleartext dibatasi daftar host development | `usesCleartextTraffic` menyeluruh, hanya di build development | Daftar host putus setiap IP laptop berubah, dan ikut memblokir Metro. Production tetap HTTPS-only lewat default Android |
 
 ---
 
