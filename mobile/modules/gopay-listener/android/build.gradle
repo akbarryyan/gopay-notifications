@@ -33,6 +33,11 @@ dependencies {
   implementation 'androidx.room:room-ktx:2.8.5'
   kapt 'androidx.room:room-compiler:2.8.5'
 
+  // 1.1.0 (stabil) memakai MasterKey.Builder; 1.0.0 memakai MasterKeys yang
+  // sudah usang. Tanda tangan EncryptedSharedPreferences.create juga berbeda
+  // antara keduanya.
+  implementation 'androidx.security:security-crypto:1.1.0'
+
   testImplementation 'junit:junit:4.13.2'
   // Room butuh runtime Android; Robolectric menyediakannya di JVM sehingga
   // test DAO tidak memerlukan emulator atau perangkat.
