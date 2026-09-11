@@ -26,6 +26,14 @@ class EventUploadWorker(
         }
 
         val dao = AppDatabase.get(app).events()
+
+        // Event yang tertinggal di SENDING berasal dari worker yang dibunuh di
+        // tengah jalan. Tanpa ini, ia tidak akan pernah dicoba lagi.
+        val dipulihkan = dao.releaseStaleSending()
+        if (dipulihkan > 0) {
+            Log.w(TAG, "memulihkan $dipulihkan event yang tertinggal di SENDING")
+        }
+
         val batch = dao.claimPending(BATCH_SIZE)
         if (batch.isEmpty()) return Result.success()
 

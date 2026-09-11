@@ -43,9 +43,17 @@ export default function HistoryScreen() {
           )}
           {item.lastError && <Text style={styles.error}>{item.lastError}</Text>}
 
-          {item.status === 'FAILED' && (
+          {/*
+            Tombol juga muncul untuk PENDING yang sudah pernah gagal. Event
+            semacam itu sedang menunggu backoff eksponensial yang bisa
+            mencapai berjam-jam — dan justru di situ tombol paling dibutuhkan,
+            karena penyebab kegagalannya mungkin sudah lama diperbaiki.
+          */}
+          {(item.status === 'FAILED' || (item.status === 'PENDING' && item.attemptCount > 0)) && (
             <TouchableOpacity style={styles.tombolKecil} onPress={() => kirimUlang(item.eventId)}>
-              <Text style={styles.tombolKecilTeks}>Kirim ulang</Text>
+              <Text style={styles.tombolKecilTeks}>
+                {item.status === 'FAILED' ? 'Kirim ulang' : 'Coba sekarang'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>

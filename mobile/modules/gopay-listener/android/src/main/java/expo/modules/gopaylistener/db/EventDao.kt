@@ -30,6 +30,20 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE status = 'PENDING' ORDER BY receivedAt ASC LIMIT :limit")
     fun selectPending(limit: Int): List<EventEntity>
 
+    /**
+     * Mengembalikan event yang tertinggal di SENDING menjadi PENDING.
+     *
+     * SENDING hanya boleh ada selama sebuah worker benar-benar berjalan. Bila
+     * worker dibatalkan atau prosesnya dibunuh di tengah pengiriman, event itu
+     * tertinggal di SENDING selamanya dan tidak pernah dicoba lagi — hilang
+     * tanpa jejak kegagalan. Dipanggil di awal tiap worker.
+     *
+     * Aman terhadap pengiriman ganda: bila request sempat sampai ke backend,
+     * percobaan berikutnya dijawab `duplicate` dan tetap dihitung berhasil.
+     */
+    @Query("UPDATE events SET status = 'PENDING' WHERE status = 'SENDING'")
+    fun releaseStaleSending(): Int
+
     @Query("UPDATE events SET status = :status WHERE eventId = :eventId")
     fun setStatus(eventId: String, status: EventStatus)
 

@@ -168,6 +168,40 @@ class EventDaoTest {
     }
 
     @Test
+    fun `releaseStaleSending mengembalikan event yang tertinggal ke PENDING`() {
+        dao.insertIgnoringDuplicate(event("evt_a"))
+        dao.claimPending(10)
+        assertEquals(1, dao.countByStatus(EventStatus.SENDING))
+
+        // Meniru worker yang dibunuh di tengah pengiriman.
+        val dipulihkan = dao.releaseStaleSending()
+
+        assertEquals(1, dipulihkan)
+        assertEquals(0, dao.countByStatus(EventStatus.SENDING))
+        assertEquals(1, dao.countByStatus(EventStatus.PENDING))
+        assertEquals(
+            "event yang dipulihkan harus dapat diambil lagi, bukan hilang selamanya",
+            1,
+            dao.claimPending(10).size
+        )
+    }
+
+    @Test
+    fun `releaseStaleSending tidak menyentuh status lain`() {
+        dao.insertIgnoringDuplicate(event("evt_sent", EventStatus.SENT))
+        dao.insertIgnoringDuplicate(event("evt_failed", EventStatus.FAILED))
+        dao.insertIgnoringDuplicate(event("evt_ignored", EventStatus.IGNORED))
+        dao.insertIgnoringDuplicate(event("evt_pending"))
+
+        assertEquals(0, dao.releaseStaleSending())
+
+        assertEquals(1, dao.countByStatus(EventStatus.SENT))
+        assertEquals(1, dao.countByStatus(EventStatus.FAILED))
+        assertEquals(1, dao.countByStatus(EventStatus.IGNORED))
+        assertEquals(1, dao.countByStatus(EventStatus.PENDING))
+    }
+
+    @Test
     fun `purgeOlderThan hanya menghapus SENT dan IGNORED`() {
         dao.insertIgnoringDuplicate(event("evt_sent", EventStatus.SENT, receivedAt = 100L))
         dao.insertIgnoringDuplicate(event("evt_ignored", EventStatus.IGNORED, receivedAt = 100L))
