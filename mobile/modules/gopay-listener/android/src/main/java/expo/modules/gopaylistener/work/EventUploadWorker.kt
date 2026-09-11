@@ -1,7 +1,9 @@
 package expo.modules.gopaylistener.work
 
 import android.content.Context
+import android.os.Bundle
 import android.util.Log
+import expo.modules.gopaylistener.CaptureBus
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import expo.modules.gopaylistener.config.Settings
@@ -56,6 +58,10 @@ class EventUploadWorker(
                 }
             }
         }
+
+        // Memberi tahu UI yang sedang terbuka bahwa status berubah. Bila UI
+        // mati, tidak ada observer dan panggilan ini tidak berbiaya.
+        CaptureBus.emit(Bundle().apply { putString("reason", "upload") })
 
         return if (needRetry) Result.retry() else Result.success()
     }

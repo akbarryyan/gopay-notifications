@@ -48,20 +48,24 @@ class GopayListenerModule : Module() {
             PurgeWorker.schedule(context)
         }
 
-        Events(EVENT_CAPTURED)
+        Events(EVENT_CHANGED)
 
+        // Dipancarkan saat event baru DITANGKAP maupun saat STATUSNYA BERUBAH.
+        // Tanpa yang kedua, Dashboard membeku menampilkan PENDING sementara
+        // event sebenarnya sudah SENT.
+        //
         // WeakReference wajib: observer disimpan di objek statis CaptureBus,
         // dan tanpa ini instance module tertahan di memori setelah UI ditutup.
-        OnStartObserving(EVENT_CAPTURED) {
+        OnStartObserving(EVENT_CHANGED) {
             val weakModule = WeakReference(this@GopayListenerModule)
             val observer: (Bundle) -> Unit = { payload ->
-                weakModule.get()?.sendEvent(EVENT_CAPTURED, payload)
+                weakModule.get()?.sendEvent(EVENT_CHANGED, payload)
             }
             captureObserver = observer
             CaptureBus.register(observer)
         }
 
-        OnStopObserving(EVENT_CAPTURED) {
+        OnStopObserving(EVENT_CHANGED) {
             captureObserver?.let { CaptureBus.unregister(it) }
             captureObserver = null
         }
@@ -219,7 +223,7 @@ class GopayListenerModule : Module() {
     )
 
     private companion object {
-        const val EVENT_CAPTURED = "onNotificationCaptured"
+        const val EVENT_CHANGED = "onBridgeChanged"
     }
 
     private fun isAccessGranted(): Boolean {

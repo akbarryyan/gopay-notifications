@@ -61,14 +61,17 @@ export interface BridgeStatus {
   lastEvent: BridgeEvent | null
 }
 
-/** Payload event realtime; hanya untuk menyegarkan UI yang sedang terbuka. */
-export interface CapturedEvent {
-  eventId: string
-  title: string | null
-  text: string | null
-  amountHint?: number
-  receivedAt: number
-  status: EventStatus
+/**
+ * Sinyal "ada yang berubah" untuk menyegarkan UI yang sedang terbuka.
+ *
+ * Dipancarkan saat event baru ditangkap maupun saat statusnya berubah setelah
+ * pengiriman. Isinya sengaja tidak dijamin — penerima harus membaca ulang
+ * lewat `getStatus()`, bukan bersandar pada payload ini.
+ */
+export interface BridgeChange {
+  reason?: string
+  eventId?: string
+  status?: EventStatus
 }
 
 export interface BackendHealth {
@@ -121,8 +124,8 @@ interface GopayListenerModule {
   clearHistory(): void
 
   addListener(
-    event: 'onNotificationCaptured',
-    handler: (e: CapturedEvent) => void,
+    event: 'onBridgeChanged',
+    handler: (e: BridgeChange) => void,
   ): { remove(): void }
 }
 

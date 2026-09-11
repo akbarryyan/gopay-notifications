@@ -1694,7 +1694,7 @@ git commit -m "feat(mobile): konfigurasi terenkripsi dan penyimpanan Discovery"
 - Consumes: `Settings`, `DiscoveryLog`, `AmountParser`, `EventIdBuilder`, `AppDatabase`, `EventDao`, `EventEntity`, `EventStatus`.
 - Produces:
   - `CaptureBus.listener: ((Map<String, Any?>) -> Unit)?`
-  - Event JS `onNotificationCaptured`
+  - Event JS `onBridgeChanged`
   - Fungsi module: `getStatus()`, `getEvents(limit)`
 
 - [ ] **Step 1: Tulis `CaptureBus.kt`**
@@ -1881,21 +1881,21 @@ Tambahkan properti pada kelas module, di luar `definition()`:
 Lalu di dalam `ModuleDefinition`:
 
 ```kotlin
-        Events("onNotificationCaptured")
+        Events("onBridgeChanged")
 
         // Nama event wajib disebut pada OnStartObserving/OnStopObserving.
         // WeakReference dipakai karena observer disimpan di objek statis
         // CaptureBus; tanpa itu instance module tertahan setelah UI ditutup.
-        OnStartObserving("onNotificationCaptured") {
+        OnStartObserving("onBridgeChanged") {
             val weakModule = java.lang.ref.WeakReference(this@GopayListenerModule)
             val observer: (android.os.Bundle) -> Unit = { payload ->
-                weakModule.get()?.sendEvent("onNotificationCaptured", payload)
+                weakModule.get()?.sendEvent("onBridgeChanged", payload)
             }
             captureObserver = observer
             CaptureBus.register(observer)
         }
 
-        OnStopObserving("onNotificationCaptured") {
+        OnStopObserving("onBridgeChanged") {
             captureObserver?.let { CaptureBus.unregister(it) }
             captureObserver = null
         }
@@ -2002,7 +2002,7 @@ Tambahkan ke `interface GopayListenerModule`:
   getEvents(limit: number): BridgeEvent[]
   retryEvent(eventId: string): void
   clearHistory(): void
-  addListener(event: 'onNotificationCaptured', handler: (e: BridgeStatus['lastEvent']) => void): { remove(): void }
+  addListener(event: 'onBridgeChanged', handler: (e: BridgeStatus['lastEvent']) => void): { remove(): void }
 ```
 
 - [ ] **Step 5: Build dan pasang**
@@ -2659,7 +2659,7 @@ export function useBridgeStatus() {
   useEffect(() => {
     refresh()
 
-    const sub = GopayListener.addListener('onNotificationCaptured', () => {
+    const sub = GopayListener.addListener('onBridgeChanged', () => {
       setStatus(GopayListener.getStatus())
     })
     const appSub = AppState.addEventListener('change', (s) => {
