@@ -39,6 +39,16 @@ run-dev: db-dev
 	  echo "  cp .env.dev.example .env.dev"; \
 	  echo "  echo \"DEVICE_SECRET_KEY=\$$(make -s dev-key)\" >> .env.dev"; \
 	  exit 1; }
+	@port=$$(grep -E '^LISTEN_ADDR=' .env.dev | tail -1 | sed 's/.*://'); \
+	 if ss -ltnH "sport = :$$port" 2>/dev/null | grep -q .; then \
+	   echo "Port $$port sudah dipakai proses lain:"; \
+	   docker ps --format '  container {{.Names}} ({{.Image}})' --filter "publish=$$port" 2>/dev/null; \
+	   ss -ltnpH "sport = :$$port" 2>/dev/null | sed 's/^/  /'; \
+	   echo; \
+	   echo "Server tidak dijalankan. Ganti LISTEN_ADDR di .env.dev ke port lain,"; \
+	   echo "lalu perbarui Backend URL di layar Pengaturan HP ('make dev-url')."; \
+	   exit 1; \
+	 fi
 	@set -a; . ./.env.dev; set +a; go run ./cmd/server
 
 dev-device: db-dev
@@ -51,7 +61,11 @@ dev-url:
 	@ip=$$(ip -4 addr show 2>/dev/null | grep -oP 'inet \K[0-9.]+' \
 	       | grep -vE '^(127\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[01]\.)' | head -1); \
 	 if [ -z "$$ip" ]; then echo "Alamat LAN tidak terdeteksi."; exit 1; fi; \
+	 port=$$(grep -E '^LISTEN_ADDR=' .env.dev 2>/dev/null | tail -1 | sed 's/.*://'); \
+	 port=$${port:-8090}; \
 	 echo "Backend URL untuk layar Pengaturan di HP:"; \
 	 echo; \
-	 echo "    http://$$ip:8080/api/v1"; \
+	 echo "    http://$$ip:$$port/api/v1"; \
+	 echo; \
+	 echo "Port dibaca dari .env.dev supaya tidak pernah menyimpang dari server."; \
 	 echo

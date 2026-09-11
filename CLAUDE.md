@@ -104,8 +104,13 @@ make dev-url        # cetak Backend URL sesuai alamat LAN laptop saat ini
 
 Dua hal yang mudah salah dan sudah dijaga di `.env.dev.example`:
 
-- `LISTEN_ADDR` wajib `0.0.0.0:8080`, bukan `127.0.0.1` — HP di LAN tidak akan
+- `LISTEN_ADDR` wajib `0.0.0.0`, bukan `127.0.0.1` — HP di LAN tidak akan
   pernah bisa menghubungi server yang hanya mengikat ke localhost.
+- Port default `8090`, bukan 8080. Port 8080 dan 8081 di mesin ini dipakai
+  container project lain (`soundbox-mqtt-*`). Bila bentrok, server Go gagal
+  bind dan mati, sementara HP diam-diam bicara ke aplikasi lain dan Test
+  Connection menjawab `http_404`. `make run-dev` memeriksanya lebih dulu dan
+  berhenti dengan menyebut proses pemiliknya.
 - `DEVICE_SECRET_KEY` wajib tetap antar restart. Kunci baru membuat secret
   device yang sudah tersimpan tidak dapat didekripsi, dan device harus dibuat
   ulang tiap kali server dinyalakan.
