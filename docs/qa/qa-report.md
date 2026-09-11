@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1 selesai · **M2 selesai** · M3 sebagian — 85 unit test Kotlin lulus, pembayaran sungguhan tertangkap di perangkat
+**Milestone terakhir diperiksa:** M1 selesai · **M2 selesai** · **M3 selesai** — 85 unit test Kotlin lulus, pembayaran sungguhan tertangkap dan disaring dengan benar di perangkat
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 50 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 19
+**Ringkasan:** `PASS` 54 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 15
 
 ---
 
@@ -73,11 +73,7 @@ Butir 5–7 **selesai 2026-09-11**; hasilnya tercatat di §2.6.2 spec. Notifikas
 
 Butir 8 (enkripsi konfigurasi) **selesai 2026-09-11** dan kini tercatat `PASS`.
 
-Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil menunggu pemeriksaan mata di HP:
-
-| # | Langkah | Hasil yang diharapkan | Laporkan |
-|---|---|---|---|
-| 9 | Buka tab Riwayat setelah pengujian WhatsApp | Tidak ada satu pun entri WhatsApp — hanya pembayaran. WhatsApp hanya boleh muncul di tab Debug | Ada atau tidak |
+Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh sisa butir yang menunggu kini menyangkut **akses VPS**.
 
 ---
 
@@ -87,7 +83,7 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 |---|---|---|---|---|
 | FR-01 | Notification Access terdeteksi | M2 | `PASS` | `adb shell settings get secure enabled_notification_listeners` memuat `id.akbarryyan.gopaybridge.dev/expo.modules.gopaylistener.GoPayListenerService`. Diverifikasi ulang setelah package diganti, 2026-09-11 |
 | FR-02 | Notification Listener menerima event | M2 | `PASS` | Mode Discovery mencatat `com.whatsapp` saat pesan masuk — listener menerima event dari sistem. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| FR-03 | Hanya memproses event GoPay | M3 | `PENDING` | — |
+| FR-03 | Hanya memproses event GoPay Merchant | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 | FR-04 | Parsing nominal dan `event_id` (unit) | M3 | `PASS` | `./gradlew :gopay-listener:testDebugUnitTest` → BUILD SUCCESSFUL; `build/test-results/testDebugUnitTest/*.xml` mencatat `tests=20 failures=0 errors=0 skipped=0` (AmountParserTest 8, EventIdBuilderTest 5, SignerTest 7) |
 | FR-04 | Notifikasi jadi event terstruktur (pipeline) | M3 | `PASS` | Pembayaran QRIS sungguhan muncul di Riwayat dengan nominal dan status `PENDING`. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | FR-05 | Kirim event via HTTPS | M4 | `PENDING` | Sisi penerima siap; pengirim belum ada |
@@ -107,7 +103,7 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 |---|---|---|---|
 | User dapat memberikan Notification Access | M2 | `PASS` | Izin diberikan lewat tombol di aplikasi; status berubah jadi aktif. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Aplikasi mendeteksi notifikasi baru | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap dan muncul di Riwayat. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| Membedakan GoPay dari aplikasi lain | M3 | `PENDING` | — |
+| Membedakan GoPay Merchant dari aplikasi lain | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 | Notifikasi jadi event terstruktur | M3 | `PASS` | Event memuat nominal hasil parsing dan status; Dashboard menampilkan "Event terakhir". Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Event terkirim via HTTPS | M4 | `PENDING` | — |
 | Backend mengidentifikasi perangkat pengirim | M1 | `PASS` | `TestAuthAcceptsValidSignature`, `TestTouchDeviceSetsLastSeenAt`, e2e no. 6 (`last_seen_at` = `t`) |
@@ -116,7 +112,7 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 | User melihat status listener | M5 | `PASS` | Baris Listener di Dashboard. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | User melihat status komunikasi backend | M5 | `PASS` | Baris Backend di Dashboard melaporkan `belum dikonfigurasi` dengan benar. Keadaan `terhubung` menyusul setelah VPS. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | User melihat event/history dasar | M5 | `PASS` | Tab Riwayat menampilkan event beserta nominal, waktu, dan status. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| Tidak memproses notifikasi selain GoPay | M3 | `PENDING` | — |
+| Tidak memproses notifikasi selain GoPay Merchant | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 
 ---
 
@@ -130,7 +126,7 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 | Notification Access dapat diaktifkan | M2 | `PASS` | Tombol membuka `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`; izin diberikan dan status berubah jadi aktif |
 | Listener berjalan di background | M6 | `PENDING` | — |
 | Notifikasi GoPay Merchant terdeteksi | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| Notifikasi aplikasi lain diabaikan | M3 | `PENDING` | — |
+| Notifikasi aplikasi lain diabaikan | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 | Data notification dapat diekstrak | M3 | `PASS` | Nominal tampil di Riwayat dan Dashboard, hasil `AmountParser` atas teks sungguhan. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Event ID dibuat | M3 | `PASS` | Event tersimpan; `eventId` adalah primary key sehingga baris tidak akan ada tanpanya. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Lapisan penyimpanan lokal (Room) | M3 | `PASS` | 12 test `EventDaoTest`, termasuk pembacaan kolom mentah yang mengunci enum tersimpan sebagai TEXT `PENDING` |
