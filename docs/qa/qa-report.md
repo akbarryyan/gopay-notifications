@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1, M2, M3 selesai · **M4 terbukti lewat backend lokal** — pembayaran sungguhan menempuh seluruh rantai sampai tersimpan di Postgres
+**Milestone terakhir diperiksa:** M1, M2, M3 selesai · **M4 selesai lewat backend lokal** — pengiriman, retry, kegagalan autentikasi, duplikat, dan error server semuanya terbukti di perangkat. Sisa M4 hanya HTTPS, yang menunggu VPS
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 60 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 6
+**Ringkasan:** `PASS` 61 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 5
 
 ---
 
@@ -139,7 +139,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Authentication dikirim Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
 | Retry mechanism berjalan | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 | Duplicate event ditangani backend | M1 | `PASS` | Sama dengan FR-08 sisi backend |
-| Duplicate event ditangani Android | M3 | `PENDING` | — |
+| Duplicate event ditangani Android | M3 | `PASS` | Event yang sudah `SENT` dikirim ulang lewat tombol di layar Debug → backend menjawab `duplicate`, kartu menampilkan `Backend: duplicate`, status tetap `SENT` dan bukan error. Jumlah baris di `gopay_dev` tetap **5**, tanpa satu pun `event_id` ganda. 2026-09-11 |
 | Dashboard menampilkan listener status | M5 | `PASS` | Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Dashboard menampilkan backend status | M5 | `PASS` | Melaporkan `belum dikonfigurasi` dengan benar. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | History event tersedia | M5 | `PASS` | Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
@@ -158,13 +158,13 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Kondisi | Tindakan yang diharapkan | Status | Bukti |
 |---|---|---|---|
 | `200 accepted` | → `SENT` | `PASS` | `TestCallbackFirstTimeReturnsAccepted`, e2e no. 1, dan terbukti di perangkat: Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
-| `200 duplicate` | → `SENT`, bukan error | `PASS` | `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2 |
+| `200 duplicate` | → `SENT`, bukan error | `PASS` | `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2, dan terbukti di perangkat: kiriman ulang event yang sudah `SENT` menghasilkan `Backend: duplicate` tanpa menambah baris di database. 2026-09-11 |
 | `400 invalid_payload` | → `FAILED`, tanpa retry | `PASS` | `TestCallbackRejectsMalformedJSON`, `TestCallbackRejectsInvalidFields` (7 subtest) |
 | `401 invalid_signature` | → `FAILED`, peringatan kredensial | `PASS` | `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, e2e no. 3, dan **terbukti di perangkat**: Device Secret sengaja disalahkan → pembayaran sungguhan langsung `FAILED` dengan `invalid_signature` dan berhenti mencoba; setelah secret diperbaiki, Kirim ulang menghasilkan `SENT` dengan `Backend: accepted` dan baris masuk `gopay_dev` pukul 16:21:53. 2026-09-11 |
 | `401 clock_skew` | → `FAILED`, pesan jam meleset + jam server | `PASS` | `TestAuthRejectsClockSkewWithServerTime`, e2e no. 4 (`server_time` disertakan) |
 | `403 device_disabled` | → `FAILED`, tanpa retry | `PASS` | `TestAuthRejectsDisabledDevice` |
 | `429` | tetap `PENDING`, hormati `Retry-After` | `PENDING` | Backend kita tidak menerapkan rate limiting sehingga `429` tidak dapat dihasilkan darinya; ia hanya mungkin datang dari Caddy di depan. Pemetaannya diuji `ResponseMapperTest`, perilaku di perangkat belum pernah terpicu |
-| `5xx` | tetap `PENDING`, retry | `PENDING` | Perilaku sisi HP, M4 |
+| `5xx` | tetap `PENDING`, retry | `PASS` | Postgres dimatikan sementara server Go tetap hidup → `InsertEvent` gagal → backend membalas `500` → HP menandai `PENDING` dan mencoba lagi. Setelah Postgres dinyalakan, kiriman ulang berhasil `SENT`. Berbeda dari uji jaringan mati: di sini server **menjawab** dengan error, bukan diam. 2026-09-11 |
 | timeout / jaringan mati | tetap `PENDING`, retry | `PASS` | Backend ditolak koneksinya (server mati) → `IOException` → `Retry("network")`, event bertahan `PENDING` lalu terkirim saat server hidup. Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 
 ---
