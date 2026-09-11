@@ -1,17 +1,35 @@
-gopay.example.com {
+# Produksi
+GANTI-DOMAIN.com {
 	encode zstd gzip
 
 	# /events dilindungi basic auth — ini yang dibuka di browser.
 	# Hash dibuat dengan: caddy hash-password
 	@events path /api/v1/events*
 	basic_auth @events {
-		admin GANTI_DENGAN_HASH_BCRYPT
+		admin GANTI_HASH_BCRYPT_PRODUKSI
 	}
 
 	reverse_proxy 127.0.0.1:8080
 
 	log {
 		output file /var/log/caddy/gopay.log
+		format json
+	}
+}
+
+# UAT — layanan, database, dan DEVICE_SECRET_KEY terpisah dari produksi.
+uat.GANTI-DOMAIN.com {
+	encode zstd gzip
+
+	@events path /api/v1/events*
+	basic_auth @events {
+		admin GANTI_HASH_BCRYPT_UAT
+	}
+
+	reverse_proxy 127.0.0.1:8081
+
+	log {
+		output file /var/log/caddy/gopay-uat.log
 		format json
 	}
 }

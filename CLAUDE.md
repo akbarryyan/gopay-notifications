@@ -106,9 +106,33 @@ go run ./cmd/devicetool -genkey                 # cetak DEVICE_SECRET_KEY
 go run ./cmd/devicetool -name "HP GoPay Utama"  # cetak Device ID + Secret
 ```
 
+### Lingkungan
+
+Tiga varian, package berbeda sehingga dapat terpasang bersamaan dan datanya
+disandera Android di sandbox masing-masing:
+
+| Varian | Package | Backend |
+|---|---|---|
+| `development` | `id.manjo.gopaybridge.dev` | laptop, HTTP polos diizinkan |
+| `uat` | `id.manjo.gopaybridge.uat` | `uat.<domain>`, port 8081 |
+| `production` | `id.manjo.gopaybridge` | `<domain>`, port 8080 |
+
+`DEVICE_SECRET_KEY` UAT dan produksi **wajib berbeda**. Device terdaftar per
+database, jadi HP UAT yang salah diarahkan ke produksi ditolak
+`401 invalid_signature` — dan jaminan itu hilang bila kuncinya dipakai ulang.
+
+Domain diedit sekali di konstanta `DOMAIN` pada `mobile/src/lib/env.ts`.
+Backend URL ditanam sebagai nilai awal per varian dan hanya diisi bila Settings
+masih kosong, sehingga perubahan manual tidak pernah ditimpa.
+
+Varian di UI diambil dari package name aplikasi yang benar-benar terpasang
+(`getEnvironment()` di native), bukan dari konfigurasi build — supaya tidak bisa
+menyimpang dari kenyataan.
+
 ### Mobile
 
-Selalu dengan `APP_VARIANT=development` dan `ANDROID_SERIAL`.
+Selalu dengan `APP_VARIANT` dan `ANDROID_SERIAL`. Tanpa `APP_VARIANT`, build
+menghasilkan **production**.
 
 adb menyambung ulang sendiri lewat mDNS sehingga muncul **dua entri untuk HP yang
 sama** — satu lewat IP, satu bernama `adb-c62dac4f-4meRBj (2)._adb-tls-connect._tcp`.
@@ -134,7 +158,7 @@ cd mobile
 export ANDROID_SERIAL=192.168.1.66:41721
 export APP_VARIANT=development
 
-npx expo prebuild --platform android --clean   # regenerate android/ dari config plugin
+npx expo prebuild --platform android --clean   # wajib saat berpindah varian: package name berubah
 npx expo run:android                           # build + pasang ke HP (lama saat pertama)
 npx expo start --dev-client                    # dev server, setelah aplikasi terpasang
 npx tsc --noEmit                               # periksa tipe

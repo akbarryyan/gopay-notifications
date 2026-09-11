@@ -414,6 +414,14 @@ Keputusan "tanpa foreground service" tetap berlaku, tetapi M6 yang menentukan ap
 ### 6.6 Keputusan kecil
 
 - **Bahasa UI:** Indonesia.
+- **Tiga lingkungan:** `development`, `uat`, `production`, masing-masing dengan package Android berbeda sehingga dapat terpasang bersamaan. Android menyandera data tiap package di sandbox-nya sendiri, sehingga database event, Device Secret, dan Settings tidak pernah bercampur antar lingkungan.
+
+  UAT dan produksi berjalan di VPS yang sama sebagai dua layanan terpisah, dengan database dan `DEVICE_SECRET_KEY` masing-masing. Karena device terdaftar per database, HP yang salah diarahkan ditolak `401 invalid_signature` — gagalnya nyaring, bukan diam-diam.
+
+  Varian di UI diambil dari package name yang benar-benar terpasang, bukan dari konfigurasi build. Dashboard menampilkan pita warna untuk varian non-produksi: tiga aplikasi dengan tampilan identik di satu HP adalah undangan untuk salah lihat.
+
+  Konsekuensi yang perlu disadari: bila aplikasi UAT dan produksi sama-sama diberi Notification Access, keduanya menangkap setiap pembayaran, sehingga database UAT memuat catatan transaksi sungguhan.
+
 - **Distribusi:** APK dari EAS Build, dipasang manual. Play Store dihindari — kebijakan mereka soal notification listener ketat dan distribusi publik tidak dibutuhkan.
 - **Jumlah device:** satu, tetapi skema `device_id` + secret sudah mendukung banyak device tanpa perubahan.
 - **Cleartext HTTP:** Android 9+ memblokir HTTP polos. Build **development** menyetel `usesCleartextTraffic: true` lewat `expo-build-properties`, sehingga Metro dan backend yang jalan di laptop dapat dihubungi. Build **production** tidak menyetelnya sama sekali, dan Android sejak targetSdk 28 memblokir cleartext secara default — jadi production tetap HTTPS-only tanpa konfigurasi apa pun.

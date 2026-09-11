@@ -2,6 +2,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } 
 import GopayListener from '../../modules/gopay-listener'
 import { useBridgeStatus } from '../lib/useBridge'
 import { formatRupiah, formatWaktu, sejakKapan } from '../lib/format'
+import { LABEL_VARIAN, WARNA_VARIAN, environment } from '../lib/env'
 
 function Baris({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
   return (
@@ -18,12 +19,19 @@ function Baris({ label, ok, detail }: { label: string; ok: boolean; detail: stri
 export default function DashboardScreen() {
   const { status, backend, refresh } = useBridgeStatus()
   const last = status.lastEvent
+  const { variant } = environment()
 
   return (
     <ScrollView
       contentContainerStyle={styles.root}
       refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} />}
     >
+      {variant !== 'production' && (
+        <View style={[styles.pita, { backgroundColor: WARNA_VARIAN[variant] }]}>
+          <Text style={styles.pitaTeks}>{LABEL_VARIAN[variant]}</Text>
+        </View>
+      )}
+
       <View style={styles.kartu}>
         <Baris
           label="Notification Access"
@@ -105,6 +113,10 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   root: { padding: 16, gap: 12 },
+  // Tiga aplikasi dengan tampilan identik di satu HP adalah undangan untuk
+  // salah lihat. Pita ini tidak muncul di production.
+  pita: { borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  pitaTeks: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
   subjudul: { fontSize: 13, color: '#6b7280', marginBottom: 6 },
   kartu: { backgroundColor: '#f9fafb', borderRadius: 12, padding: 16, gap: 4 },
   baris: {

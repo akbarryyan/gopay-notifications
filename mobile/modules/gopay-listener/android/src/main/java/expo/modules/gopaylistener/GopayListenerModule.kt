@@ -66,6 +66,21 @@ class GopayListenerModule : Module() {
             captureObserver = null
         }
 
+        /**
+         * Varian diturunkan dari package name aplikasi yang BENAR-BENAR
+         * terpasang, bukan dari konfigurasi build yang bisa menyimpang.
+         * Tiga varian punya package berbeda, jadi ini tidak bisa berbohong.
+         */
+        Function("getEnvironment") {
+            val pkg = context.packageName
+            val variant = when {
+                pkg.endsWith(".dev") -> "development"
+                pkg.endsWith(".uat") -> "uat"
+                else -> "production"
+            }
+            mapOf("packageName" to pkg, "variant" to variant)
+        }
+
         Function("isNotificationAccessGranted") {
             isAccessGranted()
         }

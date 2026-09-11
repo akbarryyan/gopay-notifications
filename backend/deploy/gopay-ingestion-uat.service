@@ -1,0 +1,23 @@
+[Unit]
+Description=GoPay notification ingestion (UAT)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=gopay-uat
+Group=gopay-uat
+WorkingDirectory=/opt/gopay-ingestion-uat
+EnvironmentFile=/opt/gopay-ingestion-uat/.env
+ExecStart=/opt/gopay-ingestion-uat/server
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gopay-ingestion-uat
+
+[Install]
+WantedBy=multi-user.target

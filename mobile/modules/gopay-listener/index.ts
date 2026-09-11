@@ -25,6 +25,14 @@ export interface DiscoveryEntry {
   seenAt: number
 }
 
+export type AppVariant = 'development' | 'uat' | 'production'
+
+export interface AppEnvironment {
+  packageName: string
+  /** Diturunkan dari package name yang benar-benar terpasang. */
+  variant: AppVariant
+}
+
 export type EventStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'IGNORED'
 
 export interface BridgeEvent {
@@ -80,6 +88,8 @@ export interface ConnectionTest {
 }
 
 interface GopayListenerModule {
+  getEnvironment(): AppEnvironment
+
   /** Apakah user sudah memberi Notification Access lewat Android Settings. */
   isNotificationAccessGranted(): boolean
   /** Membuka halaman Notification Access; izin ini tidak bisa diminta lewat dialog. */

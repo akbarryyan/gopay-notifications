@@ -1,17 +1,53 @@
 import type { ExpoConfig } from 'expo/config'
 
-// Varian development memakai package Android berbeda, sehingga build dev dan
-// build production dapat terpasang berdampingan di HP yang sama.
-const IS_DEV = process.env.APP_VARIANT === 'development'
+type Variant = 'development' | 'uat' | 'production'
+
+// Default production supaya build tanpa APP_VARIANT tidak diam-diam
+// menghasilkan aplikasi development.
+const VARIANT = (process.env.APP_VARIANT ?? 'production') as Variant
+
+/**
+ * Package berbeda per varian sehingga ketiganya dapat terpasang bersamaan.
+ *
+ * Lebih penting dari itu: Android menyandera data tiap package di sandbox-nya
+ * sendiri, jadi database event, Device Secret, dan Settings UAT tidak akan
+ * pernah bercampur dengan produksi.
+ */
+const VARIANTS: Record<Variant, { name: string; package: string; cleartext: boolean }> = {
+  development: {
+    name: 'GoPay Bridge (Dev)',
+    package: 'id.manjo.gopaybridge.dev',
+    // HTTP polos hanya di sini, untuk Metro dan backend yang jalan di laptop.
+    cleartext: true,
+  },
+  uat: {
+    name: 'GoPay Bridge (UAT)',
+    package: 'id.manjo.gopaybridge.uat',
+    cleartext: false,
+  },
+  production: {
+    name: 'GoPay Bridge',
+    package: 'id.manjo.gopaybridge',
+    cleartext: false,
+  },
+}
+
+const v = VARIANTS[VARIANT]
+
+if (!v) {
+  throw new Error(
+    `APP_VARIANT tidak dikenal: "${VARIANT}". Pilih development, uat, atau production.`,
+  )
+}
 
 const config: ExpoConfig = {
-  name: IS_DEV ? 'GoPay Bridge (Dev)' : 'GoPay Bridge',
+  name: v.name,
   slug: 'gopay-bridge',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   android: {
-    package: IS_DEV ? 'id.manjo.gopaybridge.dev' : 'id.manjo.gopaybridge',
+    package: v.package,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -37,11 +73,10 @@ const config: ExpoConfig = {
           // requestRebind menuntut 24, dan java.time menuntut 26.
           minSdkVersion: 26,
 
-          // HTTP polos HANYA di build development, untuk Metro dan backend
-          // yang jalan di laptop. Build production tidak menyetelnya sama
-          // sekali, dan Android sejak targetSdk 28 memblokir cleartext secara
-          // default — jadi production tetap HTTPS-only tanpa konfigurasi apa pun.
-          usesCleartextTraffic: IS_DEV,
+          // UAT dan production tidak menyetelnya sama sekali, dan Android
+          // sejak targetSdk 28 memblokir cleartext secara default — jadi
+          // keduanya HTTPS-only tanpa konfigurasi apa pun.
+          usesCleartextTraffic: v.cleartext,
         },
       },
     ],
