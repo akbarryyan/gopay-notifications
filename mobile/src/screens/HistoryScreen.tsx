@@ -41,6 +41,19 @@ export default function HistoryScreen() {
           {item.attemptCount > 0 && (
             <Text style={styles.teksKecil}>Percobaan: {item.attemptCount}</Text>
           )}
+
+          {/*
+            backendStatus dan sentAt ditampilkan karena keduanya satu-satunya
+            bukti bahwa sebuah server benar-benar menjawab. Tanpa ini, status
+            SENT tidak dapat dibedakan dari SENT yang keliru.
+          */}
+          {item.status === 'SENT' && (
+            <Text style={styles.teksKecil}>
+              Backend: {item.backendStatus ?? '—'}
+              {item.sentAt ? ` · ${formatWaktu(item.sentAt)}` : ''}
+            </Text>
+          )}
+
           {item.lastError && <Text style={styles.error}>{item.lastError}</Text>}
 
           {/*
