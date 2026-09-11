@@ -14,9 +14,10 @@ class CapturePolicyTest {
         pkg: String = merchant,
         t: String? = title,
         x: String? = text,
+        b: String? = null,
         packages: List<String> = monitored,
         ignore: List<String> = emptyList(),
-    ) = CapturePolicy.decide(pkg, t, x, packages, ignore)
+    ) = CapturePolicy.decide(pkg, t, x, b, packages, ignore)
 
     @Test
     fun `notifikasi merchant ditangkap`() {
@@ -70,8 +71,23 @@ class CapturePolicyTest {
     }
 
     @Test
-    fun `judul dan isi null tetap ditangkap bila package cocok`() {
-        assertEquals(CaptureDecision.Capture, decide(t = null, x = null))
+    fun `notifikasi tanpa teks sama sekali dilewati`() {
+        // Android memasang notifikasi ringkasan grup berisi kosong
+        // berdampingan dengan yang asli. Teramati di perangkat 2026-09-11.
+        assertEquals(CaptureDecision.Skip, decide(t = null, x = null, b = null))
+        assertEquals(CaptureDecision.Skip, decide(t = "", x = "", b = ""))
+        assertEquals(CaptureDecision.Skip, decide(t = "   ", x = null, b = null))
+    }
+
+    @Test
+    fun `cukup salah satu bidang berisi untuk ditangkap`() {
+        assertEquals(CaptureDecision.Capture, decide(t = "ada judul", x = null, b = null))
+        assertEquals(CaptureDecision.Capture, decide(t = null, x = "ada isi", b = null))
+        assertEquals(
+            "bigText saja sudah cukup — nominal bisa hanya ada di sana",
+            CaptureDecision.Capture,
+            decide(t = null, x = null, b = "Rp 1 di toko")
+        )
     }
 
     @Test

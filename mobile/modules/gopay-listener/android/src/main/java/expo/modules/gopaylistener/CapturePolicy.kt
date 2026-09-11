@@ -23,10 +23,20 @@ object CapturePolicy {
         packageName: String,
         title: String?,
         text: String?,
+        bigText: String?,
         monitoredPackages: List<String>,
         ignoreKeywords: List<String>,
     ): CaptureDecision {
         if (packageName !in monitoredPackages) return CaptureDecision.Skip
+
+        // Notifikasi tanpa teks sama sekali. Android memasang notifikasi
+        // ringkasan grup berdampingan dengan yang asli, dan isinya kosong.
+        // Ia tidak mungkin memuat pembayaran, jadi tidak perlu disimpan
+        // maupun dikirim. Mode Discovery tetap menangkapnya bila suatu saat
+        // perlu diperiksa.
+        if (title.isNullOrBlank() && text.isNullOrBlank() && bigText.isNullOrBlank()) {
+            return CaptureDecision.Skip
+        }
 
         // Daftar kata-diabaikan hanya pengurang noise. Keamanan dijamin
         // allowlist judul di backend, jadi bila ragu lebih baik tetap kirim.

@@ -186,6 +186,8 @@ uang masuk tanpa cocok dengan invoice mana pun, dan butuh penanganan manual.
 
 **Format nominal `Rp 1`** — dengan spasi. Sudah ditangani `AmountParser`.
 
+**Aplikasi merchant juga memasang notifikasi tanpa teks sama sekali** — title, text, dan bigText ketiganya `null`. Teramati di perangkat 2026-09-11; hampir pasti notifikasi ringkasan grup yang dipasang Android berdampingan dengan yang asli. Notifikasi semacam itu dilewati tanpa disimpan: ia tidak mungkin memuat pembayaran, dan menyimpannya hanya mengotori Riwayat serta menghabiskan satu request ke backend. Mode Discovery tetap menangkapnya bila suatu saat perlu diperiksa.
+
 **Tidak ada PII pihak ketiga.** Teks memuat nama merchant, bukan nama pembayar.
 Ini lebih baik daripada akun pribadi yang menyertakan nama pengirim, dan
 meringankan kewajiban retensi di §4.5.

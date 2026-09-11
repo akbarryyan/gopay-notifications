@@ -74,6 +74,7 @@ class GoPayListenerService : NotificationListenerService() {
                     packageName = pkg,
                     title = title,
                     text = text,
+                    bigText = bigText,
                     monitoredPackages = settings.monitoredPackages,
                     ignoreKeywords = settings.ignoreKeywords,
                 )
