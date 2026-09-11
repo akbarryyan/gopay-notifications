@@ -943,9 +943,14 @@ apply plugin: 'kotlin-kapt'
 Di blok `dependencies`:
 
 ```gradle
-  implementation 'androidx.room:room-runtime:2.6.1'
-  implementation 'androidx.room:room-ktx:2.6.1'
-  kapt 'androidx.room:room-compiler:2.6.1'
+  // Room 2.8.x wajib, bukan 2.6.x. Compiler 2.6.1 hanya memahami metadata
+  // Kotlin sampai 2.0.0, sementara project ini memakai Kotlin 2.1.20 yang
+  // menghasilkan metadata 2.1.0 — kapt gagal dengan
+  // "Provided Metadata instance has version 2.1.0, while maximum supported
+  // version is 2.0.0". Jangan turunkan versinya.
+  implementation 'androidx.room:room-runtime:2.8.5'
+  implementation 'androidx.room:room-ktx:2.8.5'
+  kapt 'androidx.room:room-compiler:2.8.5'
 
   testImplementation 'junit:junit:4.13.2'
   testImplementation 'org.robolectric:robolectric:4.12.2'
