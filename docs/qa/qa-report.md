@@ -85,7 +85,7 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 
 | # | Requirement | Milestone | Status | Bukti |
 |---|---|---|---|---|
-| FR-01 | Notification Access terdeteksi | M2 | `PASS` | Setelah izin diberikan di HP, layar menampilkan `Notification Access: aktif` dan `Listener terikat: ya` — dilaporkan Akbar 2026-09-10 |
+| FR-01 | Notification Access terdeteksi | M2 | `PASS` | `adb shell settings get secure enabled_notification_listeners` memuat `id.akbarryyan.gopaybridge.dev/expo.modules.gopaylistener.GoPayListenerService`. Diverifikasi ulang setelah package diganti, 2026-09-11 |
 | FR-02 | Notification Listener menerima event | M2 | `PASS` | Mode Discovery mencatat `com.whatsapp` saat pesan masuk — listener menerima event dari sistem. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | FR-03 | Hanya memproses event GoPay | M3 | `PENDING` | — |
 | FR-04 | Parsing nominal dan `event_id` (unit) | M3 | `PASS` | `./gradlew :gopay-listener:testDebugUnitTest` → BUILD SUCCESSFUL; `build/test-results/testDebugUnitTest/*.xml` mencatat `tests=20 failures=0 errors=0 skipped=0` (AmountParserTest 8, EventIdBuilderTest 5, SignerTest 7) |
@@ -124,9 +124,9 @@ Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil men
 
 | Butir | Milestone | Status | Bukti |
 |---|---|---|---|
-| Aplikasi berjalan di Android | M2 | `PASS` | `adb shell pm list packages` → `package:id.manjo.gopaybridge.dev`; aplikasi terbuka di OPPO CPH2365. **Catatan:** package diganti jadi `id.akbarryyan.gopaybridge` pada 2026-09-11 setelah bukti ini diambil; perlu diverifikasi ulang setelah build berikutnya |
+| Aplikasi berjalan di Android | M2 | `PASS` | Diverifikasi ulang setelah package diganti: `adb shell pm list packages \| grep gopaybridge` → `package:id.akbarryyan.gopaybridge.dev`, dan package lama `id.manjo.*` sudah tidak ada. OPPO CPH2365, 2026-09-11 |
 | TypeScript sebagai application language | M2 | `PASS` | `npx tsc --noEmit` bersih; `App.tsx` dan `modules/gopay-listener/index.ts` |
-| Kotlin untuk Notification Listener | M2 | `PASS` | `adb shell dumpsys package id.manjo.gopaybridge.dev` menampilkan `expo.modules.gopaylistener.GoPayListenerService` dengan permission `BIND_NOTIFICATION_LISTENER_SERVICE` dan action `android.service.notification.NotificationListenerService` |
+| Kotlin untuk Notification Listener | M2 | `PASS` | `adb shell dumpsys package id.akbarryyan.gopaybridge.dev` → `id.akbarryyan.gopaybridge.dev/expo.modules.gopaylistener.GoPayListenerService` dengan permission `BIND_NOTIFICATION_LISTENER_SERVICE` dan action `android.service.notification.NotificationListenerService`. Diverifikasi ulang 2026-09-11 |
 | Notification Access dapat diaktifkan | M2 | `PASS` | Tombol membuka `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`; izin diberikan dan status berubah jadi aktif |
 | Listener berjalan di background | M6 | `PENDING` | — |
 | Notifikasi GoPay Merchant terdeteksi | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
@@ -191,7 +191,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Channel "Promotions and Marketing" `com.gojek.gopaymerchant` masih aktif | `PASS` | Notifikasi pembayaran sungguhan sampai ke listener, yang hanya mungkin bila channel-nya aktif. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Enkripsi konfigurasi terbukti di perangkat | `PASS` | Device Secret diisi, aplikasi ditutup paksa, dibuka lagi — field menampilkan `tersimpan`, bukan `belum diisi`. Membuktikan `EncryptedSharedPreferences` menulis dan membaca lewat Android Keystore. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | `monitoredPackages` berisi tepat satu entri | `PASS` | `SettingsTest.daftar package default berisi tepat satu entri merchant`; `EventIdBuilderTest` membuktikan `com.gojek.gopay` dan `com.gojek.gopaymerchant` menghasilkan `event_id` berbeda untuk teks identik |
-| Setup ColorOS selesai | `PASS` | Keempat setelan dikerjakan Akbar 2026-09-10: aktivitas latar belakang diizinkan, mulai otomatis aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati. Ketahanannya baru diuji di M6 |
+| Setup ColorOS selesai | `PASS` | Keempat setelan dikerjakan ulang untuk package baru `id.akbarryyan.gopaybridge.dev` pada 2026-09-11: aktivitas latar belakang diizinkan, mulai otomatis aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati. Ketahanannya baru diuji di M6 |
 
 ---
 
