@@ -10,6 +10,7 @@ import expo.modules.gopaylistener.db.EventEntity
 import expo.modules.gopaylistener.db.EventStatus
 import expo.modules.gopaylistener.discovery.DiscoveryLog
 import expo.modules.gopaylistener.net.Uploader
+import expo.modules.gopaylistener.work.PurgeWorker
 import expo.modules.gopaylistener.work.UploadScheduler
 import java.lang.ref.WeakReference
 import expo.modules.kotlin.modules.Module
@@ -40,6 +41,12 @@ class GopayListenerModule : Module() {
 
     override fun definition() = ModuleDefinition {
         Name("GopayListener")
+
+        // Retensi 30 hari. Teks notifikasi merchant tidak memuat PII pihak
+        // ketiga, tetapi menyimpannya selamanya tetap tidak ada gunanya.
+        OnCreate {
+            PurgeWorker.schedule(context)
+        }
 
         Events(EVENT_CAPTURED)
 
