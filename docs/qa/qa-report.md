@@ -2,7 +2,7 @@
 
 **Milestone terakhir diperiksa:** M1, M2, M3 selesai · **M4 terbukti lewat backend lokal** — pembayaran sungguhan menempuh seluruh rantai sampai tersimpan di Postgres
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 59 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 11
+**Ringkasan:** `PASS` 59 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 7
 
 ---
 
@@ -90,7 +90,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | FR-05 | Kirim event via **HTTPS** | M4 | `PENDING` | Jalur pengiriman terbukti, tetapi lewat HTTP ke backend lokal. HTTPS menuntut VPS dengan sertifikat |
 | FR-06 | Autentikasi request — sisi backend | M1 | `PASS` | `TestVerifyRejectsModifiedBody`, `TestVerifyRejectsWrongSecret`, `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, `TestAuthRejectsDisabledDevice`, `TestAuthRejectsMissingHeaders` (3 subtest), e2e no. 3 |
 | FR-06 | Autentikasi request — sisi Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
-| FR-07 | Retry untuk error yang dapat dipulihkan | M4 | `PENDING` | — |
+| FR-07 | Retry untuk error yang dapat dipulihkan | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 | FR-08 | Pencegahan duplikat — sisi backend | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce` (8 goroutine, `-count=20 -race`), `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2 dan 5 |
 | FR-08 | Pencegahan duplikat — sisi Android | M3 | `PASS` | `EventDaoTest.menolak event_id yang sama tanpa melempar exception` — primary key menolak penyisipan kedua dan mengembalikan `-1`. `./gradlew :gopay-listener:testDebugUnitTest` → `tests=49 failures=0 errors=0 skipped=0` (AmountParser 10, EventIdBuilder 5, Signer 7, EventDao 12, Settings 10, DiscoveryLog 5) |
 | FR-09 | Pencatatan status event | M3 | `PASS` | Riwayat menampilkan status `PENDING` untuk event yang belum terkirim. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
@@ -109,7 +109,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Event terkirim via HTTPS | M4 | `PENDING` | Pengiriman terbukti lewat HTTP lokal; HTTPS menunggu VPS |
 | Backend mengidentifikasi perangkat pengirim | M1 | `PASS` | `TestAuthAcceptsValidSignature`, `TestTouchDeviceSetsLastSeenAt`, e2e no. 6 (`last_seen_at` = `t`) |
 | Event sama tidak diproses dua kali | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce`, e2e no. 5 (tepat 1 baris setelah 2 kiriman identik) |
-| Event terkirim setelah koneksi normal kembali | M4 | `PENDING` | — |
+| Event terkirim setelah koneksi normal kembali | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 | User melihat status listener | M5 | `PASS` | Baris Listener di Dashboard. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | User melihat status komunikasi backend | M5 | `PASS` | Baris Backend di Dashboard melaporkan `belum dikonfigurasi` dengan benar. Keadaan `terhubung` menyusul setelah VPS. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | User melihat event/history dasar | M5 | `PASS` | Tab Riwayat menampilkan event beserta nominal, waktu, dan status. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
@@ -137,7 +137,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | HTTPS untuk production | M1 | `NEEDS-DEVICE` | `Caddyfile` ditulis, build silang OK; sertifikat belum diverifikasi — lihat §2 no. 1 |
 | Authentication ditegakkan backend | M1 | `PASS` | Sama dengan FR-06 sisi backend |
 | Authentication dikirim Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
-| Retry mechanism berjalan | M4 | `PENDING` | — |
+| Retry mechanism berjalan | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 | Duplicate event ditangani backend | M1 | `PASS` | Sama dengan FR-08 sisi backend |
 | Duplicate event ditangani Android | M3 | `PENDING` | — |
 | Dashboard menampilkan listener status | M5 | `PASS` | Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
@@ -145,7 +145,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | History event tersedia | M5 | `PASS` | Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Device ID tersedia | M1 | `PASS` | `devicetool -name "HP GoPay Utama"` → `Device ID : dev_18576e55cfa02f73` |
 | Credential tidak hardcoded | M1 | `PASS` | `grep -rn 'DEVICE_SECRET_KEY' --include='*.go'` hanya menemukan pembacaan `os.Getenv` di `internal/config/config.go:33` dan teks bantuan flag |
-| Menangani network failure | M4 | `PENDING` | — |
+| Menangani network failure | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 | Dapat diuji saat UI tidak terbuka | M6 | `PENDING` | — |
 | Diuji pada physical Android device | M6 | `PENDING` | — |
 
@@ -165,7 +165,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | `403 device_disabled` | → `FAILED`, tanpa retry | `PASS` | `TestAuthRejectsDisabledDevice` |
 | `429` | tetap `PENDING`, hormati `Retry-After` | `PENDING` | Perilaku sisi HP, M4 |
 | `5xx` | tetap `PENDING`, retry | `PENDING` | Perilaku sisi HP, M4 |
-| timeout / jaringan mati | tetap `PENDING`, retry | `PENDING` | Perilaku sisi HP, M4 |
+| timeout / jaringan mati | tetap `PENDING`, retry | `PASS` | Backend ditolak koneksinya (server mati) → `IOException` → `Retry("network")`, event bertahan `PENDING` lalu terkirim saat server hidup. Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
 
 ---
 
