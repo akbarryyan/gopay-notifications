@@ -129,11 +129,12 @@ title dalam allowlist   →  boleh dicocokkan ke pembayaran
 apa pun selain itu      →  disimpan, tidak pernah dianggap uang masuk
 ```
 
-Allowlist awal berisi satu entri, dikonfirmasi dari perangkat target:
+Allowlist **belum terisi untuk produksi.** Sumber pembayaran berpindah ke GoPay
+Merchant pada 2026-09-11, dan judul notifikasinya belum disampel dari perangkat.
 
-```
-"Transfer masuk"
-```
+Entri `"Transfer masuk"` yang sempat tercatat berasal dari akun GoPay pribadi
+yang tidak lagi dipakai. Jangan memakainya untuk merchant tanpa konfirmasi —
+allowlist yang salah membuat seluruh pembayaran tertolak diam-diam.
 
 Allowlist adalah **konfigurasi, bukan kode** — menambah judul tidak menuntut deploy.
 

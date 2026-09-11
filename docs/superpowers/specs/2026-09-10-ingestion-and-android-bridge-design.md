@@ -96,7 +96,24 @@ Yang tidak dilindungi: HP yang jatuh ke tangan orang dan di-root. Penangkalnya b
 
 Distribusi secret: di-generate di backend, ditempel manual sekali di Settings, disimpan dengan `expo-secure-store`. Tidak perlu alur pairing untuk satu device.
 
-### 2.6 Data lapangan terkonfirmasi (2026-09-10)
+### 2.6 Data lapangan (2026-09-10, **sebagian usang**)
+
+> **Perubahan scope 2026-09-11.** Sumber pembayaran berpindah dari **akun GoPay
+> pribadi** ke **GoPay Merchant**, sepenuhnya — akun pribadi tidak lagi dipakai.
+> Seluruh data di bagian ini diambil dari akun pribadi dan karena itu **tidak
+> lagi berlaku sebagai nilai produksi**: package `com.gojek.gopay` dan judul
+> `Transfer masuk` keduanya harus ditemukan ulang di aplikasi merchant.
+>
+> Yang **tetap berlaku**: pelajaran bentuknya, bukan nilainya. GoPay memakai
+> notification id konstan, `Notification.when` bertahan lintas repost, format
+> nominal `Rp1` tanpa pemisah, dan notifikasi transaksi dapat datang lewat
+> channel promosi. Keempatnya mendasari §4.1 dan tidak berubah.
+>
+> Dampak ke kode: **tidak ada.** Package adalah daftar yang dapat diedit di
+> Settings, dan aturan arah adalah konfigurasi backend — keduanya sengaja
+> dirancang begitu justru untuk perubahan seperti ini.
+
+### 2.6.1 Data akun pribadi (arsip, tidak dipakai produksi)
 
 Diambil dari perangkat target dengan `adb shell dumpsys notification --noredact` atas satu transfer masuk sungguhan.
 
@@ -121,6 +138,25 @@ Empat hal yang mengikat desain:
 **Id notifikasi konstan** — dasar perubahan formula `event_id` di §4.1.
 
 Sampel notifikasi uang keluar dan promo sengaja **tidak dikumpulkan**. Dengan pendekatan allowlist, keduanya tidak perlu dikenali — cukup tidak cocok dengan allowlist, dan itu terjadi dengan sendirinya.
+
+### 2.6.2 Data GoPay Merchant (belum dikumpulkan)
+
+Tiga hal harus ditemukan di perangkat sebelum M4 dapat dinyatakan bekerja:
+
+| | Cara | Dipakai untuk |
+|---|---|---|
+| Package aplikasi merchant | `adb shell pm list packages \| grep -i -E 'gojek\|gopay\|gobiz\|merchant'` | Default `monitoredPackages` |
+| Judul notifikasi pembayaran masuk | `adb shell dumpsys notification --noredact` saat notifikasi masih ada di shade | Entri allowlist backend |
+| **Ada tidaknya nomor referensi transaksi** di teks | sama | Menentukan bentuk sub-project 3 |
+
+Butir ketiga yang paling berkonsekuensi. Bila notifikasi merchant memuat
+referensi transaksi, seluruh rencana nominal unik di §1 gugur — matching lewat
+referensi bersifat eksak, sehingga tidak perlu alokasi kode anti-tabrakan dan
+tidak perlu masa berlaku invoice untuk mendaur ulang kode.
+
+Satu risiko yang hilang dengan berpindah ke merchant: akun merchant hampir hanya
+menerima, sehingga notifikasi pembayaran **keluar** yang nominalnya sama — sumber
+bahaya utama di §2.3 — praktis tidak ada lagi.
 
 ---
 
@@ -418,9 +454,9 @@ Merujuk [prd.md §20](../../prd.md):
 
 | # | Pertanyaan | Jawaban |
 |---|---|---|
-| 1 | Package identifier GoPay | **`com.gojek.gopay`** — terkonfirmasi, lihat §2.6. Tetap disimpan sebagai daftar yang dapat diedit |
-| 2 | Format notifikasi sebenarnya | **Terkonfirmasi**, lihat §2.6 |
-| 3 | Informasi yang tersedia pada notifikasi | **Terkonfirmasi**: title, text, bigText, when. Tidak ada nomor referensi transaksi |
+| 1 | Package identifier GoPay | **Kembali terbuka 2026-09-11.** `com.gojek.gopay` hanya berlaku untuk akun pribadi; package aplikasi merchant belum ditemukan — lihat §2.6.2 |
+| 2 | Format notifikasi sebenarnya | **Kembali terbuka 2026-09-11** untuk merchant. Bentuk umumnya terkonfirmasi di §2.6.1 |
+| 3 | Informasi yang tersedia pada notifikasi | Akun pribadi: title, text, bigText, when, tanpa referensi transaksi. **Merchant belum diperiksa** — bila memuat referensi, §1 berubah besar |
 | 4 | Teknologi backend | Go + PostgreSQL + Caddy di VPS |
 | 5 | Format endpoint callback | `POST /api/v1/callback/gopay`, lihat `api-contract.md` |
 | 6 | Mekanisme authentication | HMAC-SHA256 + toleransi timestamp ±5 menit |
@@ -436,4 +472,6 @@ Merujuk [prd.md §20](../../prd.md):
 
 Seluruh Open Question yang berada dalam cakupan sub-project 1 + 2 kini terjawab. Nomor 8 dan 9 tetap menjadi urusan sub-project 3.
 
-Satu hal yang terkonfirmasi dan penting untuk sub-project 3: notifikasi **tidak memuat nomor referensi transaksi apa pun**. Ini mengunci pendekatan nominal unik sebagai satu-satunya jalur matching yang praktis.
+Untuk sub-project 3, satu hal menentukan segalanya: **apakah notifikasi merchant memuat nomor referensi transaksi.**
+
+Pada akun pribadi tidak ada, dan itulah yang mengunci pendekatan nominal unik. Pada merchant hal ini belum diperiksa. Bila referensinya ada, nominal unik tidak diperlukan sama sekali dan sub-project 3 menjadi jauh lebih sederhana.

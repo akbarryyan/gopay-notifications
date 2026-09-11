@@ -40,8 +40,8 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 - **Native adalah satu-satunya pemilik database.** TypeScript membaca lewat native module, tidak pernah membuka file DB sendiri.
 - **Parsing nominal di HP bersifat display-only.** Backend melakukan ekstraksi otoritatifnya sendiri dari teks mentah.
 - **Arah transaksi (uang masuk vs keluar) ditentukan backend, bukan HP.** Salah dalam hal ini berarti order ditandai lunas padahal tidak ada uang masuk.
-- **Package GoPay `com.gojek.gopay`** — terkonfirmasi di perangkat, tetapi tetap disimpan sebagai daftar yang dapat diedit, bukan konstanta di kode.
-- **Arah transaksi ditentukan allowlist judul, bukan blocklist.** Entri awal: `Transfer masuk`. Yang tidak dikenali ditolak, bukan ditebak.
+- **Sumber pembayaran adalah GoPay Merchant**, bukan akun pribadi (berubah 2026-09-11, menggantikan sepenuhnya). Package aplikasi merchant **belum ditemukan** — `com.gojek.gopay` di kode adalah sisa dari akun pribadi dan harus diganti sebelum M4. Tetap disimpan sebagai daftar yang dapat diedit, bukan konstanta.
+- **Arah transaksi ditentukan allowlist judul, bukan blocklist.** Yang tidak dikenali ditolak, bukan ditebak. Entri `Transfer masuk` berasal dari akun pribadi dan **belum tentu berlaku untuk merchant** — judul merchant harus disampel ulang.
 - **`event_id` dihitung dari `packageName | title | text | when`** — bukan dari `notificationKey` (konstan di GoPay) atau `postTime` (berubah tiap repost).
 - **Tanda tangan HMAC dihitung dari byte mentah body**, diverifikasi sebelum decode JSON.
 
@@ -49,7 +49,7 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 
 OPPO CPH2365, Android 13, ColorOS — pembunuh background process paling agresif. Tersambung lewat adb wifi di `192.168.1.66:41721`; pakai `ANDROID_SERIAL` agar tooling tidak bingung bila muncul dua entri adb untuk HP yang sama. Setiap keputusan soal ketahanan service harus diuji di sana, tidak boleh diasumsikan dari perilaku Android standar.
 
-Notifikasi transfer masuk GoPay memakai channel **"Promotions and Marketing"**. Jangan pernah menyarankan mematikan channel itu — mematikannya mematikan seluruh sistem tanpa gejala.
+Notifikasi transaksi GoPay dapat datang lewat channel **"Promotions and Marketing"** — begitu yang teramati di aplikasi akun pribadi. Jangan pernah menyarankan mematikan channel notifikasi apa pun milik aplikasi sumber; mematikannya mematikan seluruh sistem tanpa gejala.
 
 ## Pembagian kerja
 
