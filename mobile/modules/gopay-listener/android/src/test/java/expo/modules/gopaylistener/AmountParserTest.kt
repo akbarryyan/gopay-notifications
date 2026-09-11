@@ -7,7 +7,29 @@ import org.junit.Test
 class AmountParserTest {
 
     @Test
-    fun `mengurai notifikasi transfer masuk sungguhan dari perangkat`() {
+    fun `mengurai notifikasi GoPay Merchant sungguhan dari perangkat`() {
+        // Teks apa adanya dari com.gojek.gopaymerchant, 2026-09-11.
+        // Perhatikan spasi setelah "Rp" dan koma di nama merchant.
+        assertEquals(
+            1L,
+            AmountParser.parse("Rp 1 di AKBAR RAYYAN AL GHIFARI, Digital & Kreatif.")
+        )
+    }
+
+    @Test
+    fun `mengurai nominal wajar pada format merchant`() {
+        assertEquals(
+            25_000L,
+            AmountParser.parse("Rp 25.000 di AKBAR RAYYAN AL GHIFARI, Digital & Kreatif.")
+        )
+        assertEquals(
+            1_500_000L,
+            AmountParser.parse("Rp 1.500.000 di Toko Contoh, Retail.")
+        )
+    }
+
+    @Test
+    fun `mengurai notifikasi akun pribadi (arsip, sumber lama)`() {
         assertEquals(
             1L,
             AmountParser.parse("Rp1 dari icaangg udah masuk ke GoPay kamu.")

@@ -131,7 +131,8 @@ Dijalankan setiap siklus QA, tanpa kecuali, karena endpoint ini menentukan order
 
 Prasyarat lingkungan di HP — bukan soal kode, tetapi kegagalannya membuat seluruh sistem diam tanpa gejala:
 
-- [ ] Channel notifikasi **"Promotions and Marketing"** milik `com.gojek.gopay` masih aktif. Notifikasi transfer masuk memakai channel ini; mematikannya mematikan seluruh sistem.
+- [ ] Channel notifikasi **"Promotions and Marketing"** milik `com.gojek.gopaymerchant` masih aktif. Notifikasi pembayaran memakai channel ini; mematikannya mematikan seluruh sistem tanpa gejala.
+- [ ] `monitoredPackages` berisi **tepat satu** entri. `com.gojek.gopay` dan `com.gojek.gopaymerchant` melaporkan pembayaran yang sama; memantau keduanya membuat satu pembayaran terhitung dua kali.
 - [ ] Setup ColorOS selesai: aktivitas latar belakang diizinkan, auto-start aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati.
 
 ---

@@ -79,7 +79,7 @@ Karena keamanan sudah dijamin allowlist di backend, daftar kata-diabaikan di HP 
 
 ### 2.4 Package GoPay tidak di-hardcode
 
-Package sudah terkonfirmasi di perangkat target sebagai `com.gojek.gopay` (lihat §2.6), tetapi tetap **tidak di-hardcode**. Salah satu huruf saja membuat aplikasi tidak pernah menerima satu event pun, dengan gejala yang identik dengan Notification Access belum aktif — dan nama package dapat berubah antar versi aplikasi.
+Package sudah terkonfirmasi di perangkat target sebagai **`com.gojek.gopaymerchant`** (lihat §2.6.2), tetapi tetap **tidak di-hardcode**. Salah satu huruf saja membuat aplikasi tidak pernah menerima satu event pun, dengan gejala yang identik dengan Notification Access belum aktif — dan nama package dapat berubah antar versi aplikasi.
 
 - Package yang dipantau disimpan sebagai **daftar**, dapat diedit di Settings tanpa rebuild.
 - **Mode Discovery** di layar Debug: default mati, mati otomatis setelah 10 menit, mencatat *hanya* nama package dan judul ke penyimpanan lokal, **tidak pernah mengirim apa pun keluar HP**.
@@ -139,24 +139,60 @@ Empat hal yang mengikat desain:
 
 Sampel notifikasi uang keluar dan promo sengaja **tidak dikumpulkan**. Dengan pendekatan allowlist, keduanya tidak perlu dikenali — cukup tidak cocok dengan allowlist, dan itu terjadi dengan sendirinya.
 
-### 2.6.2 Data GoPay Merchant (belum dikumpulkan)
+### 2.6.2 Data GoPay Merchant terkonfirmasi (2026-09-11)
 
-Tiga hal harus ditemukan di perangkat sebelum M4 dapat dinyatakan bekerja:
+Diambil dari perangkat target atas satu pembayaran QRIS sungguhan sebesar Rp1.
 
-| | Cara | Dipakai untuk |
-|---|---|---|
-| Package aplikasi merchant | `adb shell pm list packages \| grep -i -E 'gojek\|gopay\|gobiz\|merchant'` | Default `monitoredPackages` |
-| Judul notifikasi pembayaran masuk | `adb shell dumpsys notification --noredact` saat notifikasi masih ada di shade | Entri allowlist backend |
-| **Ada tidaknya nomor referensi transaksi** di teks | sama | Menentukan bentuk sub-project 3 |
+| | |
+|---|---|
+| Package | **`com.gojek.gopaymerchant`** |
+| Title | `Pembayaran QRIS statis diterima` |
+| Text | `Rp 1 di AKBAR RAYYAN AL GHIFARI, Digital & Kreatif.` |
+| BigText | identik dengan text |
+| Notification id / tag | `-1` / `null` — konstan, sama seperti aplikasi pribadi |
+| Channel | `promotional_notifications` |
+| Nomor referensi transaksi | **tidak ada** |
 
-Butir ketiga yang paling berkonsekuensi. Bila notifikasi merchant memuat
-referensi transaksi, seluruh rencana nominal unik di §1 gugur — matching lewat
-referensi bersifat eksak, sehingga tidak perlu alokasi kode anti-tabrakan dan
-tidak perlu masa berlaku invoice untuk mendaur ulang kode.
+#### Bahaya: satu pembayaran menghasilkan dua notifikasi
 
-Satu risiko yang hilang dengan berpindah ke merchant: akun merchant hampir hanya
-menerima, sehingga notifikasi pembayaran **keluar** yang nominalnya sama — sumber
-bahaya utama di §2.3 — praktis tidak ada lagi.
+Pembayaran yang sama dilaporkan oleh **dua aplikasi sekaligus**:
+
+```
+pkg=com.gojek.gopaymerchant  id=-1  "Pembayaran QRIS statis diterima"
+pkg=com.gojek.gopay          id=3   "Pembayaran QRIS statis diterima"
+```
+
+Judul dan teksnya identik, hanya berbeda pada entitas HTML (`&` versus `&amp;`).
+
+Bila keduanya dipantau, satu pembayaran menghasilkan **dua `event_id` berbeda**,
+karena `packageName` ikut menjadi bahan hash di §4.1. Backend menerima keduanya
+sebagai `accepted`, bukan `duplicate`, dan satu pembayaran terhitung dua kali.
+Idempotency tidak menolong: ia dirancang menangkap notifikasi yang sama dari
+sumber yang sama, bukan dua aplikasi yang melaporkan kejadian yang sama.
+
+**Karena itu `monitoredPackages` wajib berisi tepat satu entri:
+`com.gojek.gopaymerchant`.** Menambahkan `com.gojek.gopay` ke daftar akan
+menyebabkan pembayaran ganda, bukan sekadar noise.
+
+#### Konsekuensi lain
+
+**Tidak ada nomor referensi transaksi.** Nominal unik karena itu tetap menjadi
+satu-satunya jalur matching yang praktis di sub-project 3, sama seperti saat
+sumbernya masih akun pribadi.
+
+**QRIS statis** berarti pembayar mengetik sendiri nominalnya. Itu justru yang
+membuat nominal unik dapat bekerja, tetapi juga membuka kemungkinan salah ketik:
+uang masuk tanpa cocok dengan invoice mana pun, dan butuh penanganan manual.
+
+**Format nominal `Rp 1`** — dengan spasi. Sudah ditangani `AmountParser`.
+
+**Tidak ada PII pihak ketiga.** Teks memuat nama merchant, bukan nama pembayar.
+Ini lebih baik daripada akun pribadi yang menyertakan nama pengirim, dan
+meringankan kewajiban retensi di §4.5.
+
+**Risiko yang hilang.** Akun merchant hampir hanya menerima, sehingga notifikasi
+pembayaran **keluar** dengan nominal sama — bahaya utama di §2.3 — praktis tidak
+ada lagi.
 
 ---
 
@@ -454,9 +490,9 @@ Merujuk [prd.md §20](../../prd.md):
 
 | # | Pertanyaan | Jawaban |
 |---|---|---|
-| 1 | Package identifier GoPay | **Kembali terbuka 2026-09-11.** `com.gojek.gopay` hanya berlaku untuk akun pribadi; package aplikasi merchant belum ditemukan — lihat §2.6.2 |
-| 2 | Format notifikasi sebenarnya | **Kembali terbuka 2026-09-11** untuk merchant. Bentuk umumnya terkonfirmasi di §2.6.1 |
-| 3 | Informasi yang tersedia pada notifikasi | Akun pribadi: title, text, bigText, when, tanpa referensi transaksi. **Merchant belum diperiksa** — bila memuat referensi, §1 berubah besar |
+| 1 | Package identifier GoPay | **`com.gojek.gopaymerchant`** — terkonfirmasi 2026-09-11, lihat §2.6.2. Wajib satu entri saja |
+| 2 | Format notifikasi sebenarnya | **Terkonfirmasi** untuk merchant, lihat §2.6.2 |
+| 3 | Informasi yang tersedia pada notifikasi | **Terkonfirmasi**: title, text, bigText, when. Tidak ada nomor referensi transaksi, tidak ada identitas pembayar |
 | 4 | Teknologi backend | Go + PostgreSQL + Caddy di VPS |
 | 5 | Format endpoint callback | `POST /api/v1/callback/gopay`, lihat `api-contract.md` |
 | 6 | Mekanisme authentication | HMAC-SHA256 + toleransi timestamp ±5 menit |
@@ -472,6 +508,6 @@ Merujuk [prd.md §20](../../prd.md):
 
 Seluruh Open Question yang berada dalam cakupan sub-project 1 + 2 kini terjawab. Nomor 8 dan 9 tetap menjadi urusan sub-project 3.
 
-Untuk sub-project 3, satu hal menentukan segalanya: **apakah notifikasi merchant memuat nomor referensi transaksi.**
+Untuk sub-project 3, pertanyaan penentunya sudah terjawab: **notifikasi merchant tidak memuat nomor referensi transaksi.** Yang tersedia hanya nominal dan nama merchant.
 
-Pada akun pribadi tidak ada, dan itulah yang mengunci pendekatan nominal unik. Pada merchant hal ini belum diperiksa. Bila referensinya ada, nominal unik tidak diperlukan sama sekali dan sub-project 3 menjadi jauh lebih sederhana.
+Nominal unik karena itu tetap satu-satunya jalur matching yang praktis. Ditambah fakta bahwa QRIS-nya statis — pembayar mengetik sendiri nominalnya — pendekatan itu memang bisa bekerja, dengan konsekuensi salah ketik harus punya jalur penanganan manual.

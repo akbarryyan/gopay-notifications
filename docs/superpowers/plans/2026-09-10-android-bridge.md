@@ -15,7 +15,7 @@
 - Kontrak API yang mengikat: [`docs/api-contract.md`](../../api-contract.md). Bila plan ini dan kontrak berbeda, kontrak yang menang.
 - **Expo Go tidak dapat dipakai.** Seluruh pengujian memakai development build hasil `npx expo run:android`.
 - `android/` **tidak** di-commit dan **tidak** diedit manual — seluruh perubahan manifest ditulis sebagai config plugin.
-- Package GoPay: `com.gojek.gopay`. Disimpan sebagai **daftar yang dapat diedit di Settings**, tidak pernah sebagai konstanta di kode.
+- Package sumber: **`com.gojek.gopaymerchant`**, tepat satu entri. Disimpan sebagai **daftar yang dapat diedit di Settings**, tidak pernah sebagai konstanta di kode. Jangan pernah menambahkan `com.gojek.gopay` — kedua aplikasi melaporkan pembayaran yang sama, dan karena `packageName` ikut jadi bahan `event_id`, satu pembayaran akan terhitung dua kali.
 - `event_id = "evt_" + sha256(packageName | title | text | when)[:32]`. `notificationKey` dan `postTime` **tidak** dipakai — alasannya di [spec §4.1](../specs/2026-09-10-ingestion-and-android-bridge-design.md).
 - Toleransi timestamp ±300 detik; jam yang meleset harus tampil sebagai pesan berbeda dari kredensial salah.
 - Parsing nominal **display-only**. Payload selalu memuat `title` dan `text` mentah.
@@ -645,7 +645,7 @@ import org.junit.Test
 
 class EventIdBuilderTest {
 
-    private val pkg = "com.gojek.gopay"
+    private val pkg = "com.gojek.gopaymerchant"
     private val title = "Transfer masuk"
     private val text = "Rp1 dari icaangg udah masuk ke GoPay kamu."
     private val whenMs = 1_789_051_832_829L
@@ -999,7 +999,7 @@ class EventDaoTest {
     private fun event(id: String, status: EventStatus = EventStatus.PENDING, receivedAt: Long = 1000L) =
         EventEntity(
             eventId = id,
-            packageName = "com.gojek.gopay",
+            packageName = "com.gojek.gopaymerchant",
             title = "Transfer masuk",
             text = "Rp1 dari icaangg udah masuk ke GoPay kamu.",
             bigText = null,
@@ -1335,7 +1335,7 @@ class SettingsTest {
 
     @Test
     fun `daftar package default memuat GoPay`() {
-        assertEquals(listOf("com.gojek.gopay"), settings.monitoredPackages)
+        assertEquals(listOf("com.gojek.gopaymerchant"), settings.monitoredPackages)
     }
 
     @Test
@@ -1380,8 +1380,8 @@ class SettingsTest {
 
     @Test
     fun `daftar package dapat diubah`() {
-        settings.monitoredPackages = listOf("com.gojek.gopay", "com.gojek.app")
-        assertEquals(listOf("com.gojek.gopay", "com.gojek.app"), settings.monitoredPackages)
+        settings.monitoredPackages = listOf("com.gojek.gopaymerchant", "com.example.sumberlain")
+        assertEquals(listOf("com.gojek.gopaymerchant", "com.example.sumberlain"), settings.monitoredPackages)
     }
 
     @Test
@@ -1491,7 +1491,7 @@ class Settings(context: Context) {
         const val KEY_PACKAGES = "monitored_packages"
         const val KEY_IGNORE = "ignore_keywords"
         const val KEY_DISCOVERY_UNTIL = "discovery_until"
-        const val DEFAULT_PACKAGES = "com.gojek.gopay"
+        const val DEFAULT_PACKAGES = "com.gojek.gopaymerchant"
     }
 }
 ```

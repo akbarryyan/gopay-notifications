@@ -40,8 +40,9 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 - **Native adalah satu-satunya pemilik database.** TypeScript membaca lewat native module, tidak pernah membuka file DB sendiri.
 - **Parsing nominal di HP bersifat display-only.** Backend melakukan ekstraksi otoritatifnya sendiri dari teks mentah.
 - **Arah transaksi (uang masuk vs keluar) ditentukan backend, bukan HP.** Salah dalam hal ini berarti order ditandai lunas padahal tidak ada uang masuk.
-- **Sumber pembayaran adalah GoPay Merchant**, bukan akun pribadi (berubah 2026-09-11, menggantikan sepenuhnya). Package aplikasi merchant **belum ditemukan** — `com.gojek.gopay` di kode adalah sisa dari akun pribadi dan harus diganti sebelum M4. Tetap disimpan sebagai daftar yang dapat diedit, bukan konstanta.
-- **Arah transaksi ditentukan allowlist judul, bukan blocklist.** Yang tidak dikenali ditolak, bukan ditebak. Entri `Transfer masuk` berasal dari akun pribadi dan **belum tentu berlaku untuk merchant** — judul merchant harus disampel ulang.
+- **Sumber pembayaran adalah GoPay Merchant**, package **`com.gojek.gopaymerchant`** (berubah 2026-09-11, menggantikan akun pribadi sepenuhnya). Tetap disimpan sebagai daftar yang dapat diedit, bukan konstanta.
+- **Jangan pernah memantau `com.gojek.gopay` bersamaan dengan `com.gojek.gopaymerchant`.** Keduanya melaporkan pembayaran yang sama dengan teks identik; karena `packageName` ikut jadi bahan `event_id`, satu pembayaran akan menghasilkan dua event dan terhitung dua kali. Idempotency tidak menolong.
+- **Arah transaksi ditentukan allowlist judul, bukan blocklist.** Yang tidak dikenali ditolak, bukan ditebak. Entri awal: `Pembayaran QRIS statis diterima`. Entri `Transfer masuk` berasal dari akun pribadi dan tidak boleh dipakai.
 - **`event_id` dihitung dari `packageName | title | text | when`** — bukan dari `notificationKey` (konstan di GoPay) atau `postTime` (berubah tiap repost).
 - **Tanda tangan HMAC dihitung dari byte mentah body**, diverifikasi sebelum decode JSON.
 

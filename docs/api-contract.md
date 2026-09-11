@@ -82,7 +82,7 @@ Di sisi Android, secret disimpan dengan `expo-secure-store` dan **tidak pernah**
   "device_id": "dev_01ABC",
   "source": "gopay",
   "notification": {
-    "package_name": "com.gojek.gopay",
+    "package_name": "com.gojek.gopaymerchant",
     "title": "Transfer masuk",
     "text": "Rp25.000 dari icaangg udah masuk ke GoPay kamu.",
     "big_text": "Rp25.000 dari icaangg udah masuk ke GoPay kamu.",
@@ -129,12 +129,25 @@ title dalam allowlist   →  boleh dicocokkan ke pembayaran
 apa pun selain itu      →  disimpan, tidak pernah dianggap uang masuk
 ```
 
-Allowlist **belum terisi untuk produksi.** Sumber pembayaran berpindah ke GoPay
-Merchant pada 2026-09-11, dan judul notifikasinya belum disampel dari perangkat.
+Allowlist awal berisi satu entri, dikonfirmasi dari perangkat target
+2026-09-11 atas pembayaran QRIS sungguhan:
+
+```
+"Pembayaran QRIS statis diterima"
+```
 
 Entri `"Transfer masuk"` yang sempat tercatat berasal dari akun GoPay pribadi
-yang tidak lagi dipakai. Jangan memakainya untuk merchant tanpa konfirmasi —
-allowlist yang salah membuat seluruh pembayaran tertolak diam-diam.
+yang tidak lagi dipakai, dan **tidak boleh** dimasukkan.
+
+Judul untuk QRIS **dinamis** kemungkinan berbeda dan belum pernah teramati.
+Bila suatu saat merchant memakainya, pembayaran akan tertolak diam-diam sampai
+judul barunya ditambahkan — dan itu akan terlihat di `GET /events` sebagai event
+yang tidak dikenali.
+
+Sumber pembayaran adalah `com.gojek.gopaymerchant`. Perangkat **tidak boleh**
+memantau `com.gojek.gopay` sekaligus: kedua aplikasi melaporkan pembayaran yang
+sama dengan teks identik, sehingga satu pembayaran akan menghasilkan dua
+`event_id` berbeda dan terhitung dua kali.
 
 Allowlist adalah **konfigurasi, bukan kode** — menambah judul tidak menuntut deploy.
 

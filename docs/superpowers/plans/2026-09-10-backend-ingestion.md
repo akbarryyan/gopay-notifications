@@ -1028,7 +1028,7 @@ func sampleEvent(eventID string) store.Event {
 		EventID:     eventID,
 		DeviceID:    "dev_01ABC",
 		Source:      "gopay",
-		PackageName: "com.gojek.gopay",
+		PackageName: "com.gojek.gopaymerchant",
 		Title:       &title,
 		BodyText:    &body,
 		BigText:     &body,
@@ -1942,7 +1942,7 @@ import (
 )
 
 const validBody = `{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC",` +
-	`"source":"gopay","notification":{"package_name":"com.gojek.gopay",` +
+	`"source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant",` +
 	`"title":"Transfer masuk","text":"Rp1 dari icaangg udah masuk ke GoPay kamu.",` +
 	`"big_text":null,"posted_at":1789051832829},"amount_hint":1,` +
 	`"received_at":"2026-09-10T19:30:33+07:00"}`
@@ -2017,19 +2017,19 @@ func TestCallbackRejectsInvalidFields(t *testing.T) {
 	}{
 		{
 			"event_id kosong",
-			`{"event_id":"","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopay","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
+			`{"event_id":"","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
 		},
 		{
 			"event_id format salah",
-			`{"event_id":"bukan-evt","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopay","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
+			`{"event_id":"bukan-evt","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
 		},
 		{
 			"device_id tidak cocok dengan yang terautentikasi",
-			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_LAIN","source":"gopay","notification":{"package_name":"com.gojek.gopay","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
+			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_LAIN","source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
 		},
 		{
 			"source tidak dikenal",
-			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC","source":"dana","notification":{"package_name":"com.gojek.gopay","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
+			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC","source":"dana","notification":{"package_name":"com.gojek.gopaymerchant","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
 		},
 		{
 			"package_name kosong",
@@ -2037,11 +2037,11 @@ func TestCallbackRejectsInvalidFields(t *testing.T) {
 		},
 		{
 			"posted_at nol",
-			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopay","title":null,"text":null,"big_text":null,"posted_at":0},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
+			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant","title":null,"text":null,"big_text":null,"posted_at":0},"amount_hint":null,"received_at":"2026-09-10T19:30:33+07:00"}`,
 		},
 		{
 			"received_at bukan RFC3339",
-			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopay","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"10 Sep 2026"}`,
+			`{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id":"dev_01ABC","source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant","title":null,"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,"received_at":"10 Sep 2026"}`,
 		},
 	}
 
@@ -2064,7 +2064,7 @@ func TestCallbackAcceptsNullOptionalFields(t *testing.T) {
 	h := newAPIWithDevice(t)
 
 	body := `{"event_id":"evt_00000000000000000000000000000001","device_id":"dev_01ABC",` +
-		`"source":"gopay","notification":{"package_name":"com.gojek.gopay","title":null,` +
+		`"source":"gopay","notification":{"package_name":"com.gojek.gopaymerchant","title":null,` +
 		`"text":null,"big_text":null,"posted_at":1789051832829},"amount_hint":null,` +
 		`"received_at":"2026-09-10T19:30:33+07:00"}`
 

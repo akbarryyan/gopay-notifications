@@ -7,9 +7,9 @@ import org.junit.Test
 
 class EventIdBuilderTest {
 
-    private val pkg = "com.gojek.gopay"
-    private val title = "Transfer masuk"
-    private val text = "Rp1 dari icaangg udah masuk ke GoPay kamu."
+    private val pkg = "com.gojek.gopaymerchant"
+    private val title = "Pembayaran QRIS statis diterima"
+    private val text = "Rp 1 di AKBAR RAYYAN AL GHIFARI, Digital & Kreatif."
     private val whenMs = 1_789_051_832_829L
 
     private val shape = Regex("^evt_[0-9a-f]{32}$")
@@ -32,8 +32,11 @@ class EventIdBuilderTest {
     fun `berubah bila satu bahan berubah`() {
         val base = EventIdBuilder.build(pkg, title, text, whenMs)
 
-        assertNotEquals(base, EventIdBuilder.build("com.gojek.app", title, text, whenMs))
-        assertNotEquals(base, EventIdBuilder.build(pkg, "Transfer keluar", text, whenMs))
+        // com.gojek.gopay melaporkan pembayaran yang SAMA dengan teks identik.
+        // Test ini mengunci fakta bahwa keduanya menghasilkan event_id berbeda —
+        // itulah sebabnya hanya satu package boleh dipantau.
+        assertNotEquals(base, EventIdBuilder.build("com.gojek.gopay", title, text, whenMs))
+        assertNotEquals(base, EventIdBuilder.build(pkg, "Pembayaran QRIS dinamis diterima", text, whenMs))
         assertNotEquals(base, EventIdBuilder.build(pkg, title, text + " ", whenMs))
         assertNotEquals(base, EventIdBuilder.build(pkg, title, text, whenMs + 1))
     }
