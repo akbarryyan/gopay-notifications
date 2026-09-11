@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1 selesai · M2 sebagian · M3 sebagian — 49 unit test Kotlin lulus
+**Milestone terakhir diperiksa:** M1 selesai · **M2 selesai** · M3 sebagian — 85 unit test Kotlin lulus, pembayaran sungguhan tertangkap di perangkat
 **Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 33 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 4 · `PENDING` 36
+**Ringkasan:** `PASS` 50 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 19
 
 ---
 
@@ -71,13 +71,13 @@ Dua butir sisi Android yang sempat menunggu sudah selesai 2026-09-10: setelan an
 
 Butir 5–7 **selesai 2026-09-11**; hasilnya tercatat di §2.6.2 spec. Notifikasi merchant tidak memuat nomor referensi, sehingga nominal unik tetap satu-satunya jalur matching di sub-project 3.
 
-Satu butir baru dari Task 7:
+Butir 8 (enkripsi konfigurasi) **selesai 2026-09-11** dan kini tercatat `PASS`.
+
+Sisa butir yang menunggu semuanya menyangkut **akses VPS**. Satu butir kecil menunggu pemeriksaan mata di HP:
 
 | # | Langkah | Hasil yang diharapkan | Laporkan |
 |---|---|---|---|
-| 8 | Isi Device Secret lewat layar Settings, tutup paksa aplikasi, buka lagi | `hasDeviceSecret` tetap `true` — membuktikan `EncryptedSharedPreferences` benar-benar menulis dan membaca lewat Android Keystore | Hasilnya |
-
-Butir 8 tidak dapat diuji di JVM: Robolectric tidak mengemulasi Android Keystore, sehingga 10 test `SettingsTest` membuktikan logika penyimpanannya, bukan enkripsinya.
+| 9 | Buka tab Riwayat setelah pengujian WhatsApp | Tidak ada satu pun entri WhatsApp — hanya pembayaran. WhatsApp hanya boleh muncul di tab Debug | Ada atau tidak |
 
 ---
 
@@ -86,18 +86,18 @@ Butir 8 tidak dapat diuji di JVM: Robolectric tidak mengemulasi Android Keystore
 | # | Requirement | Milestone | Status | Bukti |
 |---|---|---|---|---|
 | FR-01 | Notification Access terdeteksi | M2 | `PASS` | Setelah izin diberikan di HP, layar menampilkan `Notification Access: aktif` dan `Listener terikat: ya` — dilaporkan Akbar 2026-09-10 |
-| FR-02 | Notification Listener menerima event | M2 | `PENDING` | — |
+| FR-02 | Notification Listener menerima event | M2 | `PASS` | Mode Discovery mencatat `com.whatsapp` saat pesan masuk — listener menerima event dari sistem. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | FR-03 | Hanya memproses event GoPay | M3 | `PENDING` | — |
 | FR-04 | Parsing nominal dan `event_id` (unit) | M3 | `PASS` | `./gradlew :gopay-listener:testDebugUnitTest` → BUILD SUCCESSFUL; `build/test-results/testDebugUnitTest/*.xml` mencatat `tests=20 failures=0 errors=0 skipped=0` (AmountParserTest 8, EventIdBuilderTest 5, SignerTest 7) |
-| FR-04 | Notifikasi jadi event terstruktur (pipeline) | M3 | `PENDING` | Butuh Task 8 |
+| FR-04 | Notifikasi jadi event terstruktur (pipeline) | M3 | `PASS` | Pembayaran QRIS sungguhan muncul di Riwayat dengan nominal dan status `PENDING`. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | FR-05 | Kirim event via HTTPS | M4 | `PENDING` | Sisi penerima siap; pengirim belum ada |
 | FR-06 | Autentikasi request — sisi backend | M1 | `PASS` | `TestVerifyRejectsModifiedBody`, `TestVerifyRejectsWrongSecret`, `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, `TestAuthRejectsDisabledDevice`, `TestAuthRejectsMissingHeaders` (3 subtest), e2e no. 3 |
 | FR-06 | Autentikasi request — sisi Android | M4 | `PENDING` | — |
 | FR-07 | Retry untuk error yang dapat dipulihkan | M4 | `PENDING` | — |
 | FR-08 | Pencegahan duplikat — sisi backend | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce` (8 goroutine, `-count=20 -race`), `TestCallbackSecondTimeReturnsDuplicate`, e2e no. 2 dan 5 |
 | FR-08 | Pencegahan duplikat — sisi Android | M3 | `PASS` | `EventDaoTest.menolak event_id yang sama tanpa melempar exception` — primary key menolak penyisipan kedua dan mengembalikan `-1`. `./gradlew :gopay-listener:testDebugUnitTest` → `tests=49 failures=0 errors=0 skipped=0` (AmountParser 10, EventIdBuilder 5, Signer 7, EventDao 12, Settings 10, DiscoveryLog 5) |
-| FR-09 | Pencatatan status event | M3 | `PENDING` | — |
-| FR-10 | Indikator listener aktif | M5 | `PENDING` | — |
+| FR-09 | Pencatatan status event | M3 | `PASS` | Riwayat menampilkan status `PENDING` untuk event yang belum terkirim. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| FR-10 | Indikator listener aktif | M5 | `PASS` | Dashboard menampilkan Notification Access `aktif` dan Listener `terikat`. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 
 ---
 
@@ -105,17 +105,17 @@ Butir 8 tidak dapat diuji di JVM: Robolectric tidak mengemulasi Android Keystore
 
 | Kriteria | Milestone | Status | Bukti |
 |---|---|---|---|
-| User dapat memberikan Notification Access | M2 | `PENDING` | — |
-| Aplikasi mendeteksi notifikasi baru | M2 | `PENDING` | — |
+| User dapat memberikan Notification Access | M2 | `PASS` | Izin diberikan lewat tombol di aplikasi; status berubah jadi aktif. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| Aplikasi mendeteksi notifikasi baru | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap dan muncul di Riwayat. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Membedakan GoPay dari aplikasi lain | M3 | `PENDING` | — |
-| Notifikasi jadi event terstruktur | M3 | `PENDING` | — |
+| Notifikasi jadi event terstruktur | M3 | `PASS` | Event memuat nominal hasil parsing dan status; Dashboard menampilkan "Event terakhir". Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Event terkirim via HTTPS | M4 | `PENDING` | — |
 | Backend mengidentifikasi perangkat pengirim | M1 | `PASS` | `TestAuthAcceptsValidSignature`, `TestTouchDeviceSetsLastSeenAt`, e2e no. 6 (`last_seen_at` = `t`) |
 | Event sama tidak diproses dua kali | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce`, e2e no. 5 (tepat 1 baris setelah 2 kiriman identik) |
 | Event terkirim setelah koneksi normal kembali | M4 | `PENDING` | — |
-| User melihat status listener | M5 | `PENDING` | — |
-| User melihat status komunikasi backend | M5 | `PENDING` | — |
-| User melihat event/history dasar | M5 | `PENDING` | — |
+| User melihat status listener | M5 | `PASS` | Baris Listener di Dashboard. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| User melihat status komunikasi backend | M5 | `PASS` | Baris Backend di Dashboard melaporkan `belum dikonfigurasi` dengan benar. Keadaan `terhubung` menyusul setelah VPS. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| User melihat event/history dasar | M5 | `PASS` | Tab Riwayat menampilkan event beserta nominal, waktu, dan status. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Tidak memproses notifikasi selain GoPay | M3 | `PENDING` | — |
 
 ---
@@ -129,12 +129,12 @@ Butir 8 tidak dapat diuji di JVM: Robolectric tidak mengemulasi Android Keystore
 | Kotlin untuk Notification Listener | M2 | `PASS` | `adb shell dumpsys package id.manjo.gopaybridge.dev` menampilkan `expo.modules.gopaylistener.GoPayListenerService` dengan permission `BIND_NOTIFICATION_LISTENER_SERVICE` dan action `android.service.notification.NotificationListenerService` |
 | Notification Access dapat diaktifkan | M2 | `PASS` | Tombol membuka `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`; izin diberikan dan status berubah jadi aktif |
 | Listener berjalan di background | M6 | `PENDING` | — |
-| Notifikasi GoPay terdeteksi | M2 | `PENDING` | — |
+| Notifikasi GoPay Merchant terdeteksi | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Notifikasi aplikasi lain diabaikan | M3 | `PENDING` | — |
-| Data notification dapat diekstrak | M3 | `PENDING` | — |
-| Event ID dibuat | M3 | `PENDING` | — |
+| Data notification dapat diekstrak | M3 | `PASS` | Nominal tampil di Riwayat dan Dashboard, hasil `AmountParser` atas teks sungguhan. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| Event ID dibuat | M3 | `PASS` | Event tersimpan; `eventId` adalah primary key sehingga baris tidak akan ada tanpanya. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Lapisan penyimpanan lokal (Room) | M3 | `PASS` | 12 test `EventDaoTest`, termasuk pembacaan kolom mentah yang mengunci enum tersimpan sebagai TEXT `PENDING` |
-| Event tersimpan lokal dari notifikasi sungguhan | M3 | `PENDING` | Butuh pipeline Task 8 |
+| Event tersimpan lokal dari notifikasi sungguhan | M3 | `PASS` | Event bertahan di Riwayat setelah pembayaran sungguhan. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Event tersimpan di backend | M1 | `PASS` | `TestCallbackStoresRawPayloadVerbatim`, e2e no. 7 (`GET /events` mengembalikan event) |
 | Event dapat dikirim ke backend | M4 | `PENDING` | — |
 | HTTPS untuk production | M1 | `NEEDS-DEVICE` | `Caddyfile` ditulis, build silang OK; sertifikat belum diverifikasi — lihat §2 no. 1 |
@@ -143,9 +143,9 @@ Butir 8 tidak dapat diuji di JVM: Robolectric tidak mengemulasi Android Keystore
 | Retry mechanism berjalan | M4 | `PENDING` | — |
 | Duplicate event ditangani backend | M1 | `PASS` | Sama dengan FR-08 sisi backend |
 | Duplicate event ditangani Android | M3 | `PENDING` | — |
-| Dashboard menampilkan listener status | M5 | `PENDING` | — |
-| Dashboard menampilkan backend status | M5 | `PENDING` | — |
-| History event tersedia | M5 | `PENDING` | — |
+| Dashboard menampilkan listener status | M5 | `PASS` | Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| Dashboard menampilkan backend status | M5 | `PASS` | Melaporkan `belum dikonfigurasi` dengan benar. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| History event tersedia | M5 | `PASS` | Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Device ID tersedia | M1 | `PASS` | `devicetool -name "HP GoPay Utama"` → `Device ID : dev_18576e55cfa02f73` |
 | Credential tidak hardcoded | M1 | `PASS` | `grep -rn 'DEVICE_SECRET_KEY' --include='*.go'` hanya menemukan pembacaan `os.Getenv` di `internal/config/config.go:33` dan teks bantuan flag |
 | Menangani network failure | M4 | `PENDING` | — |
@@ -188,8 +188,8 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Ditegakkan backend di sub-project 3. Entri awal `Pembayaran QRIS statis diterima` sudah tercatat di kontrak API |
 | Mode Discovery default mati dan mati sendiri | `PASS` | `SettingsTest.discovery mati secara default` dan `discovery aktif hanya sampai batas waktunya`; `startDiscovery` membatasi 1–10 menit |
 | Mode Discovery tidak mengirim apa pun keluar HP | `PENDING` | Butuh pipeline Task 8 |
-| Channel "Promotions and Marketing" `com.gojek.gopaymerchant` masih aktif | `NEEDS-DEVICE` | Perlu HP — diperiksa di M2 |
-| Enkripsi konfigurasi terbukti di perangkat | `NEEDS-DEVICE` | `EncryptedSharedPreferences` tidak dapat diuji di JVM — Robolectric tidak mengemulasi Android Keystore. Lihat §2 no. 8 |
+| Channel "Promotions and Marketing" `com.gojek.gopaymerchant` masih aktif | `PASS` | Notifikasi pembayaran sungguhan sampai ke listener, yang hanya mungkin bila channel-nya aktif. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
+| Enkripsi konfigurasi terbukti di perangkat | `PASS` | Device Secret diisi, aplikasi ditutup paksa, dibuka lagi — field menampilkan `tersimpan`, bukan `belum diisi`. Membuktikan `EncryptedSharedPreferences` menulis dan membaca lewat Android Keystore. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | `monitoredPackages` berisi tepat satu entri | `PASS` | `SettingsTest.daftar package default berisi tepat satu entri merchant`; `EventIdBuilderTest` membuktikan `com.gojek.gopay` dan `com.gojek.gopaymerchant` menghasilkan `event_id` berbeda untuk teks identik |
 | Setup ColorOS selesai | `PASS` | Keempat setelan dikerjakan Akbar 2026-09-10: aktivitas latar belakang diizinkan, mulai otomatis aktif, aplikasi dikunci di recent apps, optimasi siaga tidur mati. Ketahanannya baru diuji di M6 |
 
