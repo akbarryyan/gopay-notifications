@@ -409,7 +409,7 @@ lalu buka `/transactions` di dashboard — invoice itu harus berubah jadi
 
 Spec:
 [`docs/superpowers/specs/2026-09-13-webhook-delivery-design.md`](../superpowers/specs/2026-09-13-webhook-delivery-design.md).
-**Ringkasan:** `PASS` 18 · `FAIL` 0 · `NEEDS-DEVICE` 4 · `PENDING` 0
+**Ringkasan:** `PASS` 22 · `FAIL` 0 · `NEEDS-DEVICE` 0 · `PENDING` 0
 
 Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`,
 setelah dua putaran perbaikan (lihat catatan di bawah tabel).
@@ -457,10 +457,10 @@ produksi sungguhan, bukan cuma bug test):
 | Butir | Status | Bukti |
 |---|---|---|
 | Type-check, lint, build produksi bersih (route baru: `/webhooks`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 8 route, 0 error/warning |
-| Halaman Webhooks: buat endpoint, secret tampil sekali, tidak pernah lagi setelahnya | `NEEDS-DEVICE` | Perlu `npm run dev`; periksa juga lewat DevTools Network bahwa `GET /admin/webhooks` tidak membawa field `secret` |
-| Tombol Test mengirim ke endpoint sungguhan dan menampilkan hasil (toast) | `NEEDS-DEVICE` | idem — coba dengan endpoint valid dan endpoint yang sengaja mati/tidak ada, harusnya beda hasil |
-| Baris diperluas menampilkan riwayat pengiriman yang sesuai dengan tabel `webhook_deliveries` | `NEEDS-DEVICE` | idem, bandingkan dengan isi tabel di DBeaver |
-| Enable/disable dan hapus webhook dari UI benar-benar mengubah/menghapus baris di database | `NEEDS-DEVICE` | idem |
+| Halaman Webhooks: buat endpoint, secret tampil sekali, tidak pernah lagi setelahnya | `PASS` | Akbar, 13 Sep 2026: dibuat via webhook.site, secret tampil sekali, `GET /admin/webhooks` diperiksa lewat DevTools Network — tidak membawa field `secret` |
+| Tombol Test mengirim ke endpoint sungguhan dan menampilkan hasil (toast) | `PASS` | Akbar, 13 Sep 2026: endpoint valid → toast sukses + request diterima di webhook.site; endpoint tidak ada → toast gagal, hasilnya beda |
+| Baris diperluas menampilkan riwayat pengiriman yang sesuai dengan tabel `webhook_deliveries` | `PASS` | Akbar, 13 Sep 2026: dicocokkan dengan `SELECT event, status, http_status, duration_ms FROM webhook_deliveries` di DBeaver |
+| Enable/disable dan hapus webhook dari UI benar-benar mengubah/menghapus baris di database | `PASS` | Akbar, 13 Sep 2026: `enabled` berubah di `webhook_endpoints`; delete meng-cascade — baris endpoint dan seluruh deliveries-nya hilang |
 
 ### Langkah verifikasi
 
