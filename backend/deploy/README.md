@@ -44,9 +44,10 @@ tabel di atas dan pakai `.env.uat.example` serta
    ```
 
 4. Salin `.env.example` ke `/opt/gopay-ingestion/.env`, isi seluruh nilainya.
-   `DEVICE_SECRET_KEY` dan `ADMIN_SESSION_KEY` sama-sama dihasilkan dengan
-   `go run ./cmd/devicetool -genkey` — jalankan dua kali untuk dua nilai
-   yang berbeda, jangan memakai hasil yang sama untuk keduanya.
+   `DEVICE_SECRET_KEY`, `ADMIN_SESSION_KEY`, dan `WEBHOOK_SECRET_KEY`
+   sama-sama dihasilkan dengan `go run ./cmd/devicetool -genkey` — jalankan
+   tiga kali untuk tiga nilai yang berbeda, jangan memakai hasil yang sama
+   untuk lebih dari satu.
 
    ```bash
    sudo chmod 600 /opt/gopay-ingestion/.env

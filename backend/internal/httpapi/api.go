@@ -11,24 +11,30 @@ import (
 )
 
 type API struct {
-	store           *store.Store
-	encKey          []byte
-	adminSessionKey []byte
-	now             func() time.Time
-	loginThrottle   *loginThrottle
+	store             *store.Store
+	encKey            []byte
+	adminSessionKey   []byte
+	webhookSecretKey  []byte
+	now               func() time.Time
+	loginThrottle     *loginThrottle
+	webhookHTTPClient *http.Client
 }
 
 // New membuat API. Parameter now disuntikkan agar test dapat memalsukan jam.
-func New(s *store.Store, encKey []byte, adminSessionKey []byte, now func() time.Time) *API {
+func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey []byte, now func() time.Time) *API {
 	if now == nil {
 		now = time.Now
 	}
 	return &API{
-		store:           s,
-		encKey:          encKey,
-		adminSessionKey: adminSessionKey,
-		now:             now,
-		loginThrottle:   newLoginThrottle(),
+		store:            s,
+		encKey:           encKey,
+		adminSessionKey:  adminSessionKey,
+		webhookSecretKey: webhookSecretKey,
+		now:              now,
+		loginThrottle:    newLoginThrottle(),
+		// Timeout 10 detik sesuai spec §3.1 — server merchant yang lambat
+		// tidak boleh menahan worker webhook lebih lama dari itu.
+		webhookHTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -65,6 +71,20 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/admin/api-keys", a.requireAdmin(http.HandlerFunc(a.handleAdminListAPIKeys)))
 	mux.Handle("PATCH /api/v1/admin/api-keys/{keyID}",
 		a.requireAdmin(http.HandlerFunc(a.handleAdminRevokeAPIKey)))
+
+	// Webhook: dashboard-only (requireAdmin) — merchant tidak pernah
+	// memanggil rute ini sendiri, beda dari /invoices. Lihat
+	// docs/superpowers/specs/2026-09-13-webhook-delivery-design.md.
+	mux.Handle("POST /api/v1/admin/webhooks", a.requireAdmin(http.HandlerFunc(a.handleAdminCreateWebhook)))
+	mux.Handle("GET /api/v1/admin/webhooks", a.requireAdmin(http.HandlerFunc(a.handleAdminListWebhooks)))
+	mux.Handle("PATCH /api/v1/admin/webhooks/{webhookID}",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminSetWebhookEnabled)))
+	mux.Handle("DELETE /api/v1/admin/webhooks/{webhookID}",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminDeleteWebhook)))
+	mux.Handle("POST /api/v1/admin/webhooks/{webhookID}/test",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminTestWebhook)))
+	mux.Handle("GET /api/v1/admin/webhooks/{webhookID}/deliveries",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminWebhookDeliveries)))
 
 	return mux
 }

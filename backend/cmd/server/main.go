@@ -36,9 +36,11 @@ func main() {
 	}
 	defer s.Close()
 
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, time.Now)
+
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, time.Now).Handler(),
+		Handler:           api.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -49,6 +51,25 @@ func main() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server berhenti", "err", err)
 			os.Exit(1)
+		}
+	}()
+
+	// Worker webhook: mendeteksi invoice yang baru kedaluwarsa dan
+	// mengeksekusi retry pengiriman yang jatuh tempo. Goroutine di proses
+	// yang sama, bukan proses terpisah — sepadan dengan skala instalasi
+	// self-hosted satu-merchant (lihat spec fase 2, §1).
+	webhookTicker := time.NewTicker(1 * time.Minute)
+	defer webhookTicker.Stop()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-webhookTicker.C:
+				if err := api.ProcessDueWebhooks(ctx, time.Now()); err != nil {
+					slog.Error("process due webhooks gagal", "err", err)
+				}
+			}
 		}
 	}()
 

@@ -33,14 +33,14 @@ func newAPIWithAdmin(t *testing.T) http.Handler {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, invoices, api_keys, devices, admin_users RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, admin_users RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	if err := s.UpsertAdmin(ctx, "admin", testAdminPassword); err != nil {
 		t.Fatalf("UpsertAdmin: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 }
 
 func adminLogin(t *testing.T, h http.Handler, username, password string) *httptest.ResponseRecorder {

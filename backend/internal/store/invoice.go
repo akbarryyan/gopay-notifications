@@ -77,13 +77,38 @@ func scanInvoice(row invoiceScanner) (Invoice, error) {
 // sebelum operasi yang bergantung pada slot nominal yang sudah bebas
 // (alokasi baru maupun matching).
 func (s *Store) expireStaleInvoices(ctx context.Context, now time.Time) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE invoices SET status = $1 WHERE status = $2 AND expires_at <= $3`,
+	_, err := s.ExpireInvoicesAndListNewlyExpired(ctx, now)
+	return err
+}
+
+// ExpireInvoicesAndListNewlyExpired menulis transisi PENDING -> EXPIRED dan
+// mengembalikan ID invoice yang baru berpindah PADA PANGGILAN INI — bukan
+// yang sudah EXPIRED dari sebelumnya. Dipakai worker webhook (sub-project 3
+// fase 2) untuk memicu invoice.expired tepat sekali per invoice: memanggil
+// ini dua kali berturut-turut pada invoice yang sama hanya mengembalikan
+// ID-nya di panggilan pertama, karena UPDATE...RETURNING hanya menyentuh
+// baris yang statusnya MASIH PENDING saat itu.
+func (s *Store) ExpireInvoicesAndListNewlyExpired(ctx context.Context, now time.Time) ([]string, error) {
+	rows, err := s.pool.Query(ctx,
+		`UPDATE invoices SET status = $1 WHERE status = $2 AND expires_at <= $3 RETURNING id`,
 		InvoiceStatusExpired, InvoiceStatusPending, now)
 	if err != nil {
-		return fmt.Errorf("store: expire invoices: %w", err)
+		return nil, fmt.Errorf("store: expire invoices: %w", err)
 	}
-	return nil
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("store: scan expired invoice id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterasi expired invoice ids: %w", err)
+	}
+	return ids, nil
 }
 
 func randomOffset(max int64) (int64, error) {
@@ -182,22 +207,31 @@ func (s *Store) CreateInvoice(ctx context.Context, now time.Time, externalRef st
 // Satu UPDATE...RETURNING atomik, pola yang sama dengan ON CONFLICT DO
 // NOTHING di InsertEvent — dua event dengan amount sama yang tiba nyaris
 // bersamaan tidak bisa keduanya "menang".
-func (s *Store) MatchEvent(ctx context.Context, now time.Time, eventID string, amount *int64) (matched bool, err error) {
+//
+// matchedInvoiceID kosong berarti tidak ada yang cocok — id invoice tidak
+// pernah string kosong, jadi ini pembeda yang aman tanpa perlu *string.
+// Dikembalikan (bukan cuma bool) supaya pemanggil (handleCallback) tahu
+// invoice mana yang harus dipicu webhook invoice.paid-nya.
+func (s *Store) MatchEvent(ctx context.Context, now time.Time, eventID string, amount *int64) (matchedInvoiceID string, err error) {
 	if amount == nil {
-		return false, nil
+		return "", nil
 	}
 	if err := s.expireStaleInvoices(ctx, now); err != nil {
-		return false, err
+		return "", err
 	}
 
-	tag, err := s.pool.Exec(ctx,
+	err = s.pool.QueryRow(ctx,
 		`UPDATE invoices SET status = $1, matched_event_id = $2, paid_at = $3
-		 WHERE status = $4 AND unique_amount = $5`,
-		InvoiceStatusPaid, eventID, now, InvoiceStatusPending, *amount)
-	if err != nil {
-		return false, fmt.Errorf("store: match event: %w", err)
+		 WHERE status = $4 AND unique_amount = $5
+		 RETURNING id`,
+		InvoiceStatusPaid, eventID, now, InvoiceStatusPending, *amount).Scan(&matchedInvoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
 	}
-	return tag.RowsAffected() > 0, nil
+	if err != nil {
+		return "", fmt.Errorf("store: match event: %w", err)
+	}
+	return matchedInvoiceID, nil
 }
 
 // GetInvoiceByID mengambil satu invoice untuk GET /invoices/{id}.

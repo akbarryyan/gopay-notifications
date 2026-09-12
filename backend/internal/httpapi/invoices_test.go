@@ -33,7 +33,7 @@ func newAPIWithAPIKey(t *testing.T) (http.Handler, string) {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, invoices, api_keys, devices RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
@@ -52,7 +52,7 @@ func newAPIWithAPIKey(t *testing.T) (http.Handler, string) {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	h := httpapi.New(s, encKey(), adminSessionKey(), func() time.Time { return fixedNow }).Handler()
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 	return h, rawKey
 }
 

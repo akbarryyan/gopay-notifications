@@ -39,6 +39,7 @@ run-dev: db-dev
 	  echo "  cp .env.dev.example .env.dev"; \
 	  echo "  echo \"DEVICE_SECRET_KEY=\$$(make -s dev-key)\" >> .env.dev"; \
 	  echo "  echo \"ADMIN_SESSION_KEY=\$$(make -s dev-key)\" >> .env.dev"; \
+	  echo "  echo \"WEBHOOK_SECRET_KEY=\$$(make -s dev-key)\" >> .env.dev"; \
 	  echo "  make dev-admin   # buat akun admin dashboard"; \
 	  exit 1; }
 	@port=$$(grep -E '^LISTEN_ADDR=' .env.dev | tail -1 | sed 's/.*://'); \

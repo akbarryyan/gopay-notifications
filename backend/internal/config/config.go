@@ -18,6 +18,9 @@ type Config struct {
 	// DeviceSecretKey — keduanya melindungi hal yang berbeda, dan kompromi
 	// pada satu tidak boleh ikut membongkar yang lain.
 	AdminSessionKey []byte
+	// Kunci enkripsi secret webhook (secretbox). Terpisah lagi dari dua
+	// kunci di atas — tiga kunci, tiga tujuan, jangan dipakai ulang.
+	WebhookSecretKey []byte
 }
 
 // Load membaca dan memvalidasi seluruh konfigurasi. Konfigurasi yang salah
@@ -61,6 +64,20 @@ func Load() (Config, error) {
 			secretbox.KeySize, len(sessionKey))
 	}
 	c.AdminSessionKey = sessionKey
+
+	rawWebhook := os.Getenv("WEBHOOK_SECRET_KEY")
+	if rawWebhook == "" {
+		return Config{}, errors.New("config: WEBHOOK_SECRET_KEY wajib diisi")
+	}
+	webhookKey, err := base64.StdEncoding.DecodeString(rawWebhook)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: WEBHOOK_SECRET_KEY bukan base64 yang sah: %w", err)
+	}
+	if len(webhookKey) != secretbox.KeySize {
+		return Config{}, fmt.Errorf("config: WEBHOOK_SECRET_KEY harus %d byte setelah decode, dapat %d",
+			secretbox.KeySize, len(webhookKey))
+	}
+	c.WebhookSecretKey = webhookKey
 
 	return c, nil
 }

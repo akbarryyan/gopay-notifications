@@ -146,12 +146,12 @@ func TestMatchEventMenandaiInvoicePaid(t *testing.T) {
 	}
 	eventWithAmount(t, s, "evt_match_1", inv.UniqueAmount)
 
-	matched, err := s.MatchEvent(ctx, now, "evt_match_1", &inv.UniqueAmount)
+	matchedID, err := s.MatchEvent(ctx, now, "evt_match_1", &inv.UniqueAmount)
 	if err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
-	if !matched {
-		t.Fatal("matched = false, mau true")
+	if matchedID != inv.ID {
+		t.Fatalf("matchedID = %q, mau %q", matchedID, inv.ID)
 	}
 
 	got, err := s.GetInvoiceByID(ctx, inv.ID)
@@ -180,12 +180,12 @@ func TestMatchEventTidakCocokTidakMengubahApaPun(t *testing.T) {
 	}
 
 	wrongAmount := inv.UniqueAmount + 1
-	matched, err := s.MatchEvent(ctx, now, "evt_tidak_cocok", &wrongAmount)
+	matchedID, err := s.MatchEvent(ctx, now, "evt_tidak_cocok", &wrongAmount)
 	if err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
-	if matched {
-		t.Fatal("matched = true, mau false — nominal tidak cocok invoice manapun")
+	if matchedID != "" {
+		t.Fatalf("matchedID = %q, mau kosong — nominal tidak cocok invoice manapun", matchedID)
 	}
 
 	got, err := s.GetInvoiceByID(ctx, inv.ID)
@@ -201,12 +201,12 @@ func TestMatchEventAmountNilDilewati(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 
-	matched, err := s.MatchEvent(ctx, time.Now(), "evt_tanpa_amount", nil)
+	matchedID, err := s.MatchEvent(ctx, time.Now(), "evt_tanpa_amount", nil)
 	if err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
-	if matched {
-		t.Fatal("matched = true, mau false untuk amount nil")
+	if matchedID != "" {
+		t.Fatalf("matchedID = %q, mau kosong untuk amount nil", matchedID)
 	}
 }
 
@@ -248,12 +248,12 @@ func TestMatchEventRaceHanyaSatuYangMenang(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			ok, err := s.MatchEvent(ctx, now, eventIDs[i], &inv.UniqueAmount)
+			matchedID, err := s.MatchEvent(ctx, now, eventIDs[i], &inv.UniqueAmount)
 			if err != nil {
 				t.Errorf("MatchEvent: %v", err)
 				return
 			}
-			if ok {
+			if matchedID != "" {
 				mu.Lock()
 				matched++
 				mu.Unlock()

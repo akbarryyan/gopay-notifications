@@ -34,6 +34,14 @@ func adminSessionKey() []byte {
 	return k
 }
 
+func webhookSecretKey() []byte {
+	k := make([]byte, 32)
+	for i := range k {
+		k[i] = byte(i*7 + 2)
+	}
+	return k
+}
+
 // newAPIWithDevice menyiapkan API lengkap dengan satu device terdaftar.
 func newAPIWithDevice(t *testing.T) http.Handler {
 	t.Helper()
@@ -51,14 +59,14 @@ func newAPIWithDevice(t *testing.T) http.Handler {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, invoices, api_keys, devices RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 }
 
 // signedRequest membuat request yang sudah ditandatangani dengan benar.

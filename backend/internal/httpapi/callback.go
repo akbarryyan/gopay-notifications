@@ -117,10 +117,17 @@ func (a *API) handleCallback(w http.ResponseWriter, r *http.Request) {
 		// sudah dicocokkan (atau memang tidak cocok) saat pertama kali
 		// masuk, mengulanginya cuma kerja sia-sia. MatchEvent sendiri yang
 		// melewati amount_hint nil, jadi tidak perlu dicek di sini.
-		if _, err := a.store.MatchEvent(r.Context(), a.now(), req.EventID, req.AmountHint); err != nil {
+		matchedInvoiceID, err := a.store.MatchEvent(r.Context(), a.now(), req.EventID, req.AmountHint)
+		if err != nil {
 			// Event sudah tersimpan — kegagalan matching bukan alasan
 			// membalas gagal ke device, yang tidak tahu-menahu soal invoice.
 			slog.Error("matching invoice gagal", "event_id", req.EventID, "err", err)
+		} else if matchedInvoiceID != "" {
+			// Webhook dikirim di goroutine terpisah dengan context sendiri
+			// (bukan r.Context()) — request ini boleh selesai dan koneksinya
+			// ditutup tanpa ikut membatalkan pengiriman webhook yang mungkin
+			// masih berlangsung ke server merchant.
+			go a.triggerInvoiceWebhook(store.WebhookEventInvoicePaid, matchedInvoiceID)
 		}
 	}
 	slog.Info("event diterima", "event_id", req.EventID, "device_id", device.DeviceID, "status", status)
