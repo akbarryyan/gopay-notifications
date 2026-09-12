@@ -335,7 +335,7 @@ konsisten dengan yang benar-benar ada di `notification_events`.
 
 Spec:
 [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](../superpowers/specs/2026-09-12-invoice-nominal-matching-design.md).
-**Ringkasan:** `PASS` 20 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+**Ringkasan:** `PASS` 23 · `FAIL` 0 · `NEEDS-DEVICE` 0 · `PENDING` 0
 
 Diverifikasi lewat `make test` Akbar, 12 Sep 2026 (setelah dua bug test
 ditemukan dan diperbaiki — lihat riwayat commit — dan diulang sekali lagi):
@@ -378,9 +378,9 @@ ok  .../internal/store       2.461s
 | Butir | Status | Bukti |
 |---|---|---|
 | Type-check, lint, build produksi bersih (termasuk 2 route baru: `/transactions`, `/api-keys`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 7 route, 0 error/warning |
-| Halaman Transactions: filter (pencarian/status/rentang tanggal) memanggil `GET /admin/invoices` dan hasilnya benar | `NEEDS-DEVICE` | Perlu `npm run dev` dan data sungguhan dari `make test`/pemakaian nyata |
-| Halaman API Keys: buat key baru menampilkan key mentah sekali, dashboard tidak pernah menampilkannya lagi setelah ditutup | `NEEDS-DEVICE` | idem — juga periksa lewat DevTools Network bahwa response `GET /admin/api-keys` sungguhan tidak membawa field `key`/`key_hash` |
-| Cabut API key di UI benar-benar membuat key itu ditolak `POST /invoices` berikutnya | `NEEDS-DEVICE` | idem, uji manual dengan `curl` memakai key yang baru dicabut |
+| Halaman Transactions: filter (pencarian/status/rentang tanggal) memanggil `GET /admin/invoices` dan hasilnya benar | `PASS` | Akbar, 12 Sep 2026: 3 invoice dibuat lewat `POST /invoices` (`ORDER-001/002/003`), satu diubah manual jadi `EXPIRED` untuk uji tampilan; pencarian, dropdown Status, dan rentang tanggal semua menyaring dengan benar |
+| Halaman API Keys: buat key baru menampilkan key mentah sekali, dashboard tidak pernah menampilkannya lagi setelah ditutup | `PASS` | Akbar, 12 Sep 2026: key `test-pertama` dibuat, key mentah tampil sekali; response `GET /admin/api-keys` ditempel — tidak membawa field `key`/`key_hash` sama sekali |
+| Cabut API key di UI benar-benar membuat key itu ditolak `POST /invoices` berikutnya | `PASS` | Akbar, 12 Sep 2026: `curl` sebelum cabut → `201`; dicabut lewat dashboard; `curl` sesudahnya → `401 unauthenticated` ("API key tidak valid"), ditempel apa adanya |
 
 ### Langkah verifikasi
 
