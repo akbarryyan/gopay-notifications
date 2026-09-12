@@ -25,10 +25,11 @@ Kredensial production tidak boleh dipakai di environment development.
 
 | Method | Path | Auth | Kegunaan |
 |---|---|---|---|
-| `POST` | `/callback/gopay` | HMAC | Kirim event notifikasi |
+| `POST` | `/events` | HMAC | Kirim event notifikasi (semua sumber) |
 | `GET` | `/health` | — | Status backend + jam server |
 | `GET` | `/device/me` | HMAC | Tombol *Test Connection* |
 | `GET` | `/events` | Basic auth (Caddy) | Melihat event masuk saat verifikasi |
+| `GET` | `/sources` | — | Daftar sumber pembayaran yang dikenal build ini |
 
 ---
 
@@ -40,10 +41,17 @@ Kredensial production tidak boleh dipakai di environment development.
 X-Device-Id: dev_01ABC
 X-Timestamp: 1789036200
 X-Signature: 9f2a...
+X-App-Version: 1.4.2
 Content-Type: application/json
 ```
 
 `X-Timestamp` adalah Unix epoch **detik**.
+
+`X-App-Version` bersifat informatif dan **tidak** ikut ditandatangani — backend
+harus mengetahui versinya untuk memverifikasi, sehingga ia mustahil menjadi
+bagian tanda tangan. Aplikasi lama tidak mengirimnya, dan itu bukan alasan
+menolak request. Backend mencatat nilai terakhir per device dan memaparkannya
+di `GET /device/me`; nilai kosong tidak menimpa versi yang sudah diketahui.
 
 ### 3.2 Pembentukan tanda tangan
 
@@ -72,7 +80,7 @@ Di sisi Android, secret disimpan dengan `expo-secure-store` dan **tidak pernah**
 
 ---
 
-## 4. `POST /callback/gopay`
+## 4. `POST /events`
 
 ### 4.1 Request
 
@@ -97,7 +105,7 @@ Di sisi Android, secret disimpan dengan `expo-secure-store` dan **tidak pernah**
 |---|---|---|---|
 | `event_id` | string | ya | Deterministik, lihat §4.2 |
 | `device_id` | string | ya | Harus sama dengan header `X-Device-Id` |
-| `source` | string | ya | Saat ini selalu `"gopay"` |
+| `source` | string | ya | Divalidasi terhadap registry connector di backend. Saat ini hanya `"gopay"`; sumber tak dikenal ditolak `invalid_payload` |
 | `notification.package_name` | string | ya | |
 | `notification.title` | string \| null | ya | Mentah, apa adanya |
 | `notification.text` | string \| null | ya | Mentah, apa adanya |
@@ -148,6 +156,15 @@ Sumber pembayaran adalah `com.gojek.gopaymerchant`. Perangkat **tidak boleh**
 memantau `com.gojek.gopay` sekaligus: kedua aplikasi melaporkan pembayaran yang
 sama dengan teks identik, sehingga satu pembayaran akan menghasilkan dua
 `event_id` berbeda dan terhitung dua kali.
+
+### Kenapa nama connector tidak ada di URL
+
+Rutenya `POST /events`, bukan `POST /callback/gopay`. Payload untuk setiap
+sumber identik dan pembedanya hanya field `source`, jadi menambah DANA atau OVO
+tidak boleh berarti menambah rute, handler, dan dokumen sekaligus.
+
+Daftar sumber yang dikenal sebuah build dibaca dari `GET /sources`, sehingga
+dashboard tidak perlu menanam daftar connector di sisi klien.
 
 Allowlist adalah **konfigurasi, bukan kode** — menambah judul tidak menuntut deploy.
 

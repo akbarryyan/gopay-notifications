@@ -339,7 +339,7 @@ Detail lengkap ada di [`docs/api-contract.md`](../../api-contract.md). Ringkasny
 
 | Method | Path | Auth |
 |---|---|---|
-| `POST` | `/api/v1/callback/gopay` | HMAC |
+| `POST` | `/api/v1/events` | HMAC |
 | `GET` | `/api/v1/health` | — |
 | `GET` | `/api/v1/device/me` | HMAC |
 | `GET` | `/api/v1/events` | basic auth (Caddy) |
@@ -491,9 +491,10 @@ Seluruhnya sudah disetujui. Dicatat agar perbedaan antara dokumen dan kenyataan 
 | 6 | §16 `payment.amount` | `amount_hint` di tingkat atas | `payment.amount` terbaca seolah HP menyatakan sebuah pembayaran |
 | 7 | §27 sembilan status | Lima status | Empat status menggambarkan momen yang tak dapat diamati terpisah |
 | 8 | §31 boot handling | Tanpa `BOOT_COMPLETED` receiver | Sistem sudah melakukannya |
-| 9 | §16 `/api/callback/gopay` | `/api/v1/callback/gopay` | Versioning murah sekarang, mahal nanti |
+| 9 | §16 `/api/callback/gopay` | `/api/v1/events` | Versioning murah sekarang, mahal nanti. Nama connector juga dikeluarkan dari URL 2026-09-12: payload identik untuk setiap sumber, jadi menambah connector tidak boleh berarti menambah rute |
 | 10 | §10 parser nominal di HP | Tetap ada, tapi display-only; backend otoritatif | Perubahan format GoPay tidak memaksa rilis APK |
 | 11 | §6.6 cleartext dibatasi daftar host development | `usesCleartextTraffic` menyeluruh, hanya di build development | Daftar host putus setiap IP laptop berubah, dan ikut memblokir Metro. Production tetap HTTPS-only lewat default Android |
+| 12 | §5 rute `POST /api/v1/callback/gopay` | `POST /api/v1/events` + registry `internal/connector` | Dituntut positioning multi-connector. Payload identik untuk setiap sumber dan pembedanya hanya field `source`, jadi menambah DANA atau OVO tidak boleh berarti menambah rute, handler, dan dokumen sekaligus |
 
 ---
 
@@ -507,7 +508,7 @@ Merujuk [prd.md §20](../../prd.md):
 | 2 | Format notifikasi sebenarnya | **Terkonfirmasi** untuk merchant, lihat §2.6.2 |
 | 3 | Informasi yang tersedia pada notifikasi | **Terkonfirmasi**: title, text, bigText, when. Tidak ada nomor referensi transaksi, tidak ada identitas pembayar |
 | 4 | Teknologi backend | Go + PostgreSQL + Caddy di VPS |
-| 5 | Format endpoint callback | `POST /api/v1/callback/gopay`, lihat `api-contract.md` |
+| 5 | Format endpoint callback | `POST /api/v1/events`, lihat `api-contract.md` |
 | 6 | Mekanisme authentication | HMAC-SHA256 + toleransi timestamp ±5 menit |
 | 7 | Satu atau banyak device | Satu; skema mendukung banyak tanpa perubahan |
 | 8 | Cara transaksi dicocokkan | Sub-project 3 |

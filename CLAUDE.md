@@ -45,6 +45,8 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 - **Arah transaksi ditentukan allowlist judul, bukan blocklist.** Yang tidak dikenali ditolak, bukan ditebak. Entri awal: `Pembayaran QRIS statis diterima`. Entri `Transfer masuk` berasal dari akun pribadi dan tidak boleh dipakai.
 - **`event_id` dihitung dari `packageName | title | text | when`** — bukan dari `notificationKey` (konstan di GoPay) atau `postTime` (berubah tiap repost).
 - **Tanda tangan HMAC dihitung dari byte mentah body**, diverifikasi sebelum decode JSON.
+- **Nama connector tidak boleh masuk URL.** Rutenya `POST /api/v1/events`; pembeda sumber hanya field `source`, divalidasi terhadap `internal/connector`. Menambah DANA atau OVO berarti menambah satu entri di registry, bukan menambah rute.
+- **`X-App-Version` tidak ikut ditandatangani.** Backend harus tahu versinya untuk memverifikasi, jadi ia mustahil menjadi bagian tanda tangan. Aplikasi lama tidak mengirimnya dan itu bukan alasan menolak request.
 
 ## Perangkat target
 
