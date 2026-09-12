@@ -247,10 +247,13 @@ func (s *Store) GetInvoiceByExternalRef(ctx context.Context, externalRef string)
 // InvoiceFilter menyaring ListInvoices. Field kosong/nil berarti tidak
 // difilter pada dimensi itu — pola yang sama dengan store.EventFilter.
 type InvoiceFilter struct {
-	Status string // PENDING | PAID | EXPIRED
-	Query  string // cocok sebagian ke external_ref, tanpa peduli huruf besar/kecil
-	From   *time.Time
-	To     *time.Time
+	// Statuses kosong berarti semua status. Diisi lebih dari satu (mis.
+	// PENDING dan EXPIRED sekaligus) dipakai dialog pencocokan manual di
+	// konsol pengecualian, supaya tidak perlu dua kali panggilan.
+	Statuses []string
+	Query    string // cocok sebagian ke external_ref, tanpa peduli huruf besar/kecil
+	From     *time.Time
+	To       *time.Time
 }
 
 // ListInvoices mengembalikan invoice terbaru lebih dulu, untuk halaman
@@ -263,8 +266,8 @@ func (s *Store) ListInvoices(ctx context.Context, limit, offset int, filter Invo
 		return fmt.Sprintf("$%d", len(args))
 	}
 
-	if filter.Status != "" {
-		query += " AND status = " + arg(filter.Status)
+	if len(filter.Statuses) > 0 {
+		query += " AND status = ANY(" + arg(filter.Statuses) + ")"
 	}
 	if filter.Query != "" {
 		query += " AND external_ref ILIKE " + arg("%"+filter.Query+"%")

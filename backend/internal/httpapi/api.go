@@ -86,6 +86,14 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/admin/webhooks/{webhookID}/deliveries",
 		a.requireAdmin(http.HandlerFunc(a.handleAdminWebhookDeliveries)))
 
+	// Konsol pengecualian: sub-project 3 fase 4. Lihat
+	// docs/superpowers/specs/2026-09-13-exception-console-design.md.
+	mux.Handle("GET /api/v1/admin/exceptions", a.requireAdmin(http.HandlerFunc(a.handleAdminExceptions)))
+	mux.Handle("POST /api/v1/admin/exceptions/{eventID}/match",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminMatchException)))
+	mux.Handle("POST /api/v1/admin/exceptions/{eventID}/dismiss",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminDismissException)))
+
 	return mux
 }
 

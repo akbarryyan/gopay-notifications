@@ -84,22 +84,26 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 	// Selalu array, tidak pernah null.
 	out := make([]eventJSON, 0, len(events))
 	for _, e := range events {
-		out = append(out, eventJSON{
-			EventID:     e.EventID,
-			DeviceID:    e.DeviceID,
-			Source:      e.Source,
-			PackageName: e.PackageName,
-			Title:       e.Title,
-			Text:        e.BodyText,
-			BigText:     e.BigText,
-			AmountHint:  e.AmountHint,
-			PostedAt:    e.PostedAt.Format(time.RFC3339),
-			ReceivedAt:  e.ReceivedAt.Format(time.RFC3339),
-			RawPayload:  json.RawMessage(e.RawPayload),
-		})
+		out = append(out, toEventJSON(e))
 	}
 
 	writeJSON(w, http.StatusOK, eventsListResponse{Events: out})
+}
+
+func toEventJSON(e store.Event) eventJSON {
+	return eventJSON{
+		EventID:     e.EventID,
+		DeviceID:    e.DeviceID,
+		Source:      e.Source,
+		PackageName: e.PackageName,
+		Title:       e.Title,
+		Text:        e.BodyText,
+		BigText:     e.BigText,
+		AmountHint:  e.AmountHint,
+		PostedAt:    e.PostedAt.Format(time.RFC3339),
+		ReceivedAt:  e.ReceivedAt.Format(time.RFC3339),
+		RawPayload:  json.RawMessage(e.RawPayload),
+	}
 }
 
 func intParam(r *http.Request, name string, def int) (int, error) {

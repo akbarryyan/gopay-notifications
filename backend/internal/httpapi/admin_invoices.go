@@ -3,6 +3,7 @@ package httpapi
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
@@ -33,12 +34,19 @@ func (a *API) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := store.InvoiceFilter{
-		Status: r.URL.Query().Get("status"),
-		Query:  r.URL.Query().Get("q"),
+		Query: r.URL.Query().Get("q"),
 	}
-	if filter.Status != "" && !validInvoiceStatuses[filter.Status] {
-		a.writeError(w, http.StatusBadRequest, "invalid_payload", "status tidak dikenal")
-		return
+	// Boleh lebih dari satu, dipisah koma (mis. status=PENDING,EXPIRED) —
+	// dipakai dialog pencocokan manual di konsol pengecualian supaya tidak
+	// perlu dua kali panggilan untuk dua status sekaligus.
+	if raw := r.URL.Query().Get("status"); raw != "" {
+		for _, s := range strings.Split(raw, ",") {
+			if !validInvoiceStatuses[s] {
+				a.writeError(w, http.StatusBadRequest, "invalid_payload", "status tidak dikenal: "+s)
+				return
+			}
+			filter.Statuses = append(filter.Statuses, s)
+		}
 	}
 	// from/to bertanggal saja (YYYY-MM-DD, UTC), sama persis dengan
 	// handleEvents — selaras dengan <input type="date"> di dashboard.

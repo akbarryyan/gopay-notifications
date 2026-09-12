@@ -26,7 +26,7 @@ func testStore(t *testing.T) *store.Store {
 	t.Cleanup(s.Close)
 
 	_, err = s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE")
+		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatalf("truncate: %v", err)
 	}

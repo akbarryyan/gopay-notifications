@@ -286,7 +286,7 @@ func TestListInvoicesFilterStatusDanQuery(t *testing.T) {
 		t.Fatalf("MatchEvent: %v", err)
 	}
 
-	paid, err := s.ListInvoices(ctx, 50, 0, store.InvoiceFilter{Status: store.InvoiceStatusPaid})
+	paid, err := s.ListInvoices(ctx, 50, 0, store.InvoiceFilter{Statuses: []string{store.InvoiceStatusPaid}})
 	if err != nil {
 		t.Fatalf("ListInvoices status=PAID: %v", err)
 	}
