@@ -252,7 +252,7 @@ Yang tetap berlaku dari pengamatan kemarin adalah bentuknya, bukan nilainya: not
 ## 11. Dashboard admin — sub-project 4
 
 Bukan bagian M1–M6 di atas; dicatat terpisah karena sub-project sendiri.
-**Ringkasan dashboard:** `PASS` 6 · `FAIL` 0 · `NEEDS-DEVICE` 4 · `PENDING` 3
+**Ringkasan dashboard:** `PASS` 13 · `FAIL` 0 · `NEEDS-DEVICE` 7 · `PENDING` 5
 
 ### Backend (API admin)
 
@@ -265,6 +265,11 @@ Bukan bagian M1–M6 di atas; dicatat terpisah karena sub-project sendiri.
 | Endpoint admin menolak tanpa sesi, menerima dengan sesi valid, menolak cookie yang diubah | `PASS` | `TestAdminAksesEndpointTerlindungTanpaSesiDitolak`, `...DenganSesiValid`, `TestAdminAksesDenganCookieDiubahDitolak` |
 | `ListDevices` tidak pernah membaca kolom secret | `PASS` | `TestListDevicesTidakMengembalikanSecret` |
 | Seluruh test Go termasuk paket baru (`store`, `httpapi`, `auth`) | `PASS` | `make test` → seluruh paket `ok`, diulang dengan `-race` → tetap `ok` |
+| `go build ./...` dan `go vet ./...` bersih setelah menambah filter events | `PASS` | Dijalankan langsung, tanpa output error |
+| `GET /api/v1/events` (dan `/admin/events`) menerima `source`, `q`, `from`, `to` | `PASS` | `TestEventsFiltersBySource`, `TestEventsRejectsUnknownSource`, `TestEventsFiltersByQuery`, `TestEventsFiltersByDateRange`, `TestEventsRejectsBadDateRange` — `make test` dari Akbar, 12 Sep 2026: seluruh paket `ok` (`auth`, `connector`, `httpapi` 2.755s, `secretbox`, `store` 0.796s) |
+| `store.DailyEventCounts`: 14 hari selalu terisi, hari sepi bernilai 0, hari ini terhitung benar | `PENDING` | Test baru ditulis (`TestDailyEventCountsMengisiNolUntukHariSepi`, `TestDailyEventCountsMenghitungHariIni`) untuk grafik tren Overview — perlu `make test` sungguhan sebelum `PASS` |
+| `GET /api/v1/admin/overview` selalu mengembalikan `events.daily` berisi 14 titik | `PENDING` | Test baru ditulis (`TestAdminOverviewDailySelaluEmpatBelasHari`) — idem, perlu `make test` |
+| `go build ./...` dan `go vet ./...` bersih setelah menambah `DailyEventCounts` | `PASS` | Dijalankan langsung, tanpa output error |
 
 Keluaran lengkap:
 
@@ -277,18 +282,25 @@ ok  .../internal/secretbox   1.019s
 ok  .../internal/store       8.932s
 ```
 
+Keluaran di atas direkam sebelum filter events (`source`/`q`/`from`/`to`)
+ditambahkan. Diulang lagi oleh Akbar 12 Sep 2026 setelah test barunya masuk —
+lihat baris filter events di tabel di atas untuk hasilnya.
+
 ### Frontend (Next.js)
 
 | Butir | Status | Bukti |
 |---|---|---|
 | Type-check bersih | `PASS` | `npx tsc --noEmit` → tanpa error |
 | Lint bersih | `PASS` | `npx eslint .` → tanpa warning/error |
-| Build produksi seluruh route berhasil | `PASS` | `npx next build` → 5 route (`/`, `/devices`, `/events`, `/login`, `/_not-found`) prerendered, Proxy terdaftar |
+| Build produksi seluruh route berhasil (termasuk setelah restyle tabel/sidebar, filter Devices/Events, dan grafik tren Overview) | `PASS` | `npx next build` → 5 route (`/`, `/devices`, `/events`, `/login`, `/_not-found`) prerendered, Proxy terdaftar, 0 error/warning |
 | Login sungguhan di browser: form, redirect, cookie diterima | `NEEDS-DEVICE` | Perlu `npm run dev` dan interaksi manual — lihat langkah di bawah |
+| Grafik tren Overview: kurva sesuai data sungguhan, animasi menggambar halus, hover/crosshair, tabel alternatif | `NEEDS-DEVICE` | `EventsTrendChart` — hitung ulang manual dari `notification_events` vs yang tampil di grafik |
 | Overview/Devices/Events menampilkan data sungguhan dari backend dev | `NEEDS-DEVICE` | idem |
 | Toggle aktif/nonaktif device dari UI benar-benar mengubah status di database | `NEEDS-DEVICE` | idem |
 | Tampilan mobile (sidebar → Sheet) dapat dipakai di layar sempit | `NEEDS-DEVICE` | idem, perlu DevTools atau HP |
-| Halaman "Segera" untuk Transactions/Webhooks/License/Settings/API Keys/Logs | `PENDING` | Menunggu sub-project 3 dan sistem lisensi |
+| Filter Devices (pencarian nama/ID + status) menyaring tabel dengan benar | `NEEDS-DEVICE` | Filter di sisi klien atas data yang sudah termuat — perlu dicoba di browser |
+| Filter Events (pencarian, sumber, rentang tanggal) memanggil backend dan hasilnya benar | `NEEDS-DEVICE` | Bergantung pada endpoint yang testnya sendiri masih `PENDING` di atas — coba di browser setelah `make test` jalan |
+| Halaman "Segera" untuk Webhooks/License/Settings/Logs | `PENDING` | Menunggu sub-project 3 fase 2 dan sistem lisensi — Transactions dan API Keys sudah aktif, lihat §12 |
 | Auto-refresh berkala (polling) di Overview/Devices | `PENDING` | Belum diimplementasikan — saat ini hanya memuat ulang saat halaman dibuka |
 | Halaman Settings (ganti password admin dari UI, bukan CLI) | `PENDING` | `cmd/admintool` cukup untuk MVP |
 
@@ -310,3 +322,84 @@ benar, Devices menampilkan device dari `gopay_dev` dengan status yang sesuai
 `heartbeat_at`-nya, tombol Aktifkan/Nonaktifkan benar-benar mengubah kolom
 `enabled` di database, Events menampilkan pembayaran yang sudah masuk. Persempit
 lebar browser di bawah 768px dan pastikan sidebar berubah jadi tombol menu.
+
+Untuk filter yang baru ditambahkan: di Devices, ketik sebagian nama/ID di
+kotak pencarian dan pastikan tabel menyaring baris yang cocok saja, lalu buka
+dropdown Status dan pilih salah satu (harus muncul tanda centang di baris yang
+sedang aktif, sesuai gaya dropdown di gambar referensi). Di Events, coba
+pencarian (device/judul), dropdown Sumber, dan rentang tanggal satu per satu
+— tiap kali filter berubah, halaman harus kembali ke offset awal dan hasilnya
+konsisten dengan yang benar-benar ada di `notification_events`.
+
+## 12. Invoice, nominal unik, matching, API key — sub-project 3 fase 1
+
+Spec:
+[`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](../superpowers/specs/2026-09-12-invoice-nominal-matching-design.md).
+**Ringkasan:** `PASS` 2 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 18
+
+Seluruh test Go di bawah ini **ditulis, belum dijalankan** — butuh Postgres
+via `docker compose`, di luar batas kerja Claude (lihat "Pembagian kerja" di
+root `CLAUDE.md`). Semua ditandai `PENDING`, bukan `PASS`, sampai Akbar
+menjalankan `make test` dan menempelkan hasilnya.
+
+### Backend
+
+| Butir | Status | Bukti (test yang menguji) |
+|---|---|---|
+| Alokasi nominal unik: rentang offset benar, masa berlaku 15 menit | `PENDING` | `TestCreateInvoiceMengalokasikanNominalUnik` |
+| `external_ref` sama + amount sama → invoice lama dikembalikan (idempotent) | `PENDING` | `TestCreateInvoiceExternalRefSamaAmountSamaIdempotent` |
+| `external_ref` sama + amount beda → ditolak | `PENDING` | `TestCreateInvoiceExternalRefSamaAmountBedaDitolak` |
+| Alokasi tidak pernah menabrak nominal invoice PENDING lain | `PENDING` | `TestCreateInvoiceMenghindariTabrakanNominal` |
+| Invoice kedaluwarsa benar-benar dituliskan EXPIRED sebelum alokasi berikutnya | `PENDING` | `TestCreateInvoiceMenulisTransisiExpiredSebelumAlokasi` |
+| Matching: amount cocok → PAID + matched_event_id + paid_at | `PENDING` | `TestMatchEventMenandaiInvoicePaid` |
+| Matching: amount tidak cocok → invoice tidak berubah | `PENDING` | `TestMatchEventTidakCocokTidakMengubahApaPun` |
+| Matching: amount nil dilewati, bukan error | `PENDING` | `TestMatchEventAmountNilDilewati` |
+| Matching: race dua event amount sama, hanya satu menang | `PENDING` | `TestMatchEventRaceHanyaSatuYangMenang` (dengan `-race`) |
+| `ListInvoices` filter status dan pencarian external_ref | `PENDING` | `TestListInvoicesFilterStatusDanQuery` |
+| API key: hash tersimpan, bukan plaintext; verifikasi benar/salah/dicabut | `PENDING` | `TestVerifyAPIKeyBenar`, `...Salah...`, `...SudahDicabut...` |
+| API key: revoke idempotent, revoke yang tidak ada → error | `PENDING` | `TestRevokeAPIKeyIdempotent`, `TestRevokeAPIKeyTidakDitemukan` |
+| `ListAPIKeys` tidak pernah membocorkan hash | `PENDING` | `TestListAPIKeysTidakMembocorkanHash` |
+| `POST /invoices`: berhasil, idempotent (200 vs 201), konflik (409), key salah/dicabut (401), amount invalid (400) | `PENDING` | `TestCreateInvoiceBerhasil`, `...AmountSamaMengembalikan200`, `...AmountBeda409`, `...TanpaAPIKeyDitolak`, `...APIKeySalahDitolak`, `...AmountNolAtauNegatifDitolak` |
+| `GET /invoices/{id}`: ditemukan dan tidak ditemukan | `PENDING` | `TestGetInvoiceBerhasil`, `TestGetInvoiceTidakDitemukan` |
+| Integrasi ujung-ke-ujung: invoice dibuat lewat API, event masuk lewat `POST /events`, matching otomatis tanpa langkah tambahan | `PENDING` | `TestInvoiceCocokLewatCallback` |
+| `GET /admin/invoices`: data sungguhan, filter status, status tak dikenal ditolak, perlu sesi | `PENDING` | `TestAdminInvoicesMenampilkanYangSungguhanAda`, `...FilterStatus`, `...StatusTakDikenalDitolak`, `...MemerlukanSesi` |
+| `POST/GET/PATCH /admin/api-keys`: create balas key mentah sekali, list tidak membocorkannya, revoke idempotent, perlu sesi | `PENDING` | `TestAdminCreateAPIKeyMengembalikanKeyMentahSekali`, `TestAdminListAPIKeysTidakMenyertakanKeyMentah`, `TestAdminRevokeAPIKeyMenolakKeyBerikutnya`, `...TidakDitemukan`, `TestAdminAPIKeysMemerlukanSesi` |
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih | `PASS` | Dijalankan langsung, tanpa output error/diff |
+
+Baris terakhir di atas (`go build`/`go vet`/`gofmt`) satu-satunya yang `PASS`
+di sisi backend — itu verifikasi statis yang tidak butuh database, terpisah
+dari seluruh baris test Go lain yang masih `PENDING` sampai `make test`
+benar-benar dijalankan Akbar.
+
+### Frontend (Next.js)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Type-check, lint, build produksi bersih (termasuk 2 route baru: `/transactions`, `/api-keys`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 7 route, 0 error/warning |
+| Halaman Transactions: filter (pencarian/status/rentang tanggal) memanggil `GET /admin/invoices` dan hasilnya benar | `NEEDS-DEVICE` | Perlu `npm run dev` dan data sungguhan dari `make test`/pemakaian nyata |
+| Halaman API Keys: buat key baru menampilkan key mentah sekali, dashboard tidak pernah menampilkannya lagi setelah ditutup | `NEEDS-DEVICE` | idem — juga periksa lewat DevTools Network bahwa response `GET /admin/api-keys` sungguhan tidak membawa field `key`/`key_hash` |
+| Cabut API key di UI benar-benar membuat key itu ditolak `POST /invoices` berikutnya | `NEEDS-DEVICE` | idem, uji manual dengan `curl` memakai key yang baru dicabut |
+
+### Langkah verifikasi
+
+```bash
+cd backend
+make test               # WAJIB sebelum baris PENDING di atas boleh jadi PASS
+make run-dev             # kalau belum jalan
+
+cd ../dashboard
+npm run dev
+```
+
+Buka `/api-keys`, buat satu key, salin key mentahnya. Dari terminal lain:
+
+```bash
+curl -X POST http://localhost:8090/api/v1/invoices \
+  -H "Authorization: Bearer <key mentah>" -H "Content-Type: application/json" \
+  -d '{"external_ref":"TEST-1","amount":50000}'
+```
+
+Catat `unique_amount` yang dikembalikan. Kirim event lewat perangkat (atau
+`POST /api/v1/events` bertanda tangan HMAC) dengan `amount_hint` yang sama,
+lalu buka `/transactions` di dashboard — invoice itu harus berubah jadi
+`PAID` dengan `matched_event_id` terisi, tanpa langkah manual apa pun.

@@ -12,10 +12,11 @@ repo ini. Perbarui bagian "Keadaan saat ini" di sana setiap milestone selesai.
 
 Urutan kewenangan bila terjadi perbedaan:
 
-1. [`docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md`](docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md) — spec yang disetujui, paling berwenang
-2. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
-3. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset kecilnya; jangan menganggap seluruh isi dokumen ini sudah ada.
-4. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
+1. [`docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md`](docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md) — spec ingestion + Android bridge, paling berwenang untuk sub-project 1+2
+2. [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md) — spec invoice, nominal unik, matching, API key untuk sub-project 3 fase 1
+3. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
+4. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
+5. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
 
 Spec lebih berwenang daripada PRD karena memuat keputusan yang sengaja menyimpang dari PRD dan sudah disetujui. Penyimpangan itu terdaftar di §9 spec — jangan "memperbaiki" implementasi agar kembali sesuai PRD tanpa memeriksa daftar itu lebih dulu.
 
@@ -37,15 +38,40 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 |---|---|---|
 | 1 | Event ingestion (Go) | sedang dikerjakan |
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
-| 3 | Gateway: invoice, nominal unik, matching, webhook | ditunda |
-| 4 | Dashboard admin (Next.js) — Overview, Devices, Events | sedang dikerjakan |
+| 3 | Gateway: invoice, nominal unik, matching, webhook, API key | fase 1 (invoice+matching+API key) sedang dikerjakan; fase 2 (webhook) dan fase 4 (konsol pengecualian) ditunda |
+| 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys | sedang dikerjakan |
 
-Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, dan webhook berada di luar cakupan saat ini.
+Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2 di
+atas. Jangan membangun fase 2 (webhook) atau fase 4 (konsol pengecualian)
+kecuali diminta — keduanya di luar cakupan fase 1 yang sedang berjalan.
 
-Dashboard sengaja hanya mencakup tiga halaman yang datanya sungguhan ada.
-Transactions, Webhooks, License, Settings ditampilkan di sidebar sebagai
-"Segera" (non-aktif) — bukan dibangun sebagai halaman kosong yang menebak
-bentuk data sub-project 3 sebelum sub-project itu sendiri ada.
+Dashboard mencakup halaman yang datanya sungguhan ada: Overview, Devices,
+Events, Transactions, API Keys. Webhooks, License, Settings, Logs
+ditampilkan di sidebar sebagai "Segera" (non-aktif) — bukan dibangun sebagai
+halaman kosong yang menebak bentuk data fase 2/4 sebelum fase itu sendiri ada.
+
+**Dashboard ini untuk customer (pemilik instalasi), bukan untuk vendor.**
+Model self-hosted + annual license berarti tiap customer men-deploy backend
+dan dashboard-nya sendiri di server mereka sendiri — vendor tidak pernah
+menyentuh data atau infrastruktur mereka. Satu instalasi = satu backend =
+satu dashboard = satu customer, bukan satu dashboard multi-tenant milik
+vendor untuk memantau semua customer sekaligus. Akun admin yang dibuat lewat
+`make dev-admin` adalah akun milik customer itu sendiri.
+
+Konsekuensinya untuk copywriting dan desain dashboard: jangan menyebut
+istilah arsitektur internal ("backend", "database", nama service, dsb) di
+teks yang tampil ke pengguna — itu bukan urusan customer, dan membocorkannya
+bikin produk terasa seperti tool developer, bukan produk jadi. Field API
+boleh tetap bernama `backend`/`database` (kontrak sudah ada, sub-project 3
+akan menambah komponen lain ke sana), tapi label dan copy yang ditampilkan
+di halaman harus diringkas jadi bahasa yang netral, mis. "Status Layanan" /
+"Aktif", bukan "Backend: operational".
+
+Kalau vendor (Akbar) suatu saat butuh melihat status semua instalasi
+customer sekaligus — misalnya untuk support atau memantau lisensi yang
+akan habis — itu komponen terpisah (vendor console/license portal) yang
+belum ada di scope manapun sekarang, dan baru masuk akal dibangun bareng
+sistem lisensi.
 
 ## Keputusan arsitektur yang tidak boleh dilanggar diam-diam
 

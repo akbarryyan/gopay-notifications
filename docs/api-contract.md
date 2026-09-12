@@ -328,14 +328,25 @@ diabaikan orang.
 ## 7. `GET /events`
 
 Dilindungi basic auth di Caddy, bukan HMAC — ini untuk dibuka di browser saat verifikasi M2 dan M4.
+Handler yang sama juga dipasang di `GET /admin/events` untuk dashboard, di
+belakang `requireAdmin` (cookie sesi) alih-alih basic auth Caddy — itu jalur
+yang dipakai halaman Events dashboard sub-project 4.
 
 ```
-GET /events?limit=50&offset=0
+GET /events?limit=50&offset=0&source=gopay&q=dev_01&from=2026-09-01&to=2026-09-30
 ```
+
+| Query param | Wajib | Arti |
+|---|---|---|
+| `limit` | tidak (default 50, maks 1000) | jumlah baris |
+| `offset` | tidak (default 0) | untuk paginasi |
+| `source` | tidak | harus salah satu ID di `internal/connector` (mis. `gopay`); ID tidak dikenal → `400 invalid_payload` |
+| `q` | tidak | cocok sebagian ke `device_id` ATAU `title`, tanpa peduli huruf besar/kecil |
+| `from`, `to` | tidak | tanggal saja (`YYYY-MM-DD`, UTC), inklusif kedua ujungnya — bukan RFC3339, sengaja selaras dengan `<input type="date">` |
 
 Mengembalikan event terbaru lebih dulu, memuat teks mentah dan payload asli.
-
-Bukan halaman admin. Halaman admin adalah urusan sub-project 3.
+Seluruh filter bersifat AND — mengisi lebih dari satu mempersempit hasil,
+tidak memperluasnya.
 
 ---
 
