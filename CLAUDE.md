@@ -2,6 +2,12 @@
 
 Bridge notifikasi GoPay dari HP Android ke backend, sebagai fondasi self-hosted payment gateway.
 
+## Pindah AI
+
+[`docs/ai-handoff-prompt.md`](docs/ai-handoff-prompt.md) memuat prompt siap
+tempel untuk AI lain, berikut daftar jebakan yang sudah pernah memakan waktu di
+repo ini. Perbarui bagian "Keadaan saat ini" di sana setiap milestone selesai.
+
 ## Dokumen sumber
 
 Urutan kewenangan bila terjadi perbedaan:
