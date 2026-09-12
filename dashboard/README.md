@@ -4,14 +4,16 @@ Dashboard admin untuk satu instalasi self-hosted Payment Notification Bridge.
 Next.js 16 (App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
 
 Hanya mencakup halaman yang datanya benar-benar ada: **Overview**, **Devices**,
-**Events**, **Transactions**, **API Keys**, **Webhooks**. License, Settings,
-dan Logs ditampilkan di sidebar sebagai "Segera" — bukan link aktif — karena
-fase 4 (konsol pengecualian) dan sistem lisensi belum dibangun. Lihat
-`docs/dashboard-spec.md` untuk rancangan penuh,
+**Events**, **Transactions**, **API Keys**, **Webhooks**, **Exceptions**.
+License, Settings, dan Logs ditampilkan di sidebar sebagai "Segera" — bukan
+link aktif — karena menunggu sistem lisensi (sub-project 3 sudah selesai
+seluruh fasenya). Lihat `docs/dashboard-spec.md` untuk rancangan penuh,
 `docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md` untuk
-rancangan Transactions/API Keys, dan
+rancangan Transactions/API Keys,
 `docs/superpowers/specs/2026-09-13-webhook-delivery-design.md` untuk
-rancangan Webhooks.
+rancangan Webhooks, dan
+`docs/superpowers/specs/2026-09-13-exception-console-design.md` untuk
+rancangan Exceptions.
 
 **Untuk siapa dashboard ini:** customer (pemilik instalasi), bukan vendor.
 Model self-hosted + annual license berarti tiap customer men-deploy backend
@@ -98,7 +100,8 @@ src/
         ├── events/page.tsx
         ├── transactions/page.tsx
         ├── api-keys/page.tsx
-        └── webhooks/page.tsx
+        ├── webhooks/page.tsx
+        └── exceptions/page.tsx
 ```
 
 ## Catatan Next.js 16

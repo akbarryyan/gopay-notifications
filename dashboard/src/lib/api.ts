@@ -198,7 +198,8 @@ export interface AdminInvoice {
 }
 
 export interface InvoiceFilter {
-  status?: InvoiceStatus;
+  /** Satu status, atau beberapa sekaligus (mis. saat mencari invoice target di konsol pengecualian). */
+  status?: InvoiceStatus | InvoiceStatus[];
   /** Cocok sebagian ke external_ref, tanpa peduli huruf besar/kecil. */
   q?: string;
   /** YYYY-MM-DD, inklusif. */
@@ -213,7 +214,9 @@ export async function getInvoices(
   filter: InvoiceFilter = {},
 ): Promise<AdminInvoice[]> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  if (filter.status) params.set("status", filter.status);
+  if (filter.status) {
+    params.set("status", Array.isArray(filter.status) ? filter.status.join(",") : filter.status);
+  }
   if (filter.q) params.set("q", filter.q);
   if (filter.from) params.set("from", filter.from);
   if (filter.to) params.set("to", filter.to);
@@ -323,4 +326,45 @@ export async function getWebhookDeliveries(
     `/api/v1/admin/webhooks/${encodeURIComponent(webhookId)}/deliveries?${params}`,
   );
   return res.deliveries;
+}
+
+// --- Exceptions ------------------------------------------------------------
+//
+// Event dengan amount_hint terisi yang tidak cocok invoice manapun — uang
+// yang sudah masuk tapi belum jelas ini bayar untuk order yang mana.
+
+export interface ExceptionFilter {
+  q?: string;
+  /** YYYY-MM-DD, inklusif. */
+  from?: string;
+  /** YYYY-MM-DD, inklusif. */
+  to?: string;
+}
+
+export async function getExceptions(
+  limit = 50,
+  offset = 0,
+  filter: ExceptionFilter = {},
+): Promise<AdminEvent[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (filter.q) params.set("q", filter.q);
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+
+  const res = await apiFetch<{ exceptions: AdminEvent[] }>(`/api/v1/admin/exceptions?${params}`);
+  return res.exceptions;
+}
+
+export function matchException(eventId: string, invoiceId: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/admin/exceptions/${encodeURIComponent(eventId)}/match`, {
+    method: "POST",
+    body: JSON.stringify({ invoice_id: invoiceId }),
+  });
+}
+
+export function dismissException(eventId: string, note?: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/admin/exceptions/${encodeURIComponent(eventId)}/dismiss`, {
+    method: "POST",
+    body: JSON.stringify({ note: note ?? "" }),
+  });
 }
