@@ -247,3 +247,80 @@ export function createAPIKey(name: string): Promise<AdminAPIKey & { key: string 
 export function revokeAPIKey(id: string): Promise<{ success: true }> {
   return apiFetch(`/api/v1/admin/api-keys/${encodeURIComponent(id)}`, { method: "PATCH" });
 }
+
+// --- Webhooks --------------------------------------------------------------
+
+export type WebhookEvent = "invoice.paid" | "invoice.expired";
+
+export interface AdminWebhook {
+  id: string;
+  name: string;
+  url: string;
+  events: WebhookEvent[];
+  enabled: boolean;
+  created_at: string;
+  last_delivery_at: string | null;
+  last_delivery_status: string | null;
+}
+
+export async function getWebhooks(): Promise<AdminWebhook[]> {
+  const res = await apiFetch<{ webhooks: AdminWebhook[] }>("/api/v1/admin/webhooks");
+  return res.webhooks;
+}
+
+/** `secret` di response cuma ada sekali, tepat saat ini — tidak bisa diambil lagi setelahnya. */
+export function createWebhook(
+  name: string,
+  url: string,
+  events: WebhookEvent[],
+): Promise<AdminWebhook & { secret: string }> {
+  return apiFetch("/api/v1/admin/webhooks", {
+    method: "POST",
+    body: JSON.stringify({ name, url, events }),
+  });
+}
+
+export function setWebhookEnabled(id: string, enabled: boolean): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/admin/webhooks/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export function deleteWebhook(id: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/admin/webhooks/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export interface WebhookTestResult {
+  delivered: boolean;
+  http_status: number;
+  duration_ms: number;
+}
+
+export function testWebhook(id: string): Promise<WebhookTestResult> {
+  return apiFetch(`/api/v1/admin/webhooks/${encodeURIComponent(id)}/test`, { method: "POST" });
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event: string;
+  invoice_id: string | null;
+  status: "PENDING" | "RETRYING" | "DELIVERED" | "FAILED";
+  attempt: number;
+  http_status: number | null;
+  duration_ms: number | null;
+  created_at: string;
+  delivered_at: string | null;
+}
+
+export async function getWebhookDeliveries(
+  webhookId: string,
+  limit = 50,
+  offset = 0,
+): Promise<WebhookDelivery[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  const res = await apiFetch<{ deliveries: WebhookDelivery[] }>(
+    `/api/v1/admin/webhooks/${encodeURIComponent(webhookId)}/deliveries?${params}`,
+  );
+  return res.deliveries;
+}
