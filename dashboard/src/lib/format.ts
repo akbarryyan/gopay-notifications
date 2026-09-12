@@ -22,6 +22,21 @@ export function formatDateTime(iso: string | null | undefined): string {
 }
 
 /**
+ * "12 Sep" dari tanggal murni "YYYY-MM-DD" (tanpa jam/zona) — dipakai di
+ * label grafik tren. timeZone: "UTC" sengaja dipaksa: tanpa itu, Date
+ * mem-parse "YYYY-MM-DD" sebagai tengah malam UTC lalu toLocaleDateString
+ * menampilkannya di zona waktu lokal pembaca, yang bisa mundur satu hari
+ * bagi siapa pun di sebelah barat UTC.
+ */
+export function formatShortDate(dateOnly: string): string {
+  return new Date(dateOnly + "T00:00:00Z").toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * "Baru saja", "5 menit lalu", dst.
  *
  * Dipakai di kartu Devices untuk memperlihatkan device yang diam-diam

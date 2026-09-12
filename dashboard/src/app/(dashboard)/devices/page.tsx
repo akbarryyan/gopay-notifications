@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { RotateCw } from "lucide-react";
+import { useMemo, useState } from "react";
+import { RotateCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,14 +25,41 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { DeviceStatusBadge } from "@/components/dashboard/device-status-badge";
-import { getDevices, setDeviceEnabled, type AdminDevice } from "@/lib/api";
+import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
+import { getDevices, setDeviceEnabled, type AdminDevice, type DeviceStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateTime, timeAgo } from "@/lib/format";
+
+const STATUS_OPTIONS: { value: DeviceStatus; label: string }[] = [
+  { value: "ONLINE", label: "Online" },
+  { value: "OFFLINE", label: "Offline" },
+  { value: "PENDING", label: "Pending" },
+  { value: "DISABLED", label: "Nonaktif" },
+];
 
 export default function DevicesPage() {
   const { data, loading, error, reload } = useApiData(getDevices);
   const [pendingToggle, setPendingToggle] = useState<AdminDevice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
+
+  // Devices sudah diambil seutuhnya (tidak berpaginasi di backend), jadi
+  // pencarian dan filter status cukup dilakukan di sisi klien atas data yang
+  // sudah ada — tidak perlu request baru ke server.
+  const filtered = useMemo(() => {
+    if (!data) return data;
+    return data.filter((d) => {
+      if (status && d.status !== status) return false;
+      if (query.trim() !== "") {
+        const q = query.trim().toLowerCase();
+        if (!d.name.toLowerCase().includes(q) && !d.device_id.toLowerCase().includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [data, query, status]);
 
   async function confirmToggle() {
     if (!pendingToggle) return;
@@ -62,6 +89,26 @@ export default function DevicesPage() {
         </p>
       </div>
 
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-background px-3 sm:max-w-xs">
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cari nama atau device ID..."
+            className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <FilterDropdown
+          className="w-full sm:w-44"
+          allLabel="Semua Status"
+          value={status}
+          options={STATUS_OPTIONS}
+          onChange={setStatus}
+          searchPlaceholder="Cari status..."
+        />
+      </div>
+
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Tidak dapat memuat devices</AlertTitle>
@@ -81,8 +128,8 @@ export default function DevicesPage() {
             <Skeleton key={i} className="h-14" />
           ))}
         </div>
-      ) : data && data.length > 0 ? (
-        <div className="overflow-x-auto rounded-md border">
+      ) : filtered && filtered.length > 0 ? (
+        <div className="overflow-x-auto rounded-xl border border-border/60 shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -96,7 +143,7 @@ export default function DevicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((d) => (
+              {filtered.map((d) => (
                 <TableRow key={d.device_id}>
                   <TableCell>
                     <div className="font-medium">{d.name}</div>
@@ -133,11 +180,14 @@ export default function DevicesPage() {
           </Table>
         </div>
       ) : (
-        <div className="rounded-md border border-dashed p-8 text-center">
-          <p className="font-medium">Belum ada device terhubung</p>
+        <div className="rounded-2xl border border-dashed p-8 text-center">
+          <p className="font-medium">
+            {query || status ? "Tidak ada device yang cocok dengan filter ini" : "Belum ada device terhubung"}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pasang aplikasi Android Bridge dan isi Device ID / Secret di layar Pengaturannya
-            untuk mulai menerima event pembayaran.
+            {query || status
+              ? "Coba ubah atau bersihkan filter di atas."
+              : "Pasang aplikasi Android Bridge dan isi Device ID / Secret di layar Pengaturannya untuk mulai menerima event pembayaran."}
           </p>
         </div>
       )}

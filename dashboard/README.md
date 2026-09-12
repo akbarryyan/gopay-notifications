@@ -4,9 +4,22 @@ Dashboard admin untuk satu instalasi self-hosted Payment Notification Bridge.
 Next.js 16 (App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
 
 Hanya mencakup halaman yang datanya benar-benar ada: **Overview**, **Devices**,
-**Events**. Transactions, Webhooks, License, dan Settings ditampilkan di
-sidebar sebagai "Segera" — bukan link aktif — karena sub-project 3 dan sistem
-lisensi belum dibangun. Lihat `docs/dashboard-spec.md` untuk rancangan penuh.
+**Events**, **Transactions**, **API Keys**. Webhooks, License, Settings, dan
+Logs ditampilkan di sidebar sebagai "Segera" — bukan link aktif — karena fase
+2 (webhook) dan sistem lisensi belum dibangun. Lihat `docs/dashboard-spec.md`
+untuk rancangan penuh dan
+`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md` untuk
+rancangan Transactions/API Keys.
+
+**Untuk siapa dashboard ini:** customer (pemilik instalasi), bukan vendor.
+Model self-hosted + annual license berarti tiap customer men-deploy backend
+dan dashboard-nya sendiri; vendor tidak pernah menyentuh instalasi mereka.
+Satu instalasi = satu dashboard = satu customer. Karena itu, **jangan
+menyebut istilah arsitektur internal ("backend", "database", nama service,
+dsb) di teks yang tampil ke pengguna** — field API boleh tetap bernama
+begitu, tapi label/copy di halaman diringkas jadi bahasa netral (mis.
+"Status Layanan" alih-alih "Backend: operational"). Detail lengkap ada di
+root `CLAUDE.md` bagian "Pemecahan scope".
 
 ## Arsitektur singkat
 
@@ -73,14 +86,16 @@ src/
 │   └── use-api-data.ts          # Hook ambil-data: loading/error/401-redirect
 ├── components/
 │   ├── ui/                      # shadcn/ui, jangan diedit manual — re-add via CLI
-│   └── dashboard/                # Sidebar, AppShell, StatCard, DeviceStatusBadge
+│   └── dashboard/                # Sidebar, AppShell, StatCard, FilterDropdown, DateRangeFilter, EventsTrendChart
 └── app/
     ├── login/page.tsx
     └── (dashboard)/              # Route group berbagi AppShell (sidebar)
         ├── layout.tsx
         ├── page.tsx              # Overview
         ├── devices/page.tsx
-        └── events/page.tsx
+        ├── events/page.tsx
+        ├── transactions/page.tsx
+        └── api-keys/page.tsx
 ```
 
 ## Catatan Next.js 16

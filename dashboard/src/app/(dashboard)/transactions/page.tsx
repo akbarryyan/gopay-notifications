@@ -5,6 +5,7 @@ import { RotateCw, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -15,58 +16,77 @@ import {
 } from "@/components/ui/table";
 import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
-import { getEvents, getSources } from "@/lib/api";
+import { getInvoices, type InvoiceStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 
 const PAGE_SIZE = 50;
 
-export default function EventsPage() {
+const STATUS_OPTIONS: { value: InvoiceStatus; label: string }[] = [
+  { value: "PENDING", label: "Pending" },
+  { value: "PAID", label: "Paid" },
+  { value: "EXPIRED", label: "Expired" },
+];
+
+function StatusBadge({ status }: { status: InvoiceStatus }) {
+  if (status === "PAID") {
+    return (
+      <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+        Paid
+      </Badge>
+    );
+  }
+  if (status === "EXPIRED") {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Expired
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400">
+      Pending
+    </Badge>
+  );
+}
+
+export default function TransactionsPage() {
   const [offset, setOffset] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
-  const [source, setSource] = useState("");
+  const [status, setStatus] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
-  // Jeda 350ms sebelum mengetikan pencarian benar-benar memicu request baru
-  // — tiap ketukan tombol tidak perlu langsung memanggil backend.
   useEffect(() => {
     const t = setTimeout(() => setQuery(rawQuery), 350);
     return () => clearTimeout(t);
   }, [rawQuery]);
 
-  // Filter berubah → halaman kembali ke awal, supaya tidak nyasar di
-  // offset yang sudah tidak relevan dengan hasil filter yang baru. Tidak ada
-  // cara menyinkronkan ini selain di efek: offset harus ikut nilai filter
-  // sebelumnya, bukan nilai yang baru saja berubah.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOffset(0);
-  }, [query, source, dateRange.from, dateRange.to]);
+  }, [query, status, dateRange.from, dateRange.to]);
 
-  const sources = useApiData(getSources);
   const fetcher = useCallback(
     () =>
-      getEvents(PAGE_SIZE, offset, {
+      getInvoices(PAGE_SIZE, offset, {
         q: query || undefined,
-        source: source || undefined,
+        status: (status || undefined) as InvoiceStatus | undefined,
         from: dateRange.from || undefined,
         to: dateRange.to || undefined,
       }),
-    [offset, query, source, dateRange.from, dateRange.to],
+    [offset, query, status, dateRange.from, dateRange.to],
   );
   const { data, loading, error, reload } = useApiData(fetcher);
-
-  const sourceOptions = (sources.data ?? []).map((s) => ({ value: s.id, label: s.name }));
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Events</h1>
+        <h1 className="text-2xl font-semibold">Transactions</h1>
         <p className="text-sm text-muted-foreground">
-          Notifikasi pembayaran mentah yang diterima dari perangkat Android, apa adanya.
+          Invoice yang dibuat lewat API dan status pencocokannya ke pembayaran yang masuk.
         </p>
       </div>
 
@@ -76,28 +96,24 @@ export default function EventsPage() {
           <input
             value={rawQuery}
             onChange={(e) => setRawQuery(e.target.value)}
-            placeholder="Cari device atau judul..."
+            placeholder="Cari referensi order..."
             className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
         <FilterDropdown
           className="w-full sm:w-44"
-          allLabel="Semua Sumber"
-          value={source}
-          options={sourceOptions}
-          onChange={setSource}
-          searchPlaceholder="Cari sumber..."
+          allLabel="Semua Status"
+          value={status}
+          options={STATUS_OPTIONS}
+          onChange={setStatus}
+          searchPlaceholder="Cari status..."
         />
-        <DateRangeFilter
-          from={dateRange.from}
-          to={dateRange.to}
-          onChange={setDateRange}
-        />
+        <DateRangeFilter from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
       </div>
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Tidak dapat memuat events</AlertTitle>
+          <AlertTitle>Tidak dapat memuat transactions</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-4">
             <span>{error}</span>
             <Button size="sm" variant="outline" onClick={reload}>
@@ -121,54 +137,56 @@ export default function EventsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Sumber</TableHead>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Judul</TableHead>
-                  <TableHead className="text-right">Nominal</TableHead>
+                  <TableHead>Referensi</TableHead>
+                  <TableHead className="text-right">Nominal diminta</TableHead>
+                  <TableHead className="text-right">Nominal unik</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Dibuat</TableHead>
+                  <TableHead>Dibayar / Kedaluwarsa</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((e) => (
-                  <Fragment key={e.event_id}>
+                {data.map((inv) => (
+                  <Fragment key={inv.id}>
                     <TableRow
                       className="cursor-pointer"
-                      onClick={() => setExpanded(expanded === e.event_id ? null : e.event_id)}
+                      onClick={() => setExpanded(expanded === inv.id ? null : inv.id)}
                     >
                       <TableCell>
-                        {expanded === e.event_id ? (
+                        {expanded === inv.id ? (
                           <ChevronDown className="size-4 text-muted-foreground" />
                         ) : (
                           <ChevronRight className="size-4 text-muted-foreground" />
                         )}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {formatDateTime(e.received_at)}
-                      </TableCell>
-                      <TableCell className="capitalize">{e.source}</TableCell>
-                      <TableCell className="font-mono text-xs">{e.device_id}</TableCell>
-                      <TableCell className="max-w-55 truncate">
-                        {e.title ?? "(tanpa judul)"}
+                      <TableCell className="font-medium">{inv.external_ref}</TableCell>
+                      <TableCell className="text-right">
+                        {formatRupiah(inv.requested_amount)}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatRupiah(e.amount_hint)}
+                        {formatRupiah(inv.unique_amount)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={inv.status} />
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDateTime(inv.created_at)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {inv.paid_at ? formatDateTime(inv.paid_at) : formatDateTime(inv.expires_at)}
                       </TableCell>
                     </TableRow>
-                    {expanded === e.event_id && (
+                    {expanded === inv.id && (
                       <TableRow>
-                        <TableCell colSpan={6} className="bg-muted/30">
+                        <TableCell colSpan={7} className="bg-muted/30">
                           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 py-2 text-sm sm:grid-cols-2">
                             <div>
-                              <dt className="text-xs text-muted-foreground">Event ID</dt>
-                              <dd className="font-mono text-xs">{e.event_id}</dd>
+                              <dt className="text-xs text-muted-foreground">Invoice ID</dt>
+                              <dd className="font-mono text-xs">{inv.id}</dd>
                             </div>
                             <div>
-                              <dt className="text-xs text-muted-foreground">Package</dt>
-                              <dd className="font-mono text-xs">{e.package_name}</dd>
-                            </div>
-                            <div className="sm:col-span-2">
-                              <dt className="text-xs text-muted-foreground">Teks notifikasi</dt>
-                              <dd>{e.text ?? "—"}</dd>
+                              <dt className="text-xs text-muted-foreground">Event yang cocok</dt>
+                              <dd className="font-mono text-xs">{inv.matched_event_id ?? "—"}</dd>
                             </div>
                           </dl>
                         </TableCell>
@@ -205,14 +223,14 @@ export default function EventsPage() {
       ) : (
         <div className="rounded-2xl border border-dashed p-8 text-center">
           <p className="font-medium">
-            {query || source || dateRange.from || dateRange.to
-              ? "Tidak ada event yang cocok dengan filter ini"
-              : "Belum ada event"}
+            {query || status || dateRange.from || dateRange.to
+              ? "Tidak ada transaksi yang cocok dengan filter ini"
+              : "Belum ada transaksi"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {query || source || dateRange.from || dateRange.to
+            {query || status || dateRange.from || dateRange.to
               ? "Coba ubah atau bersihkan filter di atas."
-              : "Event akan muncul di sini begitu perangkat menerima notifikasi pembayaran."}
+              : "Invoice akan muncul di sini begitu dibuat lewat POST /api/v1/invoices."}
           </p>
         </div>
       )}

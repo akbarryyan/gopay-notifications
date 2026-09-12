@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,9 +42,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
+    <div className="flex min-h-screen items-center justify-center bg-secondary/40 px-4">
+      <Card className="w-full max-w-sm rounded-2xl border-none py-8 shadow-sm ring-1 ring-border/60">
+        <CardHeader className="items-center text-center">
+          <span className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Zap className="size-5" fill="currentColor" strokeWidth={0} />
+          </span>
           <CardTitle className="text-xl">Payment Bridge</CardTitle>
           <CardDescription>Masuk ke dashboard admin instalasi ini.</CardDescription>
         </CardHeader>

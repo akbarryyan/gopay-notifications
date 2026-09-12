@@ -82,6 +82,8 @@ export interface OverviewResponse {
     today: number;
     last_7_days: number;
     latest_at: string | null;
+    /** 14 hari terakhir, hari tertua lebih dulu, hari sepi ikut disertakan dengan count 0. */
+    daily: { date: string; count: number }[];
   };
   system: {
     backend: string;
@@ -140,9 +142,108 @@ export interface AdminEvent {
   raw_payload: unknown;
 }
 
-export async function getEvents(limit = 50, offset = 0): Promise<AdminEvent[]> {
-  const res = await apiFetch<{ events: AdminEvent[] }>(
-    `/api/v1/admin/events?limit=${limit}&offset=${offset}`,
-  );
+export interface EventFilter {
+  /** ID connector, mis. "gopay". Kosong/undefined berarti semua sumber. */
+  source?: string;
+  /** Cocok sebagian ke device_id atau title, tanpa peduli huruf besar/kecil. */
+  q?: string;
+  /** YYYY-MM-DD, inklusif. */
+  from?: string;
+  /** YYYY-MM-DD, inklusif. */
+  to?: string;
+}
+
+export async function getEvents(
+  limit = 50,
+  offset = 0,
+  filter: EventFilter = {},
+): Promise<AdminEvent[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (filter.source) params.set("source", filter.source);
+  if (filter.q) params.set("q", filter.q);
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+
+  const res = await apiFetch<{ events: AdminEvent[] }>(`/api/v1/admin/events?${params}`);
   return res.events;
+}
+
+// --- Sources -------------------------------------------------------------
+
+export interface SourceInfo {
+  id: string;
+  name: string;
+  packages: string[];
+}
+
+export async function getSources(): Promise<SourceInfo[]> {
+  const res = await apiFetch<{ sources: SourceInfo[] }>("/api/v1/sources");
+  return res.sources;
+}
+
+// --- Invoices (Transactions) -----------------------------------------------
+
+export type InvoiceStatus = "PENDING" | "PAID" | "EXPIRED";
+
+export interface AdminInvoice {
+  id: string;
+  external_ref: string;
+  requested_amount: number;
+  unique_amount: number;
+  status: InvoiceStatus;
+  matched_event_id: string | null;
+  created_at: string;
+  expires_at: string;
+  paid_at: string | null;
+}
+
+export interface InvoiceFilter {
+  status?: InvoiceStatus;
+  /** Cocok sebagian ke external_ref, tanpa peduli huruf besar/kecil. */
+  q?: string;
+  /** YYYY-MM-DD, inklusif. */
+  from?: string;
+  /** YYYY-MM-DD, inklusif. */
+  to?: string;
+}
+
+export async function getInvoices(
+  limit = 50,
+  offset = 0,
+  filter: InvoiceFilter = {},
+): Promise<AdminInvoice[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (filter.status) params.set("status", filter.status);
+  if (filter.q) params.set("q", filter.q);
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+
+  const res = await apiFetch<{ invoices: AdminInvoice[] }>(`/api/v1/admin/invoices?${params}`);
+  return res.invoices;
+}
+
+// --- API Keys ------------------------------------------------------------
+
+export interface AdminAPIKey {
+  id: string;
+  name: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export async function getAPIKeys(): Promise<AdminAPIKey[]> {
+  const res = await apiFetch<{ api_keys: AdminAPIKey[] }>("/api/v1/admin/api-keys");
+  return res.api_keys;
+}
+
+/** `key` di response cuma ada sekali, tepat saat ini — tidak bisa diambil lagi setelahnya. */
+export function createAPIKey(name: string): Promise<AdminAPIKey & { key: string }> {
+  return apiFetch("/api/v1/admin/api-keys", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function revokeAPIKey(id: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/admin/api-keys/${encodeURIComponent(id)}`, { method: "PATCH" });
 }
