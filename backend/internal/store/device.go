@@ -19,6 +19,9 @@ type Device struct {
 	Secret     []byte
 	Enabled    bool
 	LastSeenAt *time.Time
+	// Versi aplikasi Android yang terakhir menghubungi backend. Kosong
+	// sampai perangkat mengirim header X-App-Version.
+	AppVersion *string
 }
 
 // CreateDevice menyimpan device baru dengan secret terenkripsi.
@@ -44,9 +47,9 @@ func (s *Store) GetDevice(ctx context.Context, key []byte, deviceID string) (Dev
 		enc []byte
 	)
 	err := s.pool.QueryRow(ctx,
-		`SELECT device_id, name, secret_enc, enabled, last_seen_at
+		`SELECT device_id, name, secret_enc, enabled, last_seen_at, app_version
 		 FROM devices WHERE device_id = $1`, deviceID).
-		Scan(&d.DeviceID, &d.Name, &enc, &d.Enabled, &d.LastSeenAt)
+		Scan(&d.DeviceID, &d.Name, &enc, &d.Enabled, &d.LastSeenAt, &d.AppVersion)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Device{}, ErrDeviceNotFound
@@ -63,11 +66,18 @@ func (s *Store) GetDevice(ctx context.Context, key []byte, deviceID string) (Dev
 	return d, nil
 }
 
-// TouchDevice memperbarui last_seen_at. Dipanggil setelah autentikasi berhasil,
-// sehingga tidak dibutuhkan heartbeat berkala dari perangkat.
-func (s *Store) TouchDevice(ctx context.Context, deviceID string) error {
+// TouchDevice memperbarui last_seen_at dan versi aplikasi. Dipanggil setelah
+// autentikasi berhasil.
+//
+// appVersion kosong tidak menimpa nilai yang sudah tersimpan: aplikasi versi
+// lama tidak mengirim header itu, dan menghapus versi yang sudah diketahui
+// justru membuang informasi.
+func (s *Store) TouchDevice(ctx context.Context, deviceID, appVersion string) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE devices SET last_seen_at = now() WHERE device_id = $1`, deviceID)
+		`UPDATE devices
+		 SET last_seen_at = now(),
+		     app_version  = COALESCE(NULLIF($2, ''), app_version)
+		 WHERE device_id = $1`, deviceID, appVersion)
 	if err != nil {
 		return fmt.Errorf("store: touch device: %w", err)
 	}

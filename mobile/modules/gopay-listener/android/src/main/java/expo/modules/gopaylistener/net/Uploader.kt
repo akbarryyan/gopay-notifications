@@ -25,7 +25,12 @@ object Uploader {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    fun send(cfg: BridgeConfig, e: EventEntity, nowSeconds: Long = System.currentTimeMillis() / 1000): UploadOutcome {
+    fun send(
+        cfg: BridgeConfig,
+        e: EventEntity,
+        appVersion: String = "",
+        nowSeconds: Long = System.currentTimeMillis() / 1000,
+    ): UploadOutcome {
         // Byte ini yang ditandatangani DAN yang dikirim, tanpa disusun ulang
         // di antaranya. Membangun ulang JSON setelah menandatangani akan
         // mengubah urutan field dan spasi, dan tanda tangan gagal secara acak.
@@ -36,12 +41,15 @@ object Uploader {
             Signer.signingString(cfg.deviceId, nowSeconds, payload)
         )
 
+        // Nama connector TIDAK ada di URL: payload identik untuk setiap
+        // sumber dan pembedanya hanya field "source".
         val request = Request.Builder()
-            .url(cfg.backendUrl + "/callback/gopay")
+            .url(cfg.backendUrl + "/events")
             .post(payload.toRequestBody(JSON))
             .header("X-Device-Id", cfg.deviceId)
             .header("X-Timestamp", nowSeconds.toString())
             .header("X-Signature", signature)
+            .header("X-App-Version", appVersion)
             .build()
 
         return try {
@@ -73,7 +81,11 @@ object Uploader {
     }
 
     /** Dipakai tombol Test Connection di layar Settings. */
-    fun deviceMe(cfg: BridgeConfig, nowSeconds: Long = System.currentTimeMillis() / 1000): Map<String, Any?> {
+    fun deviceMe(
+        cfg: BridgeConfig,
+        appVersion: String = "",
+        nowSeconds: Long = System.currentTimeMillis() / 1000,
+    ): Map<String, Any?> {
         val signature = Signer.sign(
             cfg.deviceSecret,
             Signer.signingString(cfg.deviceId, nowSeconds, ByteArray(0))
@@ -85,6 +97,7 @@ object Uploader {
             .header("X-Device-Id", cfg.deviceId)
             .header("X-Timestamp", nowSeconds.toString())
             .header("X-Signature", signature)
+            .header("X-App-Version", appVersion)
             .build()
 
         return try {

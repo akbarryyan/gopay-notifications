@@ -174,6 +174,43 @@ func TestAuthRejectsNonNumericTimestamp(t *testing.T) {
 	}
 }
 
+func TestAuthMencatatVersiAplikasiDariHeader(t *testing.T) {
+	h := newAPIWithDevice(t)
+	rec := httptest.NewRecorder()
+
+	req := signedRequest(http.MethodGet, "/api/v1/device/me", "", fixedNow.Unix(), testSecret)
+	req.Header.Set("X-App-Version", "1.4.2")
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, mau 200", rec.Code)
+	}
+
+	var body struct {
+		AppVersion *string `json:"app_version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.AppVersion == nil || *body.AppVersion != "1.4.2" {
+		t.Fatalf("app_version = %v, mau 1.4.2", body.AppVersion)
+	}
+}
+
+func TestAuthTanpaHeaderVersiTetapDiterima(t *testing.T) {
+	// Aplikasi versi lama tidak mengirim X-App-Version. Itu bukan alasan
+	// menolak request dan memutus pembayaran.
+	h := newAPIWithDevice(t)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, signedRequest(http.MethodGet, "/api/v1/device/me", "", fixedNow.Unix(), testSecret))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, mau 200", rec.Code)
+	}
+}
+
 func TestAuthRejectsDisabledDevice(t *testing.T) {
 	h := newAPIWithDevice(t)
 

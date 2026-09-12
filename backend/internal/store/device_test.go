@@ -79,7 +79,7 @@ func TestTouchDeviceSetsLastSeenAt(t *testing.T) {
 	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP", []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
-	if err := s.TouchDevice(ctx, "dev_01ABC"); err != nil {
+	if err := s.TouchDevice(ctx, "dev_01ABC", "1.0.0"); err != nil {
 		t.Fatalf("TouchDevice: %v", err)
 	}
 
@@ -89,5 +89,34 @@ func TestTouchDeviceSetsLastSeenAt(t *testing.T) {
 	}
 	if got.LastSeenAt == nil {
 		t.Fatal("LastSeenAt masih nil setelah TouchDevice")
+	}
+	if got.AppVersion == nil || *got.AppVersion != "1.0.0" {
+		t.Fatalf("AppVersion = %v, mau 1.0.0", got.AppVersion)
+	}
+}
+
+func TestTouchDeviceVersiKosongTidakMenimpa(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP", []byte("s")); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+	if err := s.TouchDevice(ctx, "dev_01ABC", "1.2.3"); err != nil {
+		t.Fatalf("TouchDevice pertama: %v", err)
+	}
+
+	// Aplikasi versi lama tidak mengirim header X-App-Version. Menghapus
+	// versi yang sudah diketahui justru membuang informasi.
+	if err := s.TouchDevice(ctx, "dev_01ABC", ""); err != nil {
+		t.Fatalf("TouchDevice kedua: %v", err)
+	}
+
+	got, err := s.GetDevice(ctx, encKey(), "dev_01ABC")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if got.AppVersion == nil || *got.AppVersion != "1.2.3" {
+		t.Fatalf("AppVersion = %v, mau tetap 1.2.3", got.AppVersion)
 	}
 }

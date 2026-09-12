@@ -99,9 +99,20 @@ func (a *API) requireDevice(next http.Handler) http.Handler {
 			return
 		}
 
-		if err := a.store.TouchDevice(r.Context(), deviceID); err != nil {
+		// Versi aplikasi dicatat dari header. Aplikasi lama tidak
+		// mengirimnya, dan itu bukan alasan menolak request.
+		appVersion := r.Header.Get("X-App-Version")
+		if err := a.store.TouchDevice(r.Context(), deviceID, appVersion); err != nil {
 			// Bukan alasan menolak request — cukup dicatat.
 			slog.Warn("perbarui last_seen_at gagal", "device_id", deviceID, "err", err)
+		}
+
+		// device dimuat SEBELUM TouchDevice, jadi salinan di memori masih
+		// memuat versi lama. Tanpa penyelarasan ini, handler melaporkan
+		// keadaan yang sudah tidak benar pada request yang sama.
+		if appVersion != "" {
+			appVersion := appVersion
+			device.AppVersion = &appVersion
 		}
 
 		ctx := context.WithValue(r.Context(), ctxKeyDevice, device)

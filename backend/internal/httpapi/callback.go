@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/akbarryyan/gopay-notifications/backend/internal/connector"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -62,8 +63,12 @@ func (a *API) handleCallback(w http.ResponseWriter, r *http.Request) {
 			"device_id di body tidak sama dengan device yang terautentikasi")
 		return
 	}
-	if req.Source != "gopay" {
-		a.writeError(w, http.StatusBadRequest, "invalid_payload", "source tidak dikenal")
+	// Divalidasi terhadap registry connector, bukan literal. Sumber yang
+	// belum diimplementasikan harus ditolak, bukan diterima lalu diam-diam
+	// tidak pernah dicocokkan.
+	if !connector.IsKnown(req.Source) {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload",
+			"source tidak dikenal: "+req.Source)
 		return
 	}
 	if req.Notification.PackageName == "" {

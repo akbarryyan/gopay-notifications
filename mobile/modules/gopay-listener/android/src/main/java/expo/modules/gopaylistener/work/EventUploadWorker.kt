@@ -6,6 +6,7 @@ import android.util.Log
 import expo.modules.gopaylistener.CaptureBus
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import expo.modules.gopaylistener.AppInfo
 import expo.modules.gopaylistener.config.Settings
 import expo.modules.gopaylistener.db.AppDatabase
 import expo.modules.gopaylistener.net.UploadOutcome
@@ -25,6 +26,7 @@ class EventUploadWorker(
             return Result.success()
         }
 
+        val appVersion = AppInfo.version(app)
         val dao = AppDatabase.get(app).events()
 
         // Event yang tertinggal di SENDING berasal dari worker yang dibunuh di
@@ -40,7 +42,7 @@ class EventUploadWorker(
         var needRetry = false
 
         for (event in batch) {
-            when (val outcome = Uploader.send(cfg, event)) {
+            when (val outcome = Uploader.send(cfg, event, appVersion)) {
                 is UploadOutcome.Sent -> {
                     dao.markSent(event.eventId, outcome.backendStatus, System.currentTimeMillis())
                     Log.i(TAG, "event terkirim, status=${outcome.backendStatus}")

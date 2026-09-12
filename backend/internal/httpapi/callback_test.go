@@ -20,7 +20,7 @@ const validBody = `{"event_id":"evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c","device_id
 func postCallback(t *testing.T, h http.Handler, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, signedRequest(http.MethodPost, "/api/v1/callback/gopay", body, fixedNow.Unix(), testSecret))
+	h.ServeHTTP(rec, signedRequest(http.MethodPost, "/api/v1/events", body, fixedNow.Unix(), testSecret))
 	return rec
 }
 

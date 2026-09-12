@@ -10,6 +10,7 @@ type deviceMeResponse struct {
 	Name       string  `json:"name"`
 	Enabled    bool    `json:"enabled"`
 	LastSeenAt *string `json:"last_seen_at"`
+	AppVersion *string `json:"app_version"`
 }
 
 // handleDeviceMe melayani tombol Test Connection di aplikasi Android.
@@ -21,9 +22,10 @@ func (a *API) handleDeviceMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := deviceMeResponse{
-		DeviceID: device.DeviceID,
-		Name:     device.Name,
-		Enabled:  device.Enabled,
+		DeviceID:   device.DeviceID,
+		Name:       device.Name,
+		Enabled:    device.Enabled,
+		AppVersion: device.AppVersion,
 	}
 	if device.LastSeenAt != nil {
 		s := device.LastSeenAt.Format(time.RFC3339)

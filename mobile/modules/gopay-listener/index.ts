@@ -31,6 +31,8 @@ export interface AppEnvironment {
   packageName: string
   /** Diturunkan dari package name yang benar-benar terpasang. */
   variant: AppVariant
+  /** Dibaca dari PackageManager, bukan dari konstanta di kode. */
+  appVersion: string
 }
 
 export type EventStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'IGNORED'

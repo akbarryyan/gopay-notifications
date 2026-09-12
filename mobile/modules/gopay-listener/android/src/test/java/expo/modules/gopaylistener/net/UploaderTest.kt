@@ -64,21 +64,47 @@ class UploaderTest {
     fun `mengirim POST ke callback dengan ketiga header autentikasi`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
 
-        Uploader.send(cfg, event, nowSeconds = 1789036200L)
+        Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         val req = server.takeRequest()
         assertEquals("POST", req.method)
-        assertEquals("/api/v1/callback/gopay", req.path)
+        assertEquals("/api/v1/events", req.path)
         assertEquals("dev_01ABC", req.getHeader("X-Device-Id"))
         assertEquals("1789036200", req.getHeader("X-Timestamp"))
         assertTrue(req.getHeader("X-Signature")!!.matches(Regex("^[0-9a-f]{64}$")))
     }
 
     @Test
+    fun `mengirim header versi aplikasi`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
+
+        Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
+
+        assertEquals("1.4.2", server.takeRequest().getHeader("X-App-Version"))
+    }
+
+    @Test
+    fun `versi aplikasi tidak ikut ditandatangani`() {
+        // Header ini bersifat informatif dan tidak masuk signing string.
+        // Kalau ia ikut ditandatangani, backend harus mengetahui versinya
+        // lebih dulu untuk memverifikasi — dan itu mustahil.
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
+
+        Uploader.send(cfg, event, appVersion = "9.9.9", nowSeconds = 1789036200L)
+
+        val req = server.takeRequest()
+        val expected = Signer.sign(
+            cfg.deviceSecret,
+            Signer.signingString(cfg.deviceId, 1789036200L, req.body.readByteArray())
+        )
+        assertEquals(expected, req.getHeader("X-Signature"))
+    }
+
+    @Test
     fun `tanda tangan dihitung atas byte body yang persis terkirim`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
 
-        Uploader.send(cfg, event, nowSeconds = 1789036200L)
+        Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         val req = server.takeRequest()
         val sentBytes = req.body.readByteArray()
@@ -98,7 +124,7 @@ class UploaderTest {
     fun `payload memuat teks mentah dan amount_hint`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
 
-        Uploader.send(cfg, event, nowSeconds = 1789036200L)
+        Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         val body = JSONObject(server.takeRequest().body.readUtf8())
         assertEquals("evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c", body.getString("event_id"))
@@ -118,7 +144,7 @@ class UploaderTest {
     fun `received_at berformat ISO 8601 dengan offset zona waktu`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
 
-        Uploader.send(cfg, event, nowSeconds = 1789036200L)
+        Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         val receivedAt = JSONObject(server.takeRequest().body.readUtf8()).getString("received_at")
         assertTrue(
@@ -131,7 +157,7 @@ class UploaderTest {
     fun `amount_hint null dikirim sebagai null, bukan dihilangkan`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"accepted"}"""))
 
-        Uploader.send(cfg, event.copy(amountHint = null), nowSeconds = 1789036200L)
+        Uploader.send(cfg, event.copy(amountHint = null), appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         val body = JSONObject(server.takeRequest().body.readUtf8())
         assertTrue(body.has("amount_hint"))
@@ -142,7 +168,7 @@ class UploaderTest {
     fun `response duplicate diperlakukan sebagai terkirim`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"duplicate"}"""))
 
-        val out = Uploader.send(cfg, event, nowSeconds = 1789036200L)
+        val out = Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         assertTrue(out is UploadOutcome.Sent)
         assertEquals("duplicate", (out as UploadOutcome.Sent).backendStatus)
@@ -152,7 +178,7 @@ class UploaderTest {
     fun `backend tidak dapat dihubungi menjadi Retry, bukan Failed`() {
         server.shutdown()
 
-        val out = Uploader.send(cfg, event, nowSeconds = 1789036200L)
+        val out = Uploader.send(cfg, event, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         assertTrue("jaringan mati selalu dapat dipulihkan", out is UploadOutcome.Retry)
         assertEquals("network", (out as UploadOutcome.Retry).error)
@@ -183,7 +209,7 @@ class UploaderTest {
     fun `deviceMe menandatangani body kosong dan mengembalikan nama device`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"device_id":"dev_01ABC","name":"HP GoPay Utama"}"""))
 
-        val result = Uploader.deviceMe(cfg, nowSeconds = 1789036200L)
+        val result = Uploader.deviceMe(cfg, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         assertEquals(true, result["ok"])
         assertEquals("HP GoPay Utama", result["deviceName"])
@@ -200,7 +226,7 @@ class UploaderTest {
     fun `deviceMe meneruskan kode error backend apa adanya`() {
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"success":false,"error":"clock_skew"}"""))
 
-        val result = Uploader.deviceMe(cfg, nowSeconds = 1789036200L)
+        val result = Uploader.deviceMe(cfg, appVersion = "1.4.2", nowSeconds = 1789036200L)
 
         assertEquals(false, result["ok"])
         assertEquals("clock_skew", result["error"])

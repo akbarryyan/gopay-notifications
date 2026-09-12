@@ -82,7 +82,11 @@ class GopayListenerModule : Module() {
                 pkg.endsWith(".uat") -> "uat"
                 else -> "production"
             }
-            mapOf("packageName" to pkg, "variant" to variant)
+            mapOf(
+                "packageName" to pkg,
+                "variant" to variant,
+                "appVersion" to AppInfo.version(context),
+            )
         }
 
         Function("isNotificationAccessGranted") {
@@ -178,7 +182,7 @@ class GopayListenerModule : Module() {
         AsyncFunction("testConnection") {
             val cfg = Settings(context).config()
                 ?: return@AsyncFunction mapOf("ok" to false, "error" to "belum_dikonfigurasi")
-            Uploader.deviceMe(cfg)
+            Uploader.deviceMe(cfg, AppInfo.version(context))
         }
 
         Function("getStatus") {
