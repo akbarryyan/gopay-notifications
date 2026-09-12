@@ -10,6 +10,7 @@ import expo.modules.gopaylistener.db.EventEntity
 import expo.modules.gopaylistener.db.EventStatus
 import expo.modules.gopaylistener.discovery.DiscoveryLog
 import expo.modules.gopaylistener.net.Uploader
+import expo.modules.gopaylistener.work.HeartbeatWorker
 import expo.modules.gopaylistener.work.PurgeWorker
 import expo.modules.gopaylistener.work.UploadScheduler
 import java.lang.ref.WeakReference
@@ -46,6 +47,7 @@ class GopayListenerModule : Module() {
         // ketiga, tetapi menyimpannya selamanya tetap tidak ada gunanya.
         OnCreate {
             PurgeWorker.schedule(context)
+            HeartbeatWorker.schedule(context)
         }
 
         Events(EVENT_CHANGED)

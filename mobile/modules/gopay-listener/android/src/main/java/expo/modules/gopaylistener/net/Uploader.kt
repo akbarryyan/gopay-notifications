@@ -66,6 +66,55 @@ object Uploader {
         }
     }
 
+    /**
+     * Laporan kondisi berkala.
+     *
+     * listenerConnected adalah informasi paling berharga di sini: izin aktif
+     * tetapi listener tidak terikat adalah gejala service dibunuh OEM, dan
+     * tanpa heartbeat hal itu baru diketahui saat sebuah pembayaran terlewat.
+     */
+    data class HeartbeatReport(
+        val androidVersion: String,
+        val listenerConnected: Boolean,
+        val pendingCount: Int,
+        val failedCount: Int,
+    )
+
+    /** Mengembalikan true bila backend menerima laporan. */
+    fun heartbeat(
+        cfg: BridgeConfig,
+        appVersion: String,
+        report: HeartbeatReport,
+        nowSeconds: Long = System.currentTimeMillis() / 1000,
+    ): Boolean {
+        val payload = JSONObject().apply {
+            put("android_version", report.androidVersion)
+            put("listener_connected", report.listenerConnected)
+            put("pending_count", report.pendingCount)
+            put("failed_count", report.failedCount)
+        }.toString().toByteArray(Charsets.UTF_8)
+
+        val signature = Signer.sign(
+            cfg.deviceSecret,
+            Signer.signingString(cfg.deviceId, nowSeconds, payload)
+        )
+
+        val request = Request.Builder()
+            .url(cfg.backendUrl + "/devices/heartbeat")
+            .post(payload.toRequestBody(JSON))
+            .header("X-Device-Id", cfg.deviceId)
+            .header("X-Timestamp", nowSeconds.toString())
+            .header("X-Signature", signature)
+            .header("X-App-Version", appVersion)
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (_: IOException) {
+            false
+        }
+    }
+
     /** Mengembalikan (backend hidup, jam server dalam detik). */
     fun health(backendUrl: String): Pair<Boolean, Long?> {
         val request = Request.Builder().url("$backendUrl/health").get().build()

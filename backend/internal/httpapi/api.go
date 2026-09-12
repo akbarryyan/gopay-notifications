@@ -28,6 +28,7 @@ func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", a.handleHealth)
 	mux.Handle("GET /api/v1/device/me", a.requireDevice(http.HandlerFunc(a.handleDeviceMe)))
+	mux.Handle("POST /api/v1/devices/heartbeat", a.requireDevice(http.HandlerFunc(a.handleHeartbeat)))
 	// Nama connector TIDAK ada di URL. Payload-nya identik untuk setiap
 	// sumber dan pembedanya hanya field "source", jadi menambah DANA atau
 	// OVO tidak boleh berarti menambah rute.

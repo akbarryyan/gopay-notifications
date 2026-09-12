@@ -46,6 +46,8 @@ Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, 
 - **`event_id` dihitung dari `packageName | title | text | when`** — bukan dari `notificationKey` (konstan di GoPay) atau `postTime` (berubah tiap repost).
 - **Tanda tangan HMAC dihitung dari byte mentah body**, diverifikasi sebelum decode JSON.
 - **Nama connector tidak boleh masuk URL.** Rutenya `POST /api/v1/events`; pembeda sumber hanya field `source`, divalidasi terhadap `internal/connector`. Menambah DANA atau OVO berarti menambah satu entri di registry, bukan menambah rute.
+- **Heartbeat tiap 15 menit, toleransi 45 menit.** Ini membalik Open Question #14 di spec secara sadar: untuk produk berbayar, menunggu pembayaran untuk tahu HP mati tidak dapat diterima. Toleransi harus selalu beberapa kali interval — Android menunda periodic work saat Doze, dan status yang sering salah adalah status yang diabaikan.
+- **`listener_connected: false` di heartbeat tidak boleh ditolak.** Izin aktif tetapi listener tidak terikat adalah gejala service dibunuh OEM — itu justru sinyal yang dicari, bukan payload yang cacat.
 - **`X-App-Version` tidak ikut ditandatangani.** Backend harus tahu versinya untuk memverifikasi, jadi ia mustahil menjadi bagian tanda tangan. Aplikasi lama tidak mengirimnya dan itu bukan alasan menolak request.
 
 ## Perangkat target

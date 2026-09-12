@@ -27,7 +27,8 @@ Kredensial production tidak boleh dipakai di environment development.
 |---|---|---|---|
 | `POST` | `/events` | HMAC | Kirim event notifikasi (semua sumber) |
 | `GET` | `/health` | — | Status backend + jam server |
-| `GET` | `/device/me` | HMAC | Tombol *Test Connection* |
+| `GET` | `/device/me` | HMAC | Tombol *Test Connection*, sekaligus status device |
+| `POST` | `/devices/heartbeat` | HMAC | Laporan kondisi berkala dari perangkat |
 | `GET` | `/events` | Basic auth (Caddy) | Melihat event masuk saat verifikasi |
 | `GET` | `/sources` | — | Daftar sumber pembayaran yang dikenal build ini |
 
@@ -267,6 +268,60 @@ Auth HMAC. Dipakai tombol *Test Connection* di Settings.
 ```
 
 Setiap request ber-HMAC yang berhasil memperbarui `last_seen_at`. Tidak ada heartbeat berkala — `last_seen_at` diperbarui dari request yang memang terjadi, sehingga tidak ada network request tambahan yang membebani baterai.
+
+---
+
+## 6b. `POST /devices/heartbeat`
+
+Auth HMAC. Dikirim perangkat setiap **15 menit** — interval minimum WorkManager
+untuk periodic work.
+
+### Request
+
+```json
+{
+  "android_version": "13",
+  "listener_connected": true,
+  "pending_count": 2,
+  "failed_count": 1
+}
+```
+
+| Field | Tipe | Catatan |
+|---|---|---|
+| `android_version` | string | Kosong tidak menimpa nilai yang sudah diketahui |
+| `listener_connected` | boolean | Status **ikatan** `NotificationListenerService`, bukan status izin |
+| `pending_count` | number | Antrean yang belum terkirim di perangkat; tidak boleh negatif |
+| `failed_count` | number | Event gagal permanen di perangkat; tidak boleh negatif |
+
+`listener_connected` adalah informasi paling berharga di sini. Izin aktif
+tetapi listener tidak terikat adalah gejala service dibunuh OEM, dan laporan
+itu **tidak** ditolak — menolaknya berarti membuang justru sinyal yang dicari.
+Backend mencatatnya sebagai peringatan di log.
+
+### Response
+
+```json
+{ "success": true, "status": "ok", "server_time": 1789036200 }
+```
+
+`server_time` disertakan agar perangkat dapat mendeteksi jamnya meleset tanpa
+memanggil `/health` terpisah.
+
+### Status device
+
+Diturunkan backend dari `heartbeat_at`, bukan disimpan:
+
+| Status | Arti |
+|---|---|
+| `PENDING` | Terdaftar, belum pernah mengirim heartbeat |
+| `ONLINE` | Heartbeat terakhir dalam **45 menit** |
+| `OFFLINE` | Tidak ada heartbeat dalam 45 menit |
+| `DISABLED` | Dinonaktifkan dari backend |
+
+Toleransi 45 menit adalah **tiga kali** interval, bukan satu. Android menunda
+periodic work saat Doze, dan status yang sering salah adalah status yang
+diabaikan orang.
 
 ---
 

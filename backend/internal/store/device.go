@@ -22,6 +22,14 @@ type Device struct {
 	// Versi aplikasi Android yang terakhir menghubungi backend. Kosong
 	// sampai perangkat mengirim header X-App-Version.
 	AppVersion *string
+
+	// Diisi dari heartbeat berkala. Nil berarti perangkat belum pernah
+	// mengirim heartbeat sama sekali.
+	HeartbeatAt       *time.Time
+	AndroidVersion    *string
+	ListenerConnected *bool
+	PendingCount      *int
+	FailedCount       *int
 }
 
 // CreateDevice menyimpan device baru dengan secret terenkripsi.
@@ -47,9 +55,13 @@ func (s *Store) GetDevice(ctx context.Context, key []byte, deviceID string) (Dev
 		enc []byte
 	)
 	err := s.pool.QueryRow(ctx,
-		`SELECT device_id, name, secret_enc, enabled, last_seen_at, app_version
+		`SELECT device_id, name, secret_enc, enabled, last_seen_at, app_version,
+		        heartbeat_at, android_version, listener_connected,
+		        pending_count, failed_count
 		 FROM devices WHERE device_id = $1`, deviceID).
-		Scan(&d.DeviceID, &d.Name, &enc, &d.Enabled, &d.LastSeenAt, &d.AppVersion)
+		Scan(&d.DeviceID, &d.Name, &enc, &d.Enabled, &d.LastSeenAt, &d.AppVersion,
+			&d.HeartbeatAt, &d.AndroidVersion, &d.ListenerConnected,
+			&d.PendingCount, &d.FailedCount)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Device{}, ErrDeviceNotFound

@@ -3,12 +3,15 @@ package httpapi
 import (
 	"net/http"
 	"time"
+
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 type deviceMeResponse struct {
 	DeviceID   string  `json:"device_id"`
 	Name       string  `json:"name"`
 	Enabled    bool    `json:"enabled"`
+	Status     string  `json:"status"`
 	LastSeenAt *string `json:"last_seen_at"`
 	AppVersion *string `json:"app_version"`
 }
@@ -25,6 +28,7 @@ func (a *API) handleDeviceMe(w http.ResponseWriter, r *http.Request) {
 		DeviceID:   device.DeviceID,
 		Name:       device.Name,
 		Enabled:    device.Enabled,
+		Status:     string(store.StatusOf(device, a.now())),
 		AppVersion: device.AppVersion,
 	}
 	if device.LastSeenAt != nil {

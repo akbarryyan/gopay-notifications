@@ -185,6 +185,71 @@ class UploaderTest {
     }
 
     @Test
+    fun `heartbeat mengirim kondisi perangkat dan ditandatangani`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"success":true,"status":"ok"}"""))
+
+        val ok = Uploader.heartbeat(
+            cfg = cfg,
+            appVersion = "1.4.2",
+            report = Uploader.HeartbeatReport(
+                androidVersion = "13",
+                listenerConnected = false,
+                pendingCount = 3,
+                failedCount = 1,
+            ),
+            nowSeconds = 1789036200L,
+        )
+
+        assertTrue(ok)
+
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/api/v1/devices/heartbeat", req.path)
+        assertEquals("1.4.2", req.getHeader("X-App-Version"))
+
+        val sentBytes = req.body.readByteArray()
+        assertEquals(
+            "heartbeat harus ditandatangani atas byte body yang persis terkirim",
+            Signer.sign(cfg.deviceSecret, Signer.signingString(cfg.deviceId, 1789036200L, sentBytes)),
+            req.getHeader("X-Signature"),
+        )
+
+        val body = JSONObject(String(sentBytes))
+        assertEquals("13", body.getString("android_version"))
+        assertEquals(false, body.getBoolean("listener_connected"))
+        assertEquals(3, body.getInt("pending_count"))
+        assertEquals(1, body.getInt("failed_count"))
+    }
+
+    @Test
+    fun `heartbeat melaporkan gagal saat backend tidak dapat dihubungi`() {
+        server.shutdown()
+
+        val ok = Uploader.heartbeat(
+            cfg = cfg,
+            appVersion = "1.4.2",
+            report = Uploader.HeartbeatReport("13", true, 0, 0),
+            nowSeconds = 1789036200L,
+        )
+
+        assertEquals(false, ok)
+    }
+
+    @Test
+    fun `heartbeat melaporkan gagal saat backend menolak`() {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"invalid_signature"}"""))
+
+        val ok = Uploader.heartbeat(
+            cfg = cfg,
+            appVersion = "1.4.2",
+            report = Uploader.HeartbeatReport("13", true, 0, 0),
+            nowSeconds = 1789036200L,
+        )
+
+        assertEquals(false, ok)
+    }
+
+    @Test
     fun `health membaca jam server`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"ok","server_time":1789036200}"""))
 

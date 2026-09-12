@@ -393,7 +393,8 @@ Risiko terbesar bukan Android melainkan lapisan hemat baterai Xiaomi/Oppo/Vivo/S
 1. `onListenerDisconnected` memanggil `requestRebind`.
 2. Dashboard menampilkan **status ikatan yang sebenarnya**, bukan sekadar "izin sudah diberikan". Selisih antara keduanya justru gejala HP membunuh service.
 3. Saat setup, aplikasi mengarahkan user mematikan optimasi baterai untuk aplikasi ini.
-4. Dashboard menampilkan **berapa lama sejak event terakhir**. Bila ColorOS diam-diam membunuh service, gejalanya terlihat sebagai "tidak ada event selama 3 hari" alih-alih tidak terlihat sama sekali.
+4. **Heartbeat tiap 15 menit melaporkan status ikatan listener ke backend**, sehingga service yang dibunuh terdeteksi dalam 45 menit alih-alih menunggu pembayaran berikutnya. Laporan `listener_connected: false` adalah sinyal paling berharga: ia berarti izin masih aktif tetapi sistem sudah melepas ikatannya.
+5. Dashboard menampilkan **berapa lama sejak event terakhir**. Bila ColorOS diam-diam membunuh service, gejalanya terlihat sebagai "tidak ada event selama 3 hari" alih-alih tidak terlihat sama sekali.
 
 **Perangkat target adalah OPPO CPH2365 dengan Android 13 (ColorOS)**, salah satu yang paling agresif. Langkah berikut wajib, bukan opsional, dan masuk daftar `NEEDS-DEVICE` di M2:
 
@@ -495,6 +496,7 @@ Seluruhnya sudah disetujui. Dicatat agar perbedaan antara dokumen dan kenyataan 
 | 10 | §10 parser nominal di HP | Tetap ada, tapi display-only; backend otoritatif | Perubahan format GoPay tidak memaksa rilis APK |
 | 11 | §6.6 cleartext dibatasi daftar host development | `usesCleartextTraffic` menyeluruh, hanya di build development | Daftar host putus setiap IP laptop berubah, dan ikut memblokir Metro. Production tetap HTTPS-only lewat default Android |
 | 12 | §5 rute `POST /api/v1/callback/gopay` | `POST /api/v1/events` + registry `internal/connector` | Dituntut positioning multi-connector. Payload identik untuk setiap sumber dan pembedanya hanya field `source`, jadi menambah DANA atau OVO tidak boleh berarti menambah rute, handler, dan dokumen sekaligus |
+| 13 | §32 dan Open Question #14: tanpa heartbeat, tanpa network request berkala | Heartbeat tiap 15 menit lewat `PeriodicWorkRequest` | Keputusan lama benar untuk pemakaian pribadi, di mana `last_seen_at` cukup bergerak saat ada pembayaran. Sebagai produk berbayar, toko dengan tiga transaksi sehari akan tampak mati sepanjang waktu, dan HP yang dibunuh OEM baru diketahui saat sebuah pembayaran terlewat. Biayanya 96 request sehari; yang dibeli adalah mengetahui HP mati **sebelum** pembayaran hilang |
 
 ---
 
@@ -517,7 +519,7 @@ Merujuk [prd.md §20](../../prd.md):
 | 11 | Strategi retry | WorkManager exponential backoff, menyerah setelah ~24 jam |
 | 12 | Lama history disimpan | Sama dengan #10 |
 | 13 | Tetap jalan setelah restart | Ya, tanpa kode tambahan |
-| 14 | Heartbeat dari device | Tidak. `last_seen_at` diperbarui dari request yang memang terjadi |
+| 14 | Heartbeat dari device | **Dibalik 2026-09-12: ya.** Setiap 15 menit, toleransi 45 menit. Keputusan lama benar untuk pemakaian pribadi; untuk produk berbayar, menunggu pembayaran untuk tahu HP mati tidak dapat diterima. Lihat penyimpangan ke-13 |
 | 15 | Menangani perubahan format notifikasi | Aturan otoritatif di backend, cukup deploy — tanpa rilis APK |
 
 Seluruh Open Question yang berada dalam cakupan sub-project 1 + 2 kini terjawab. Nomor 8 dan 9 tetap menjadi urusan sub-project 3.
