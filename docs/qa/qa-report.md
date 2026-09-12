@@ -246,3 +246,67 @@ Yang tetap berlaku dari pengamatan kemarin adalah bentuknya, bukan nilainya: not
 **Risiko yang justru hilang:** akun merchant hampir hanya menerima, sehingga notifikasi pembayaran **keluar** dengan nominal sama — bahaya utama yang diuraikan di §2.3 spec — praktis tidak ada lagi.
 
 **Langkah berikutnya:** Task 6 (Room) dan Task 7 (konfigurasi terenkripsi). Keduanya tidak bergantung pada VPS maupun pada sampel notifikasi merchant, jadi dikerjakan sementara §2 butir 5–7 dikumpulkan.
+
+---
+
+## 11. Dashboard admin — sub-project 4
+
+Bukan bagian M1–M6 di atas; dicatat terpisah karena sub-project sendiri.
+**Ringkasan dashboard:** `PASS` 6 · `FAIL` 0 · `NEEDS-DEVICE` 4 · `PENDING` 3
+
+### Backend (API admin)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Login admin: berhasil menerbitkan cookie HttpOnly | `PASS` | `TestAdminLoginBerhasilMenerbitkanCookie` |
+| Login admin: password salah ditolak | `PASS` | `TestAdminLoginPasswordSalahDitolak` |
+| Login admin: username tak dikenal disamakan dengan password salah | `PASS` | `TestAdminLoginUsernameTakDikenalDisamakanDenganPasswordSalah` |
+| Login admin: dibatasi setelah 5 percobaan gagal / 15 menit | `PASS` | `TestAdminLoginDibatasiSetelahBanyakPercobaanGagal` |
+| Endpoint admin menolak tanpa sesi, menerima dengan sesi valid, menolak cookie yang diubah | `PASS` | `TestAdminAksesEndpointTerlindungTanpaSesiDitolak`, `...DenganSesiValid`, `TestAdminAksesDenganCookieDiubahDitolak` |
+| `ListDevices` tidak pernah membaca kolom secret | `PASS` | `TestListDevicesTidakMengembalikanSecret` |
+| Seluruh test Go termasuk paket baru (`store`, `httpapi`, `auth`) | `PASS` | `make test` → seluruh paket `ok`, diulang dengan `-race` → tetap `ok` |
+
+Keluaran lengkap:
+
+```
+$ go test ./... -race -count=1 -p 1
+ok  .../internal/auth        1.019s
+ok  .../internal/connector   1.020s
+ok  .../internal/httpapi     28.817s
+ok  .../internal/secretbox   1.019s
+ok  .../internal/store       8.932s
+```
+
+### Frontend (Next.js)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Type-check bersih | `PASS` | `npx tsc --noEmit` → tanpa error |
+| Lint bersih | `PASS` | `npx eslint .` → tanpa warning/error |
+| Build produksi seluruh route berhasil | `PASS` | `npx next build` → 5 route (`/`, `/devices`, `/events`, `/login`, `/_not-found`) prerendered, Proxy terdaftar |
+| Login sungguhan di browser: form, redirect, cookie diterima | `NEEDS-DEVICE` | Perlu `npm run dev` dan interaksi manual — lihat langkah di bawah |
+| Overview/Devices/Events menampilkan data sungguhan dari backend dev | `NEEDS-DEVICE` | idem |
+| Toggle aktif/nonaktif device dari UI benar-benar mengubah status di database | `NEEDS-DEVICE` | idem |
+| Tampilan mobile (sidebar → Sheet) dapat dipakai di layar sempit | `NEEDS-DEVICE` | idem, perlu DevTools atau HP |
+| Halaman "Segera" untuk Transactions/Webhooks/License/Settings/API Keys/Logs | `PENDING` | Menunggu sub-project 3 dan sistem lisensi |
+| Auto-refresh berkala (polling) di Overview/Devices | `PENDING` | Belum diimplementasikan — saat ini hanya memuat ulang saat halaman dibuka |
+| Halaman Settings (ganti password admin dari UI, bukan CLI) | `PENDING` | `cmd/admintool` cukup untuk MVP |
+
+### Langkah verifikasi `NEEDS-DEVICE` di atas
+
+```bash
+cd backend && make run-dev        # jika belum jalan
+cd backend && make dev-admin      # buat akun admin, sekali saja
+
+cd dashboard
+npm install
+cp .env.local.example .env.local
+npm run dev
+```
+
+Buka `http://localhost:3000`, seharusnya diarahkan ke `/login`. Masuk dengan
+akun yang baru dibuat. Periksa: Overview menampilkan angka device/event yang
+benar, Devices menampilkan device dari `gopay_dev` dengan status yang sesuai
+`heartbeat_at`-nya, tombol Aktifkan/Nonaktifkan benar-benar mengubah kolom
+`enabled` di database, Events menampilkan pembayaran yang sudah masuk. Persempit
+lebar browser di bawah 768px dan pastikan sidebar berubah jadi tombol menu.

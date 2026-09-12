@@ -14,7 +14,8 @@ Urutan kewenangan bila terjadi perbedaan:
 
 1. [`docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md`](docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md) — spec yang disetujui, paling berwenang
 2. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
-3. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
+3. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset kecilnya; jangan menganggap seluruh isi dokumen ini sudah ada.
+4. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
 
 Spec lebih berwenang daripada PRD karena memuat keputusan yang sengaja menyimpang dari PRD dan sudah disetujui. Penyimpangan itu terdaftar di §9 spec — jangan "memperbaiki" implementasi agar kembali sesuai PRD tanpa memeriksa daftar itu lebih dulu.
 
@@ -37,8 +38,14 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 | 1 | Event ingestion (Go) | sedang dikerjakan |
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
 | 3 | Gateway: invoice, nominal unik, matching, webhook | ditunda |
+| 4 | Dashboard admin (Next.js) — Overview, Devices, Events | sedang dikerjakan |
 
 Jangan membangun apa pun dari sub-project 3 kecuali diminta. Invoice, matching, dan webhook berada di luar cakupan saat ini.
+
+Dashboard sengaja hanya mencakup tiga halaman yang datanya sungguhan ada.
+Transactions, Webhooks, License, Settings ditampilkan di sidebar sebagai
+"Segera" (non-aktif) — bukan dibangun sebagai halaman kosong yang menebak
+bentuk data sub-project 3 sebelum sub-project itu sendiri ada.
 
 ## Keputusan arsitektur yang tidak boleh dilanggar diam-diam
 
@@ -71,6 +78,10 @@ dijalankan Akbar, dan tunggu keluarannya ditempelkan.
 
 Perintah baca-saja yang cepat masih boleh dijalankan sendiri: `git status`,
 `adb devices`, `adb shell pm list packages`, `go vet`, `go build`, `grep`.
+
+Untuk dashboard: `npm install`, `npx tsc --noEmit`, `npx eslint .`, dan
+`npx next build` boleh dijalankan sendiri — bentuknya verifikasi satu kali
+jalan, bukan proses yang tetap hidup. `npm run dev` tetap milik Akbar.
 
 Untuk laporan QA, butir yang menuntut build atau server ditandai `NEEDS-DEVICE`
 sampai Akbar menempelkan buktinya — tidak pernah `PASS` berdasarkan penalaran.
@@ -217,3 +228,35 @@ HTTP polos hanya aktif di build development lewat `usesCleartextTraffic` di
 satu per satu: alamat LAN laptop berubah tiap ganti jaringan, dan
 `base-config cleartextTrafficPermitted="false"` ikut memblokir Metro sehingga
 aplikasi gagal start.
+
+### Dashboard
+
+Next.js 16 (App Router) + Tailwind v4 + shadcn/ui (base-ui, bukan Radix —
+komposisi trigger memakai prop `render`, bukan `asChild`). Folder `dashboard/`.
+
+```bash
+cd dashboard
+npm install
+cp .env.local.example .env.local   # isi BACKEND_URL bila backend bukan di :8090
+npm run dev                        # Akbar yang menjalankan
+```
+
+Satu origin dengan backend lewat routing path, bukan CORS: di produksi Caddy
+merutekan `/api/*` ke backend Go dan sisanya ke Next.js; saat dev,
+`next.config.ts` me-rewrite `/api/*` ke `BACKEND_URL` lokal.
+
+Autentikasi lewat cookie sesi HttpOnly dari `POST /api/v1/admin/login`.
+`src/proxy.ts` (Next 16 mengganti nama `middleware.ts` menjadi `proxy.ts`)
+hanya memeriksa keberadaan cookie untuk mencegah kedipan halaman kosong —
+validitas sesi sesungguhnya selalu diputuskan backend lewat `requireAdmin`.
+
+Hanya tiga halaman yang datanya sungguhan ada: Overview, Devices, Events.
+Sisanya (Transactions, Webhooks, License, Settings) ditampilkan di sidebar
+sebagai "Segera", non-aktif — jangan membangun halaman untuk data sub-project
+3 yang bentuknya belum pasti.
+
+Perlu akun admin dulu sebelum bisa login: `cd backend && make dev-admin`.
+
+`ADMIN_SESSION_KEY` di backend wajib beda dari `DEVICE_SECRET_KEY` — keduanya
+sama-sama dihasilkan lewat `go run ./cmd/devicetool -genkey`, jangan memakai
+nilai yang sama untuk keduanya.

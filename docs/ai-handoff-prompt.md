@@ -156,16 +156,42 @@ yang tersimpan tidak dapat didekripsi.
 Dua database di Postgres yang sama: gopay_test dihapus tiap make test,
 gopay_dev bertahan. Jangan pernah mengarahkan HP ke gopay_test.
 
+Pola gitignore ".env*" telanjang di dashboard/ juga memakan .env.local.example
+— bug yang sama persis terulang di project kedua. Pakai !.env*.example di
+mana pun ada berkas .env.
+
+Next.js 16: middleware.ts sudah deprecated, diganti proxy.ts (nama fungsi
+proxy, bukan middleware). cookies() dari next/headers bersifat async. shadcn
+di project ini memakai @base-ui/react, bukan Radix — komposisi trigger pakai
+prop `render={<Button .../>}`, BUKAN `asChild`. Baca
+node_modules/next/dist/docs/ (AGENTS.md di root project Next.js menyuruh ini)
+sebelum menulis kode bila versi Next.js berubah lagi — dokumennya ikut ter-bundle
+dan mencerminkan versi yang sungguhan terpasang, bukan pengetahuan lama.
+
+eslint-plugin-react-hooks di project ini (Next 16 default) melarang
+useCallback/useEffect dengan dependency array yang bukan array literal, dan
+melarang setState sinkron di dalam useEffect (react-hooks/set-state-in-effect)
+— pola fetch-saat-mount yang umum dipakai di seluruh dashboard ini sengaja
+disuppress satu baris dengan komentar alasan, bukan direstrukturisasi ke
+Suspense/React Compiler yang di luar cakupan MVP ini.
+
 ## Keadaan saat ini
 
 Selesai dan terbukti di perangkat: penangkapan notifikasi, penyaringan,
 penyimpanan Room, pengiriman ber-HMAC, retry, penanganan kegagalan autentikasi,
 idempotency, dan empat layar aplikasi. Backend Go lengkap dengan HMAC,
-idempotency lewat constraint database, dan endpoint events/sources/heartbeat.
+idempotency lewat constraint database, heartbeat, registry connector, dan API
+admin (login, overview, devices, events) untuk dashboard.
+
+Dashboard Next.js (folder dashboard/) sudah punya tiga halaman dengan data
+sungguhan — Overview, Devices, Events — plus login dan gerbang navigasi.
+Backend-nya teruji penuh (Go, termasuk -race); sisi Next.js baru lolos
+type-check/lint/build, BELUM pernah dibuka di browser sungguhan — lihat
+docs/qa/qa-report.md §11 untuk daftar NEEDS-DEVICE-nya.
 
 Belum: HTTPS sungguhan (menunggu VPS), uji ketahanan semalaman di ColorOS,
 sub-project 3 (invoice, nominal unik, matching, webhook, konsol pengecualian),
-pemasangan satu perintah, dan sistem lisensi.
+pemasangan satu perintah, sistem lisensi, dan verifikasi dashboard di browser.
 
 Urutan pekerjaan yang disepakati: selesaikan pondasi dan uji ketahanan dulu,
 lalu sub-project 3, lalu pemasangan satu perintah, terakhir lisensi. Lisensi
