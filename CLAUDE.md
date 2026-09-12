@@ -14,9 +14,10 @@ Urutan kewenangan bila terjadi perbedaan:
 
 1. [`docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md`](docs/superpowers/specs/2026-09-10-ingestion-and-android-bridge-design.md) — spec ingestion + Android bridge, paling berwenang untuk sub-project 1+2
 2. [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md) — spec invoice, nominal unik, matching, API key untuk sub-project 3 fase 1
-3. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
-4. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
-5. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
+3. [`docs/superpowers/specs/2026-09-13-webhook-delivery-design.md`](docs/superpowers/specs/2026-09-13-webhook-delivery-design.md) — spec webhook delivery untuk sub-project 3 fase 2
+4. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
+5. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
+6. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
 
 Spec lebih berwenang daripada PRD karena memuat keputusan yang sengaja menyimpang dari PRD dan sudah disetujui. Penyimpangan itu terdaftar di §9 spec — jangan "memperbaiki" implementasi agar kembali sesuai PRD tanpa memeriksa daftar itu lebih dulu.
 
@@ -38,17 +39,17 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 |---|---|---|
 | 1 | Event ingestion (Go) | sedang dikerjakan |
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
-| 3 | Gateway: invoice, nominal unik, matching, webhook, API key | fase 1 (invoice+matching+API key) sedang dikerjakan; fase 2 (webhook) dan fase 4 (konsol pengecualian) ditunda |
-| 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys | sedang dikerjakan |
+| 3 | Gateway: invoice, nominal unik, matching, webhook, API key | fase 1 (invoice+matching+API key) dan fase 2 (webhook) sedang dikerjakan; fase 4 (konsol pengecualian) ditunda |
+| 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks | sedang dikerjakan |
 
-Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2 di
-atas. Jangan membangun fase 2 (webhook) atau fase 4 (konsol pengecualian)
-kecuali diminta — keduanya di luar cakupan fase 1 yang sedang berjalan.
+Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2 dan
+#3 di atas. Jangan membangun fase 4 (konsol pengecualian) kecuali diminta —
+di luar cakupan fase 1/2 yang sedang berjalan.
 
 Dashboard mencakup halaman yang datanya sungguhan ada: Overview, Devices,
-Events, Transactions, API Keys. Webhooks, License, Settings, Logs
+Events, Transactions, API Keys, Webhooks. License, Settings, Logs
 ditampilkan di sidebar sebagai "Segera" (non-aktif) — bukan dibangun sebagai
-halaman kosong yang menebak bentuk data fase 2/4 sebelum fase itu sendiri ada.
+halaman kosong yang menebak bentuk data fase 4 sebelum fase itu sendiri ada.
 
 **Dashboard ini untuk customer (pemilik instalasi), bukan untuk vendor.**
 Model self-hosted + annual license berarti tiap customer men-deploy backend
@@ -276,13 +277,23 @@ Autentikasi lewat cookie sesi HttpOnly dari `POST /api/v1/admin/login`.
 hanya memeriksa keberadaan cookie untuk mencegah kedipan halaman kosong —
 validitas sesi sesungguhnya selalu diputuskan backend lewat `requireAdmin`.
 
-Hanya tiga halaman yang datanya sungguhan ada: Overview, Devices, Events.
-Sisanya (Transactions, Webhooks, License, Settings) ditampilkan di sidebar
-sebagai "Segera", non-aktif — jangan membangun halaman untuk data sub-project
-3 yang bentuknya belum pasti.
+Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
+API Keys, Webhooks. Sisanya (License, Settings, Logs) ditampilkan di sidebar
+sebagai "Segera", non-aktif — jangan membangun halaman untuk data fase yang
+belum ada (fase 4/konsol pengecualian, sistem lisensi).
 
 Perlu akun admin dulu sebelum bisa login: `cd backend && make dev-admin`.
 
-`ADMIN_SESSION_KEY` di backend wajib beda dari `DEVICE_SECRET_KEY` — keduanya
-sama-sama dihasilkan lewat `go run ./cmd/devicetool -genkey`, jangan memakai
-nilai yang sama untuk keduanya.
+Tiga kunci di backend, tiga tujuan berbeda, semuanya dihasilkan lewat
+`go run ./cmd/devicetool -genkey` tapi **wajib bernilai beda satu sama
+lain**: `DEVICE_SECRET_KEY` (enkripsi secret device), `ADMIN_SESSION_KEY`
+(tanda tangan cookie sesi admin), `WEBHOOK_SECRET_KEY` (enkripsi secret
+webhook — dipakai ulang tiap kirim payload, beda dari dua kunci lain yang
+cuma menandatangani/memverifikasi).
+
+Backend punya satu goroutine berkala (`time.Ticker`, 1 menit, di
+`cmd/server/main.go`) yang memproses webhook — mendeteksi invoice yang baru
+kedaluwarsa dan mengeksekusi retry pengiriman yang jatuh tempo. Ini
+satu-satunya proses latar belakang di backend saat ini; kalau menambah yang
+serupa nanti, pertimbangkan apakah masih masuk akal digabung ke ticker yang
+sama atau butuh ticker terpisah.

@@ -404,3 +404,79 @@ Catat `unique_amount` yang dikembalikan. Kirim event lewat perangkat (atau
 `POST /api/v1/events` bertanda tangan HMAC) dengan `amount_hint` yang sama,
 lalu buka `/transactions` di dashboard — invoice itu harus berubah jadi
 `PAID` dengan `matched_event_id` terisi, tanpa langkah manual apa pun.
+
+## 13. Webhook delivery — sub-project 3 fase 2
+
+Spec:
+[`docs/superpowers/specs/2026-09-13-webhook-delivery-design.md`](../superpowers/specs/2026-09-13-webhook-delivery-design.md).
+**Ringkasan:** `PASS` 18 · `FAIL` 0 · `NEEDS-DEVICE` 4 · `PENDING` 0
+
+Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`,
+setelah dua putaran perbaikan (lihat catatan di bawah tabel).
+
+### Backend
+
+| Butir | Status | Bukti (test yang menguji) |
+|---|---|---|
+| Enkripsi/dekripsi secret webhook bulat kembali; endpoint tak ditemukan | `PASS` | `TestCreateAndGetWebhookEndpointSecretBulatKembali`, `TestGetWebhookEndpointTidakDitemukan` |
+| `ListWebhookEndpoints` ringkasan percobaan terakhir terisi benar | `PASS` | `TestListWebhookEndpointsRingkasanPercobaanTerakhir` |
+| Enable/disable endpoint, termasuk yang tidak ada | `PASS` | `TestSetWebhookEndpointEnabled`, `...TidakDitemukan` |
+| Delete endpoint meng-cascade riwayat deliveries; delete yang tidak ada | `PASS` | `TestDeleteWebhookEndpointCascadeDeliveries`, `...TidakDitemukan` |
+| Enqueue hanya ke endpoint yang enabled dan berlangganan event itu | `PASS` | `TestEnqueueWebhookDeliveriesHanyaEndpointYangBerlangganan`, `...MelewatiEndpointNonaktif` |
+| Due deliveries tidak mengambil yang belum jatuh tempo, dan mengklaimnya secara atomik | `PASS` | `TestDueWebhookDeliveriesTidakMengambilYangBelumJatuhTempo` |
+| Record sukses berhenti diambil due lagi | `PASS` | `TestRecordDeliverySuccess` |
+| Backoff 1→2→4→8→16 menit benar per percobaan, menyerah FAILED permanen di percobaan ke-5 | `PASS` | `TestRecordDeliveryFailureBackoffDanMenyerah` |
+| Invoice yang kedaluwarsa memicu invoice.expired tepat sekali, tidak dobel di panggilan berikutnya | `PASS` | `TestExpireInvoicesAndListNewlyExpiredHanyaSekaliPerInvoice` |
+| Test delivery tidak pernah RETRYING (langsung DELIVERED/FAILED) | `PASS` | `TestEnqueueAndRecordTestDeliveryTidakPernahRetrying` |
+| `POST/GET/PATCH/DELETE /admin/webhooks`: create balas secret sekali, validasi, list tidak membocorkan secret, enable/disable, delete | `PASS` | `TestAdminCreateWebhookMengembalikanSecretSekali`, `TestAdminCreateWebhookValidasi`, `TestAdminListWebhooksTidakMenyertakanSecret`, `TestAdminSetWebhookEnabled`, `...TidakDitemukan`, `TestAdminDeleteWebhook` |
+| `POST .../test` mengirim ke endpoint sungguhan (httptest.Server), ditandatangani, tercatat sebagai delivery tanpa invoice_id; endpoint tak ditemukan | `PASS` | `TestAdminTestWebhookMengirimKeEndpointSungguhan`, `...EndpointTidakDitemukan` |
+| Seluruh endpoint `/admin/webhooks*` perlu sesi | `PASS` | `TestAdminWebhooksMemerlukanSesi` |
+| Integrasi ujung-ke-ujung: invoice.paid terkirim otomatis lewat `POST /events`, tanpa langkah tambahan | `PASS` | `TestWebhookInvoicePaidTerpicuOtomatisLewatCallback` |
+| Integrasi: invoice.expired terkirim tepat sekali lewat `ProcessDueWebhooks` | `PASS` | `TestProcessDueWebhooksMengirimInvoiceExpiredTepatSekali` |
+| Integrasi: retry sungguhan — server palsu balas 500 lalu 200, terkirim ulang setelah backoff lewat | `PASS` | `TestProcessDueWebhooksRetrySampaiBerhasil` |
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih | `PASS` | Dijalankan langsung, tanpa output error/diff |
+
+**Dua putaran perbaikan sebelum lulus** (dicatat karena salah satunya bug
+produksi sungguhan, bukan cuma bug test):
+
+1. `DueWebhookDeliveries` awalnya `SELECT` polos tanpa mengklaim baris —
+   dua pemroses yang jalan bersamaan (ticker 1 menit dan goroutine percobaan
+   pertama yang dipicu `invoice.paid`) bisa mengambil delivery yang sama dan
+   mengirimnya dua kali ke merchant. Diperbaiki jadi `UPDATE ... RETURNING`
+   atomik (pola yang sama dengan `MatchEvent`) — bug produksi sungguhan,
+   ditemukan lewat `make test` yang gagal, bukan cuma bug test.
+2. Test `TestProcessDueWebhooksRetrySampaiBerhasil` awalnya memberi sinyal
+   "percobaan selesai" dari server palsu tepat setelah menerima request —
+   padahal goroutine pengirim masih perlu menuliskan hasilnya ke database
+   setelah itu. Diperbaiki: test menunggu (polling) sampai status delivery
+   benar-benar berubah di database, bukan mengandalkan channel yang
+   memberi sinyal terlalu dini.
+
+### Frontend (Next.js)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Type-check, lint, build produksi bersih (route baru: `/webhooks`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 8 route, 0 error/warning |
+| Halaman Webhooks: buat endpoint, secret tampil sekali, tidak pernah lagi setelahnya | `NEEDS-DEVICE` | Perlu `npm run dev`; periksa juga lewat DevTools Network bahwa `GET /admin/webhooks` tidak membawa field `secret` |
+| Tombol Test mengirim ke endpoint sungguhan dan menampilkan hasil (toast) | `NEEDS-DEVICE` | idem — coba dengan endpoint valid dan endpoint yang sengaja mati/tidak ada, harusnya beda hasil |
+| Baris diperluas menampilkan riwayat pengiriman yang sesuai dengan tabel `webhook_deliveries` | `NEEDS-DEVICE` | idem, bandingkan dengan isi tabel di DBeaver |
+| Enable/disable dan hapus webhook dari UI benar-benar mengubah/menghapus baris di database | `NEEDS-DEVICE` | idem |
+
+### Langkah verifikasi
+
+```bash
+cd backend
+make run-dev             # kalau belum jalan
+
+cd ../dashboard
+npm run dev
+```
+
+Buka `/webhooks`, buat satu endpoint (bisa arahkan ke
+[webhook.site](https://webhook.site) atau server lokal sendiri untuk
+melihat payload yang diterima), klik **Test** dan pastikan payload
+`{"event":"test",...}` diterima dengan header `X-Webhook-Signature` yang
+valid (hitung ulang HMAC-SHA256 dengan secret yang ditampilkan saat dibuat,
+harus cocok). Lalu buat invoice sungguhan (§12) dan bayar dengan nominal
+uniknya — begitu invoice jadi `PAID`, baris pengiriman baru harus muncul di
+riwayat webhook dalam beberapa detik tanpa refresh manual berkali-kali.
