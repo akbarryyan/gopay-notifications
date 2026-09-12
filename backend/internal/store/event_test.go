@@ -138,7 +138,7 @@ func TestListEventsNewestFirst(t *testing.T) {
 		}
 	}
 
-	got, err := s.ListEvents(ctx, 2, 0)
+	got, err := s.ListEvents(ctx, 2, 0, store.EventFilter{})
 	if err != nil {
 		t.Fatalf("ListEvents: %v", err)
 	}

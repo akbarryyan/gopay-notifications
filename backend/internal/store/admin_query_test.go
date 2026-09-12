@@ -122,3 +122,51 @@ func TestEventStatsKosongTidakError(t *testing.T) {
 		t.Fatal("LatestEventAt seharusnya nil bila belum ada event")
 	}
 }
+
+func TestDailyEventCountsMengisiNolUntukHariSepi(t *testing.T) {
+	s := testStore(t)
+
+	got, err := s.DailyEventCounts(context.Background(), time.Now(), 14)
+	if err != nil {
+		t.Fatalf("DailyEventCounts: %v", err)
+	}
+	if len(got) != 14 {
+		t.Fatalf("len = %d, mau 14 (harus tetap terisi walau tidak ada event)", len(got))
+	}
+	for _, d := range got {
+		if d.Count != 0 {
+			t.Fatalf("Count = %d di %s, mau 0 tanpa event", d.Count, d.Date)
+		}
+	}
+	if !got[len(got)-1].Date.Equal(got[0].Date.AddDate(0, 0, 13)) {
+		t.Fatalf("titik terakhir = %s, mau 13 hari setelah titik pertama (%s)", got[len(got)-1].Date, got[0].Date)
+	}
+}
+
+func TestDailyEventCountsMenghitungHariIni(t *testing.T) {
+	s := testStore(t)
+	seedDevice(t, s)
+	ctx := context.Background()
+
+	if _, err := s.InsertEvent(ctx, sampleEvent("evt_a")); err != nil {
+		t.Fatalf("InsertEvent a: %v", err)
+	}
+	if _, err := s.InsertEvent(ctx, sampleEvent("evt_b")); err != nil {
+		t.Fatalf("InsertEvent b: %v", err)
+	}
+
+	got, err := s.DailyEventCounts(ctx, time.Now(), 14)
+	if err != nil {
+		t.Fatalf("DailyEventCounts: %v", err)
+	}
+
+	today := got[len(got)-1]
+	if today.Count != 2 {
+		t.Fatalf("Count hari ini = %d, mau 2", today.Count)
+	}
+	for _, d := range got[:len(got)-1] {
+		if d.Count != 0 {
+			t.Fatalf("Count di %s = %d, mau 0 (event hanya diinsert hari ini)", d.Date, d.Count)
+		}
+	}
+}

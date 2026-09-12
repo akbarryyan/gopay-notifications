@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/akbarryyan/gopay-notifications/backend/internal/connector"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
 type eventJSON struct {
@@ -40,7 +43,38 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := a.store.ListEvents(r.Context(), limit, offset)
+	filter := store.EventFilter{
+		Source: r.URL.Query().Get("source"),
+		Query:  r.URL.Query().Get("q"),
+	}
+	// "from"/"to" berbentuk tanggal saja (YYYY-MM-DD, zona UTC) supaya cocok
+	// dengan <input type="date"> di dashboard — sengaja bukan RFC3339 penuh.
+	// Batas hari sama seperti EventStats: tengah malam UTC, bukan 24 jam
+	// berjalan mundur dari sekarang.
+	if raw := r.URL.Query().Get("from"); raw != "" {
+		from, err := time.Parse("2006-01-02", raw)
+		if err != nil {
+			a.writeError(w, http.StatusBadRequest, "invalid_payload", "from harus YYYY-MM-DD")
+			return
+		}
+		filter.From = &from
+	}
+	if raw := r.URL.Query().Get("to"); raw != "" {
+		to, err := time.Parse("2006-01-02", raw)
+		if err != nil {
+			a.writeError(w, http.StatusBadRequest, "invalid_payload", "to harus YYYY-MM-DD")
+			return
+		}
+		// Inklusif sampai akhir hari itu.
+		to = to.Add(24*time.Hour - time.Nanosecond)
+		filter.To = &to
+	}
+	if filter.Source != "" && !connector.IsKnown(filter.Source) {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "source tidak dikenal")
+		return
+	}
+
+	events, err := a.store.ListEvents(r.Context(), limit, offset, filter)
 	if err != nil {
 		slog.Error("ambil events gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")

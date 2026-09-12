@@ -38,3 +38,53 @@ func (s *Store) EventStats(ctx context.Context, now time.Time) (EventStats, erro
 	}
 	return st, nil
 }
+
+// DailyEventCount adalah satu titik pada grafik tren Overview.
+type DailyEventCount struct {
+	Date  time.Time // tengah malam UTC hari itu
+	Count int
+}
+
+// DailyEventCounts mengembalikan jumlah event per hari untuk `days` hari
+// terakhir (termasuk hari ini), hari tertua lebih dulu. Hari tanpa event ikut
+// disertakan dengan Count 0 — dihitung di Go, bukan mengandalkan SQL generate
+// seri tanggal — supaya grafik di dashboard tidak bolong pada hari sepi.
+//
+// Dikelompokkan lewat ingested_at (bukan received_at yang berasal dari
+// perangkat), selaras dengan EventStats — kejadian dihitung menurut kapan ia
+// benar-benar sampai di server, bukan jam HP pengirim yang bisa meleset.
+func (s *Store) DailyEventCounts(ctx context.Context, now time.Time, days int) ([]DailyEventCount, error) {
+	now = now.UTC()
+	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	since := startOfToday.AddDate(0, 0, -(days - 1))
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT date_trunc('day', ingested_at AT TIME ZONE 'UTC') AS day, count(*)
+		 FROM notification_events
+		 WHERE ingested_at >= $1
+		 GROUP BY day`, since)
+	if err != nil {
+		return nil, fmt.Errorf("store: daily event counts: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int, days)
+	for rows.Next() {
+		var day time.Time
+		var n int
+		if err := rows.Scan(&day, &n); err != nil {
+			return nil, fmt.Errorf("store: scan daily event count: %w", err)
+		}
+		counts[day.Format("2006-01-02")] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterasi daily event counts: %w", err)
+	}
+
+	out := make([]DailyEventCount, days)
+	for i := range days {
+		d := since.AddDate(0, 0, i)
+		out[i] = DailyEventCount{Date: d, Count: counts[d.Format("2006-01-02")]}
+	}
+	return out, nil
+}

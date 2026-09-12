@@ -42,15 +42,44 @@ func (s *Store) InsertEvent(ctx context.Context, e Event) (bool, error) {
 	return tag.RowsAffected() == 1, nil
 }
 
+// EventFilter menyaring ListEvents. Field kosong/nil berarti tidak difilter
+// pada dimensi itu.
+type EventFilter struct {
+	Source string     // cocok persis dengan connector.Info.ID, mis. "gopay"
+	Query  string     // cocok sebagian ke device_id ATAU title, tanpa peduli huruf besar/kecil
+	From   *time.Time // received_at >= From
+	To     *time.Time // received_at <= To
+}
+
 // ListEvents mengembalikan event terbaru lebih dulu.
-func (s *Store) ListEvents(ctx context.Context, limit, offset int) ([]Event, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT event_id, device_id, source, package_name,
-		        title, body_text, big_text, amount_hint,
-		        posted_at, received_at, raw_payload
-		 FROM notification_events
-		 ORDER BY ingested_at DESC, id DESC
-		 LIMIT $1 OFFSET $2`, limit, offset)
+func (s *Store) ListEvents(ctx context.Context, limit, offset int, filter EventFilter) ([]Event, error) {
+	query := `SELECT event_id, device_id, source, package_name,
+	                 title, body_text, big_text, amount_hint,
+	                 posted_at, received_at, raw_payload
+	          FROM notification_events
+	          WHERE 1 = 1`
+	var args []any
+	arg := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+
+	if filter.Source != "" {
+		query += " AND source = " + arg(filter.Source)
+	}
+	if filter.Query != "" {
+		p := arg("%" + filter.Query + "%")
+		query += " AND (device_id ILIKE " + p + " OR title ILIKE " + p + ")"
+	}
+	if filter.From != nil {
+		query += " AND received_at >= " + arg(*filter.From)
+	}
+	if filter.To != nil {
+		query += " AND received_at <= " + arg(*filter.To)
+	}
+	query += " ORDER BY ingested_at DESC, id DESC LIMIT " + arg(limit) + " OFFSET " + arg(offset)
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list events: %w", err)
 	}
