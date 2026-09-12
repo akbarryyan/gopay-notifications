@@ -44,6 +44,12 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/events", a.handleEvents)
 	mux.HandleFunc("GET /api/v1/sources", a.handleSources)
 
+	// Invoice: dipanggil server website merchant, bukan browser. Auth API
+	// key (Authorization: Bearer), terpisah dari HMAC device dan cookie
+	// admin — lihat docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md.
+	mux.Handle("POST /api/v1/invoices", a.requireAPIKey(http.HandlerFunc(a.handleCreateInvoice)))
+	mux.Handle("GET /api/v1/invoices/{invoiceID}", a.requireAPIKey(http.HandlerFunc(a.handleGetInvoice)))
+
 	// Dashboard admin. Autentikasi lewat cookie sesi, terpisah dari basic
 	// auth Caddy yang melindungi GET /api/v1/events di atas — browser yang
 	// memanggil fetch() dengan cookie tidak cocok dengan prompt basic auth.
@@ -54,6 +60,11 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/admin/devices/{deviceID}",
 		a.requireAdmin(http.HandlerFunc(a.handleAdminSetDeviceEnabled)))
 	mux.Handle("GET /api/v1/admin/events", a.requireAdmin(http.HandlerFunc(a.handleEvents)))
+	mux.Handle("GET /api/v1/admin/invoices", a.requireAdmin(http.HandlerFunc(a.handleAdminInvoices)))
+	mux.Handle("POST /api/v1/admin/api-keys", a.requireAdmin(http.HandlerFunc(a.handleAdminCreateAPIKey)))
+	mux.Handle("GET /api/v1/admin/api-keys", a.requireAdmin(http.HandlerFunc(a.handleAdminListAPIKeys)))
+	mux.Handle("PATCH /api/v1/admin/api-keys/{keyID}",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminRevokeAPIKey)))
 
 	return mux
 }

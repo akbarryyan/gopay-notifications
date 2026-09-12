@@ -112,6 +112,16 @@ func (a *API) handleCallback(w http.ResponseWriter, r *http.Request) {
 	status := "duplicate"
 	if inserted {
 		status = "accepted"
+
+		// Matching hanya untuk event yang benar-benar baru — event duplikat
+		// sudah dicocokkan (atau memang tidak cocok) saat pertama kali
+		// masuk, mengulanginya cuma kerja sia-sia. MatchEvent sendiri yang
+		// melewati amount_hint nil, jadi tidak perlu dicek di sini.
+		if _, err := a.store.MatchEvent(r.Context(), a.now(), req.EventID, req.AmountHint); err != nil {
+			// Event sudah tersimpan — kegagalan matching bukan alasan
+			// membalas gagal ke device, yang tidak tahu-menahu soal invoice.
+			slog.Error("matching invoice gagal", "event_id", req.EventID, "err", err)
+		}
 	}
 	slog.Info("event diterima", "event_id", req.EventID, "device_id", device.DeviceID, "status", status)
 

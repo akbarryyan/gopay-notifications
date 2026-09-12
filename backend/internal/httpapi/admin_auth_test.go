@@ -33,7 +33,7 @@ func newAPIWithAdmin(t *testing.T) http.Handler {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, devices, admin_users RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, invoices, api_keys, devices, admin_users RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	if err := s.UpsertAdmin(ctx, "admin", testAdminPassword); err != nil {
