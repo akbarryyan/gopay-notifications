@@ -480,3 +480,62 @@ valid (hitung ulang HMAC-SHA256 dengan secret yang ditampilkan saat dibuat,
 harus cocok). Lalu buat invoice sungguhan (§12) dan bayar dengan nominal
 uniknya — begitu invoice jadi `PAID`, baris pengiriman baru harus muncul di
 riwayat webhook dalam beberapa detik tanpa refresh manual berkali-kali.
+
+## 14. Konsol pengecualian — sub-project 3 fase 4 (terakhir)
+
+Spec:
+[`docs/superpowers/specs/2026-09-13-exception-console-design.md`](../superpowers/specs/2026-09-13-exception-console-design.md).
+**Ringkasan:** `PASS` 2 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 13
+
+Seluruh test Go di bawah ini **ditulis, belum dijalankan** — butuh Postgres
+via `docker compose`, di luar batas kerja Claude. Ditandai `PENDING`, bukan
+`PASS`, sampai Akbar menjalankan `make test` dan menempelkan hasilnya.
+
+### Backend
+
+| Butir | Status | Bukti (test yang menguji) |
+|---|---|---|
+| Daftar exception mengecualikan event yang sudah cocok invoice manapun | `PENDING` | `TestListExceptionsMengecualikanYangSudahCocok` |
+| Daftar exception mengecualikan event yang sudah di-dismiss | `PENDING` | `TestListExceptionsMengecualikanYangSudahDismiss` |
+| Daftar exception menampilkan event yang belum cocok | `PENDING` | `TestListExceptionsMenampilkanYangBelumCocok` |
+| Daftar exception tidak pernah menampilkan event dengan amount_hint nil | `PENDING` | `TestListExceptionsMengecualikanAmountHintNil` |
+| Cocok manual berhasil ke invoice PENDING maupun EXPIRED (bayar telat) | `PENDING` | `TestManualMatchEventBerhasilKeInvoicePending`, `...KeInvoiceExpired` |
+| Cocok manual ditolak ke invoice yang sudah PAID | `PENDING` | `TestManualMatchEventGagalKeInvoicePaid` |
+| Cocok manual ditolak kalau event sudah dipakai invoice lain (constraint `invoices_matched_event_id_idx` baru) | `PENDING` | `TestManualMatchEventGagalEventSudahDipakaiInvoiceLain` |
+| Race dua admin mencocokkan event yang sama ke invoice berbeda, hanya satu menang | `PENDING` | `TestManualMatchEventRaceHanyaSatuYangMenang` (dengan `-race`) |
+| Dismiss berhasil; dismiss dua kali untuk event yang sama ditolak; event yang tidak ada ditolak | `PENDING` | `TestDismissEventBerhasil`, `TestDismissEventDuaKaliDitolak`, `TestDismissEventTidakDitemukan` |
+| `GET /admin/exceptions` menampilkan event tak cocok; perlu sesi | `PENDING` | `TestAdminExceptionsMenampilkanEventTakCocok`, `TestAdminExceptionsMemerlukanSesi` |
+| Integrasi ujung-ke-ujung: event masuk tak cocok → muncul di exceptions → dicocokkan manual → invoice PAID + webhook invoice.paid terkirim → event hilang dari exceptions | `PENDING` | `TestAdminMatchExceptionUjungKeUjung` |
+| `POST .../match` ditolak (409) kalau invoice sudah PAID | `PENDING` | `TestAdminMatchExceptionInvoiceSudahPaid` |
+| `POST .../dismiss` berhasil sekali, ditolak (409) kalau diulang; event tidak ada → 404 | `PENDING` | `TestAdminDismissExceptionBerhasilDanTidakBisaDuaKali`, `TestAdminDismissExceptionTidakDitemukan` |
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih | `PASS` | Dijalankan langsung, tanpa output error/diff |
+
+### Frontend (Next.js)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Type-check, lint, build produksi bersih (route baru: `/exceptions`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 9 route, 0 error/warning |
+| Halaman Exceptions menampilkan event tak cocok yang sesuai dengan query backend | `NEEDS-DEVICE` | Perlu `npm run dev` dan event sungguhan yang nominalnya sengaja tidak cocok invoice manapun |
+| Dialog Cocokkan: pencarian invoice PENDING/EXPIRED bekerja, memilih lalu konfirmasi benar-benar mengubah invoice jadi PAID dan mengirim webhook | `NEEDS-DEVICE` | idem, bandingkan dengan §12/§13 |
+| Dialog Abaikan: catatan tersimpan, event hilang dari daftar setelahnya | `NEEDS-DEVICE` | idem, cek `SELECT * FROM event_reviews` di DBeaver |
+
+### Langkah verifikasi
+
+```bash
+cd backend
+make run-dev             # kalau belum jalan
+
+cd ../dashboard
+npm run dev
+```
+
+Buat satu invoice lewat `POST /invoices` (§12), lalu kirim event dengan
+nominal yang **sengaja berbeda** dari `unique_amount`-nya (simulasikan
+salah ketik). Event itu tidak akan pernah cocok otomatis — buka
+`/exceptions`, event itu harus muncul di daftar. Coba **Cocokkan** ke
+invoice yang tadi dibuat: invoice harus berubah `PAID` di `/transactions`,
+dan kalau ada webhook terdaftar untuk `invoice.paid`, riwayatnya harus
+bertambah satu di `/webhooks`. Buat event lain (nominal apa saja yang tidak
+cocok invoice manapun), coba **Abaikan** dengan catatan — event itu harus
+hilang dari daftar, dan baris di `event_reviews` harus muncul di DBeaver
+dengan catatan yang sama.
