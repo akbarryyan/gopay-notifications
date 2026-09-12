@@ -11,17 +11,25 @@ import (
 )
 
 type API struct {
-	store  *store.Store
-	encKey []byte
-	now    func() time.Time
+	store           *store.Store
+	encKey          []byte
+	adminSessionKey []byte
+	now             func() time.Time
+	loginThrottle   *loginThrottle
 }
 
 // New membuat API. Parameter now disuntikkan agar test dapat memalsukan jam.
-func New(s *store.Store, encKey []byte, now func() time.Time) *API {
+func New(s *store.Store, encKey []byte, adminSessionKey []byte, now func() time.Time) *API {
 	if now == nil {
 		now = time.Now
 	}
-	return &API{store: s, encKey: encKey, now: now}
+	return &API{
+		store:           s,
+		encKey:          encKey,
+		adminSessionKey: adminSessionKey,
+		now:             now,
+		loginThrottle:   newLoginThrottle(),
+	}
 }
 
 func (a *API) Handler() http.Handler {
@@ -35,6 +43,18 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("POST /api/v1/events", a.requireDevice(http.HandlerFunc(a.handleCallback)))
 	mux.HandleFunc("GET /api/v1/events", a.handleEvents)
 	mux.HandleFunc("GET /api/v1/sources", a.handleSources)
+
+	// Dashboard admin. Autentikasi lewat cookie sesi, terpisah dari basic
+	// auth Caddy yang melindungi GET /api/v1/events di atas — browser yang
+	// memanggil fetch() dengan cookie tidak cocok dengan prompt basic auth.
+	mux.HandleFunc("POST /api/v1/admin/login", a.handleAdminLogin)
+	mux.HandleFunc("POST /api/v1/admin/logout", a.handleAdminLogout)
+	mux.Handle("GET /api/v1/admin/overview", a.requireAdmin(http.HandlerFunc(a.handleAdminOverview)))
+	mux.Handle("GET /api/v1/admin/devices", a.requireAdmin(http.HandlerFunc(a.handleAdminDevices)))
+	mux.Handle("PATCH /api/v1/admin/devices/{deviceID}",
+		a.requireAdmin(http.HandlerFunc(a.handleAdminSetDeviceEnabled)))
+	mux.Handle("GET /api/v1/admin/events", a.requireAdmin(http.HandlerFunc(a.handleEvents)))
+
 	return mux
 }
 

@@ -14,6 +14,10 @@ type Config struct {
 	DatabaseURL     string
 	ListenAddr      string
 	DeviceSecretKey []byte
+	// Kunci penanda tangan sesi dashboard admin. Terpisah dari
+	// DeviceSecretKey — keduanya melindungi hal yang berbeda, dan kompromi
+	// pada satu tidak boleh ikut membongkar yang lain.
+	AdminSessionKey []byte
 }
 
 // Load membaca dan memvalidasi seluruh konfigurasi. Konfigurasi yang salah
@@ -43,5 +47,20 @@ func Load() (Config, error) {
 			secretbox.KeySize, len(key))
 	}
 	c.DeviceSecretKey = key
+
+	rawSession := os.Getenv("ADMIN_SESSION_KEY")
+	if rawSession == "" {
+		return Config{}, errors.New("config: ADMIN_SESSION_KEY wajib diisi")
+	}
+	sessionKey, err := base64.StdEncoding.DecodeString(rawSession)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: ADMIN_SESSION_KEY bukan base64 yang sah: %w", err)
+	}
+	if len(sessionKey) != secretbox.KeySize {
+		return Config{}, fmt.Errorf("config: ADMIN_SESSION_KEY harus %d byte setelah decode, dapat %d",
+			secretbox.KeySize, len(sessionKey))
+	}
+	c.AdminSessionKey = sessionKey
+
 	return c, nil
 }

@@ -2,7 +2,7 @@ TEST_DATABASE_URL ?= postgres://gopay:gopay@localhost:5433/gopay_test?sslmode=di
 DEV_DATABASE_URL  ?= postgres://gopay:gopay@localhost:5433/gopay_dev?sslmode=disable
 GOOSE ?= $(shell go env GOPATH)/bin/goose
 
-.PHONY: db-up db-down migrate test db-dev run-dev dev-device dev-key dev-url
+.PHONY: db-up db-down migrate test db-dev run-dev dev-device dev-key dev-url dev-admin
 
 db-up:
 	docker compose up -d --wait
@@ -38,6 +38,8 @@ run-dev: db-dev
 	  echo "Belum ada .env.dev. Jalankan:"; \
 	  echo "  cp .env.dev.example .env.dev"; \
 	  echo "  echo \"DEVICE_SECRET_KEY=\$$(make -s dev-key)\" >> .env.dev"; \
+	  echo "  echo \"ADMIN_SESSION_KEY=\$$(make -s dev-key)\" >> .env.dev"; \
+	  echo "  make dev-admin   # buat akun admin dashboard"; \
 	  exit 1; }
 	@port=$$(grep -E '^LISTEN_ADDR=' .env.dev | tail -1 | sed 's/.*://'); \
 	 if ss -ltnH "sport = :$$port" 2>/dev/null | grep -q .; then \
@@ -54,6 +56,12 @@ run-dev: db-dev
 dev-device: db-dev
 	@test -f .env.dev || { echo "Belum ada .env.dev — lihat 'make run-dev'"; exit 1; }
 	@set -a; . ./.env.dev; set +a; go run ./cmd/devicetool -name "HP GoPay Dev"
+
+# Membuat atau mereset password admin dashboard. Interaktif — akan meminta
+# password diketik dua kali tanpa ditampilkan di terminal.
+dev-admin: db-dev
+	@test -f .env.dev || { echo "Belum ada .env.dev — lihat 'make run-dev'"; exit 1; }
+	@set -a; . ./.env.dev; set +a; go run ./cmd/admintool
 
 # Alamat yang diketik ke layar Pengaturan di HP. Alamat LAN laptop berubah tiap
 # ganti jaringan, jadi jangan dihafal.

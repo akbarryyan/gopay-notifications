@@ -38,7 +38,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           httpapi.New(s, cfg.DeviceSecretKey, time.Now).Handler(),
+		Handler:           httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, time.Now).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

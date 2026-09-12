@@ -44,7 +44,9 @@ tabel di atas dan pakai `.env.uat.example` serta
    ```
 
 4. Salin `.env.example` ke `/opt/gopay-ingestion/.env`, isi seluruh nilainya.
-   `DEVICE_SECRET_KEY` dihasilkan dengan `go run ./cmd/devicetool -genkey`.
+   `DEVICE_SECRET_KEY` dan `ADMIN_SESSION_KEY` sama-sama dihasilkan dengan
+   `go run ./cmd/devicetool -genkey` — jalankan dua kali untuk dua nilai
+   yang berbeda, jangan memakai hasil yang sama untuk keduanya.
 
    ```bash
    sudo chmod 600 /opt/gopay-ingestion/.env
@@ -68,11 +70,12 @@ tabel di atas dan pakai `.env.uat.example` serta
 ```bash
 GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
 GOOS=linux GOARCH=amd64 go build -o devicetool ./cmd/devicetool
-scp server devicetool VPS:/tmp/
+GOOS=linux GOARCH=amd64 go build -o admintool ./cmd/admintool
+scp server devicetool admintool VPS:/tmp/
 ssh VPS 'sudo systemctl stop gopay-ingestion \
-  && sudo mv /tmp/server /tmp/devicetool /opt/gopay-ingestion/ \
-  && sudo chown gopay:gopay /opt/gopay-ingestion/server /opt/gopay-ingestion/devicetool \
-  && sudo chmod 755 /opt/gopay-ingestion/server /opt/gopay-ingestion/devicetool \
+  && sudo mv /tmp/server /tmp/devicetool /tmp/admintool /opt/gopay-ingestion/ \
+  && sudo chown gopay:gopay /opt/gopay-ingestion/server /opt/gopay-ingestion/devicetool /opt/gopay-ingestion/admintool \
+  && sudo chmod 755 /opt/gopay-ingestion/server /opt/gopay-ingestion/devicetool /opt/gopay-ingestion/admintool \
   && sudo systemctl start gopay-ingestion'
 ```
 
@@ -92,6 +95,17 @@ sudo -u gopay env $(cat .env | xargs) ./devicetool -name "HP GoPay Utama"
 ```
 
 Salin `Device ID` dan `Device Secret` ke Settings aplikasi Android.
+
+## Membuat akun admin dashboard
+
+Di VPS, interaktif — akan meminta password diketik dua kali tanpa ditampilkan:
+
+```bash
+cd /opt/gopay-ingestion
+sudo -u gopay env $(cat .env | xargs) ./admintool -username admin
+```
+
+Password dapat diganti kapan saja dengan menjalankan perintah yang sama lagi.
 Secret tidak akan ditampilkan lagi.
 
 ## Membangun aplikasi Android per varian
