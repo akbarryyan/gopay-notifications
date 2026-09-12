@@ -335,41 +335,43 @@ konsisten dengan yang benar-benar ada di `notification_events`.
 
 Spec:
 [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](../superpowers/specs/2026-09-12-invoice-nominal-matching-design.md).
-**Ringkasan:** `PASS` 2 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 18
+**Ringkasan:** `PASS` 20 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
 
-Seluruh test Go di bawah ini **ditulis, belum dijalankan** — butuh Postgres
-via `docker compose`, di luar batas kerja Claude (lihat "Pembagian kerja" di
-root `CLAUDE.md`). Semua ditandai `PENDING`, bukan `PASS`, sampai Akbar
-menjalankan `make test` dan menempelkan hasilnya.
+Diverifikasi lewat `make test` Akbar, 12 Sep 2026 (setelah dua bug test
+ditemukan dan diperbaiki — lihat riwayat commit — dan diulang sekali lagi):
+
+```
+$ make test
+ok  .../internal/auth        0.003s
+ok  .../internal/connector   0.004s
+ok  .../internal/httpapi     8.383s
+ok  .../internal/secretbox   0.003s
+ok  .../internal/store       2.461s
+```
 
 ### Backend
 
 | Butir | Status | Bukti (test yang menguji) |
 |---|---|---|
-| Alokasi nominal unik: rentang offset benar, masa berlaku 15 menit | `PENDING` | `TestCreateInvoiceMengalokasikanNominalUnik` |
-| `external_ref` sama + amount sama → invoice lama dikembalikan (idempotent) | `PENDING` | `TestCreateInvoiceExternalRefSamaAmountSamaIdempotent` |
-| `external_ref` sama + amount beda → ditolak | `PENDING` | `TestCreateInvoiceExternalRefSamaAmountBedaDitolak` |
-| Alokasi tidak pernah menabrak nominal invoice PENDING lain | `PENDING` | `TestCreateInvoiceMenghindariTabrakanNominal` |
-| Invoice kedaluwarsa benar-benar dituliskan EXPIRED sebelum alokasi berikutnya | `PENDING` | `TestCreateInvoiceMenulisTransisiExpiredSebelumAlokasi` |
-| Matching: amount cocok → PAID + matched_event_id + paid_at | `PENDING` | `TestMatchEventMenandaiInvoicePaid` |
-| Matching: amount tidak cocok → invoice tidak berubah | `PENDING` | `TestMatchEventTidakCocokTidakMengubahApaPun` |
-| Matching: amount nil dilewati, bukan error | `PENDING` | `TestMatchEventAmountNilDilewati` |
-| Matching: race dua event amount sama, hanya satu menang | `PENDING` | `TestMatchEventRaceHanyaSatuYangMenang` (dengan `-race`) |
-| `ListInvoices` filter status dan pencarian external_ref | `PENDING` | `TestListInvoicesFilterStatusDanQuery` |
-| API key: hash tersimpan, bukan plaintext; verifikasi benar/salah/dicabut | `PENDING` | `TestVerifyAPIKeyBenar`, `...Salah...`, `...SudahDicabut...` |
-| API key: revoke idempotent, revoke yang tidak ada → error | `PENDING` | `TestRevokeAPIKeyIdempotent`, `TestRevokeAPIKeyTidakDitemukan` |
-| `ListAPIKeys` tidak pernah membocorkan hash | `PENDING` | `TestListAPIKeysTidakMembocorkanHash` |
-| `POST /invoices`: berhasil, idempotent (200 vs 201), konflik (409), key salah/dicabut (401), amount invalid (400) | `PENDING` | `TestCreateInvoiceBerhasil`, `...AmountSamaMengembalikan200`, `...AmountBeda409`, `...TanpaAPIKeyDitolak`, `...APIKeySalahDitolak`, `...AmountNolAtauNegatifDitolak` |
-| `GET /invoices/{id}`: ditemukan dan tidak ditemukan | `PENDING` | `TestGetInvoiceBerhasil`, `TestGetInvoiceTidakDitemukan` |
-| Integrasi ujung-ke-ujung: invoice dibuat lewat API, event masuk lewat `POST /events`, matching otomatis tanpa langkah tambahan | `PENDING` | `TestInvoiceCocokLewatCallback` |
-| `GET /admin/invoices`: data sungguhan, filter status, status tak dikenal ditolak, perlu sesi | `PENDING` | `TestAdminInvoicesMenampilkanYangSungguhanAda`, `...FilterStatus`, `...StatusTakDikenalDitolak`, `...MemerlukanSesi` |
-| `POST/GET/PATCH /admin/api-keys`: create balas key mentah sekali, list tidak membocorkannya, revoke idempotent, perlu sesi | `PENDING` | `TestAdminCreateAPIKeyMengembalikanKeyMentahSekali`, `TestAdminListAPIKeysTidakMenyertakanKeyMentah`, `TestAdminRevokeAPIKeyMenolakKeyBerikutnya`, `...TidakDitemukan`, `TestAdminAPIKeysMemerlukanSesi` |
+| Alokasi nominal unik: rentang offset benar, masa berlaku 15 menit | `PASS` | `TestCreateInvoiceMengalokasikanNominalUnik` |
+| `external_ref` sama + amount sama → invoice lama dikembalikan (idempotent) | `PASS` | `TestCreateInvoiceExternalRefSamaAmountSamaIdempotent` |
+| `external_ref` sama + amount beda → ditolak | `PASS` | `TestCreateInvoiceExternalRefSamaAmountBedaDitolak` |
+| Alokasi tidak pernah menabrak nominal invoice PENDING lain | `PASS` | `TestCreateInvoiceMenghindariTabrakanNominal` |
+| Invoice kedaluwarsa benar-benar dituliskan EXPIRED sebelum alokasi berikutnya | `PASS` | `TestCreateInvoiceMenulisTransisiExpiredSebelumAlokasi` |
+| Matching: amount cocok → PAID + matched_event_id + paid_at | `PASS` | `TestMatchEventMenandaiInvoicePaid` |
+| Matching: amount tidak cocok → invoice tidak berubah | `PASS` | `TestMatchEventTidakCocokTidakMengubahApaPun` |
+| Matching: amount nil dilewati, bukan error | `PASS` | `TestMatchEventAmountNilDilewati` |
+| Matching: race dua event amount sama, hanya satu menang | `PASS` | `TestMatchEventRaceHanyaSatuYangMenang` (dengan `-race`) |
+| `ListInvoices` filter status dan pencarian external_ref | `PASS` | `TestListInvoicesFilterStatusDanQuery` |
+| API key: hash tersimpan, bukan plaintext; verifikasi benar/salah/dicabut | `PASS` | `TestVerifyAPIKeyBenar`, `...Salah...`, `...SudahDicabut...` |
+| API key: revoke idempotent, revoke yang tidak ada → error | `PASS` | `TestRevokeAPIKeyIdempotent`, `TestRevokeAPIKeyTidakDitemukan` |
+| `ListAPIKeys` tidak pernah membocorkan hash | `PASS` | `TestListAPIKeysTidakMembocorkanHash` |
+| `POST /invoices`: berhasil, idempotent (200 vs 201), konflik (409), key salah/dicabut (401), amount invalid (400) | `PASS` | `TestCreateInvoiceBerhasil`, `...AmountSamaMengembalikan200`, `...AmountBeda409`, `...TanpaAPIKeyDitolak`, `...APIKeySalahDitolak`, `...AmountNolAtauNegatifDitolak` |
+| `GET /invoices/{id}`: ditemukan dan tidak ditemukan | `PASS` | `TestGetInvoiceBerhasil`, `TestGetInvoiceTidakDitemukan` |
+| Integrasi ujung-ke-ujung: invoice dibuat lewat API, event masuk lewat `POST /events`, matching otomatis tanpa langkah tambahan | `PASS` | `TestInvoiceCocokLewatCallback` |
+| `GET /admin/invoices`: data sungguhan, filter status, status tak dikenal ditolak, perlu sesi | `PASS` | `TestAdminInvoicesMenampilkanYangSungguhanAda`, `...FilterStatus`, `...StatusTakDikenalDitolak`, `...MemerlukanSesi` |
+| `POST/GET/PATCH /admin/api-keys`: create balas key mentah sekali, list tidak membocorkannya, revoke idempotent, perlu sesi | `PASS` | `TestAdminCreateAPIKeyMengembalikanKeyMentahSekali`, `TestAdminListAPIKeysTidakMenyertakanKeyMentah`, `TestAdminRevokeAPIKeyMenolakKeyBerikutnya`, `...TidakDitemukan`, `TestAdminAPIKeysMemerlukanSesi` |
 | `go build ./...`, `go vet ./...`, `gofmt -l .` bersih | `PASS` | Dijalankan langsung, tanpa output error/diff |
-
-Baris terakhir di atas (`go build`/`go vet`/`gofmt`) satu-satunya yang `PASS`
-di sisi backend — itu verifikasi statis yang tidak butuh database, terpisah
-dari seluruh baris test Go lain yang masih `PENDING` sampai `make test`
-benar-benar dijalankan Akbar.
 
 ### Frontend (Next.js)
 
@@ -384,7 +386,6 @@ benar-benar dijalankan Akbar.
 
 ```bash
 cd backend
-make test               # WAJIB sebelum baris PENDING di atas boleh jadi PASS
 make run-dev             # kalau belum jalan
 
 cd ../dashboard
