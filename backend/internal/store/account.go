@@ -7,11 +7,29 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // ErrAccountNotFound dikembalikan bila id/username tidak terdaftar.
 var ErrAccountNotFound = errors.New("store: account tidak ditemukan")
+
+// ErrAccountEmailTaken/ErrAccountUsernameTaken dikembalikan CreateAccount
+// kalau email/username sudah dipakai account lain (constraint UNIQUE di
+// migration 00008_accounts.sql, nama constraint otomatis Postgres untuk
+// kolom polos: "accounts_email_key"/"accounts_username_key").
+var (
+	ErrAccountEmailTaken    = errors.New("store: email sudah dipakai")
+	ErrAccountUsernameTaken = errors.New("store: username sudah dipakai")
+)
+
+func isAccountUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
+	}
+	return false
+}
 
 // WarningThresholdDays: ambang status berubah dari "active" ke "expiring".
 const WarningThresholdDays = 30
@@ -83,6 +101,12 @@ func (s *Store) CreateAccount(ctx context.Context, in CreateAccountInput) error 
 		`INSERT INTO accounts (id, business_name, email, username, password_hash, plan, max_devices, expires_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		in.ID, in.BusinessName, in.Email, in.Username, string(hash), in.Plan, in.MaxDevices, in.ExpiresAt)
+	if isAccountUniqueViolation(err, "accounts_email_key") {
+		return ErrAccountEmailTaken
+	}
+	if isAccountUniqueViolation(err, "accounts_username_key") {
+		return ErrAccountUsernameTaken
+	}
 	if err != nil {
 		return fmt.Errorf("store: create account: %w", err)
 	}

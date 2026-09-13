@@ -148,3 +148,45 @@ func TestListAccounts(t *testing.T) {
 		t.Fatalf("len(list) = %d, mau 2", len(list))
 	}
 }
+
+func TestCreateAccountEmailBentrokDitolak(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_a", BusinessName: "Toko A", Email: "sama@uji.test",
+		Username: "toko_a", PlaintextPassword: "rahasia123",
+		Plan: "Starter", MaxDevices: 3, ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create pertama: %v", err)
+	}
+
+	err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_b", BusinessName: "Toko B", Email: "sama@uji.test",
+		Username: "toko_b", PlaintextPassword: "rahasia123",
+		Plan: "Starter", MaxDevices: 3, ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != store.ErrAccountEmailTaken {
+		t.Fatalf("err = %v, mau ErrAccountEmailTaken", err)
+	}
+}
+
+func TestCreateAccountUsernameBentrokDitolak(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_a", BusinessName: "Toko A", Email: "a@uji.test",
+		Username: "sama_username", PlaintextPassword: "rahasia123",
+		Plan: "Starter", MaxDevices: 3, ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create pertama: %v", err)
+	}
+
+	err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_b", BusinessName: "Toko B", Email: "b@uji.test",
+		Username: "sama_username", PlaintextPassword: "rahasia123",
+		Plan: "Starter", MaxDevices: 3, ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != store.ErrAccountUsernameTaken {
+		t.Fatalf("err = %v, mau ErrAccountUsernameTaken", err)
+	}
+}
