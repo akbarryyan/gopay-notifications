@@ -74,7 +74,9 @@ tabel di atas dan pakai `.env.uat.example` serta
    `DEVICE_SECRET_KEY`, `ADMIN_SESSION_KEY`, dan `WEBHOOK_SECRET_KEY`
    sama-sama dihasilkan dengan `go run ./cmd/devicetool -genkey` — jalankan
    tiga kali untuk tiga nilai yang berbeda, jangan memakai hasil yang sama
-   untuk lebih dari satu.
+   untuk lebih dari satu. Isi juga `PUBLIC_DOMAIN` dengan domain sungguhan
+   instalasi ini — lihat §"Lisensi" di bawah, nilainya harus persis sama
+   dengan `domain` di file lisensi customer.
 
    ```bash
    sudo chmod 600 /opt/gopay-ingestion/.env
@@ -170,6 +172,44 @@ sudo -u gopay env $(cat .env | xargs) ./admintool -username admin
 Password dapat diganti kapan saja dengan menjalankan perintah yang sama lagi.
 Secret tidak akan ditampilkan lagi.
 
+## Lisensi
+
+Rancangan lengkap di
+[`docs/superpowers/specs/2026-09-13-license-system-design.md`](../../docs/superpowers/specs/2026-09-13-license-system-design.md).
+Ringkasnya: tanpa file lisensi yang valid dan belum kedaluwarsa, backend
+tetap menyala tapi menolak `402` seluruh endpoint device/admin/API key —
+hanya login dan halaman `/license` dashboard yang tetap bisa dibuka.
+
+**`licensetool` HANYA dijalankan di laptop Akbar, tidak pernah di-build atau
+dikirim ke VPS customer** — beda dari `server`/`devicetool`/`admintool` di
+atas. Ia tidak butuh koneksi database sama sekali.
+
+Sekali seumur produk (atau saat rotasi darurat kalau private key bocor):
+
+```bash
+go run ./cmd/licensetool -genkey
+# Private Key: simpan HANYA di laptop ini, mis. ~/.gopay-license/private.key
+# Public Key : sudah dipasang di internal/licensecheck/license.go
+```
+
+Tiap kali menerbitkan atau memperpanjang lisensi customer:
+
+```bash
+go run ./cmd/licensetool -issue \
+  -key ~/.gopay-license/private.key \
+  -customer "Toko Contoh" -domain "whuzpay.com" \
+  -plan "Business" -expires "2027-09-13" \
+  -out license.lic
+
+scp license.lic <VPS>:/opt/gopay-ingestion/license.lic
+ssh <VPS> sudo systemctl restart gopay-ingestion
+```
+
+`-domain` di sini **wajib** persis sama dengan `PUBLIC_DOMAIN` di `.env`
+instalasi tersebut — beda satu karakter pun (`https://` ikut ditulis,
+trailing slash, dsb.) akan membuat lisensi ditolak sebagai `invalid`
+meski tanda tangannya sah.
+
 ## Membangun aplikasi Android per varian
 
 ```bash
@@ -220,7 +260,15 @@ curl -s -o /dev/null -w '%{http_code}\n' "https://GANTI-DOMAIN.com/login"   # ma
 ```
 
 `307` untuk `/` berarti `proxy.ts` benar mengalihkan karena belum ada cookie
-sesi — itu tanda dashboard-nya sendiri sudah jalan, bukan error. Buka
-`https://GANTI-DOMAIN.com/login` di browser sungguhan dan coba login dengan
+sesi — itu tanda dashboard-nya sendiri sudah jalan, bukan error.
+
+Satu pemeriksaan lagi khusus lisensi, setelah `license.lic` terpasang (lihat
+§"Lisensi" di atas): buka halaman `/license` di dashboard (login dulu) dan
+pastikan statusnya `Aktif` dengan detail customer/domain/plan yang benar.
+Kalau belum ada `license.lic` sama sekali di tahap ini, itu diharapkan —
+halaman akan menunjukkan `Belum terpasang` dan endpoint lain menjawab `402`
+sampai file lisensinya dikirim.
+
+Buka `https://GANTI-DOMAIN.com/login` di browser sungguhan dan coba login dengan
 akun yang dibuat lewat `admintool` (§"Membuat akun admin dashboard" di
 atas) untuk verifikasi penuh.

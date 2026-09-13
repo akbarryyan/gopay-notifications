@@ -21,7 +21,17 @@ type Config struct {
 	// Kunci enkripsi secret webhook (secretbox). Terpisah lagi dari dua
 	// kunci di atas — tiga kunci, tiga tujuan, jangan dipakai ulang.
 	WebhookSecretKey []byte
+	// PublicDomain adalah domain instalasi ini, dipakai untuk mencocokkan
+	// domain-lock pada file lisensi (lihat internal/licensecheck). Sengaja
+	// dibaca dari konfigurasi, bukan dari header Host request yang bisa
+	// dipalsukan klien.
+	PublicDomain string
+	// LicenseFilePath adalah path berkas lisensi offline. Opsional, default
+	// sesuai struktur direktori deploy yang sudah ada.
+	LicenseFilePath string
 }
+
+const defaultLicenseFilePath = "/opt/gopay-ingestion/license.lic"
 
 // Load membaca dan memvalidasi seluruh konfigurasi. Konfigurasi yang salah
 // harus menghentikan proses saat start, bukan saat request pertama masuk.
@@ -78,6 +88,16 @@ func Load() (Config, error) {
 			secretbox.KeySize, len(webhookKey))
 	}
 	c.WebhookSecretKey = webhookKey
+
+	c.PublicDomain = os.Getenv("PUBLIC_DOMAIN")
+	if c.PublicDomain == "" {
+		return Config{}, errors.New("config: PUBLIC_DOMAIN wajib diisi")
+	}
+
+	c.LicenseFilePath = os.Getenv("LICENSE_FILE_PATH")
+	if c.LicenseFilePath == "" {
+		c.LicenseFilePath = defaultLicenseFilePath
+	}
 
 	return c, nil
 }

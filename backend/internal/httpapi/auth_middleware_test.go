@@ -13,6 +13,7 @@ import (
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -42,6 +43,14 @@ func webhookSecretKey() []byte {
 	return k
 }
 
+// activeLicense adalah lisensi default dipakai seluruh test yang tidak
+// secara spesifik menguji perilaku requireLicense — supaya test lain tidak
+// perlu tahu apa-apa soal lisensi untuk tetap bisa memanggil endpoint yang
+// sekarang dibungkus requireLicense.
+func activeLicense() licensecheck.License {
+	return licensecheck.License{Status: licensecheck.StatusActive}
+}
+
 // newAPIWithDevice menyiapkan API lengkap dengan satu device terdaftar.
 func newAPIWithDevice(t *testing.T) http.Handler {
 	t.Helper()
@@ -66,7 +75,7 @@ func newAPIWithDevice(t *testing.T) http.Handler {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
 }
 
 // signedRequest membuat request yang sudah ditandatangani dengan benar.

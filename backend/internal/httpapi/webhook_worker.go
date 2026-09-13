@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -71,6 +72,15 @@ func (a *API) attemptDelivery(ctx context.Context, d store.WebhookDeliveryDue, n
 // Dipanggil manual dengan now palsu di test, dipanggil oleh time.Ticker di
 // cmd/server untuk yang sungguhan (lihat cmd/server/main.go).
 func (a *API) ProcessDueWebhooks(ctx context.Context, now time.Time) error {
+	// Lisensi tidak aktif: diam-diam tidak memproses apa pun. Rute yang
+	// memicu jalur ini (device ingestion) sudah ditolak requireLicense
+	// lebih dulu, tapi ticker berkala di cmd/server berjalan terus terlepas
+	// dari ada tidaknya request masuk, jadi butuh pengecekannya sendiri di
+	// sini. Tidak di-log tiap tick — statusnya sudah terlihat di dashboard.
+	if a.license.Status != licensecheck.StatusActive {
+		return nil
+	}
+
 	expiredIDs, err := a.store.ExpireInvoicesAndListNewlyExpired(ctx, now)
 	if err != nil {
 		return err

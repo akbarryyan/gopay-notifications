@@ -40,7 +40,7 @@ func newAPIWithAdmin(t *testing.T) http.Handler {
 		t.Fatalf("UpsertAdmin: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
 }
 
 func adminLogin(t *testing.T, h http.Handler, username, password string) *httptest.ResponseRecorder {

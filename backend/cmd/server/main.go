@@ -13,6 +13,7 @@ import (
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -36,7 +37,13 @@ func main() {
 	}
 	defer s.Close()
 
-	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, time.Now)
+	lic := licensecheck.Load(cfg.LicenseFilePath, cfg.PublicDomain, time.Now())
+	if lic.Status != licensecheck.StatusActive {
+		slog.Warn("lisensi tidak aktif — endpoint device/admin/API key akan ditolak sampai diperbaiki",
+			"status", lic.Status, "reason", lic.Reason)
+	}
+
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, lic, time.Now)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
