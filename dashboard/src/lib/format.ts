@@ -37,6 +37,20 @@ export function formatShortDate(dateOnly: string): string {
 }
 
 /**
+ * "12 Sep 2027" dari tanggal murni "YYYY-MM-DD" — sama seperti
+ * formatShortDate tapi dengan tahun, untuk rentang yang menyeberangi tahun
+ * (mis. masa berlaku lisensi tahunan di halaman /license).
+ */
+export function formatDateOnly(dateOnly: string): string {
+  return new Date(dateOnly + "T00:00:00Z").toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * "Baru saja", "5 menit lalu", dst.
  *
  * Dipakai di kartu Devices untuk memperlihatkan device yang diam-diam

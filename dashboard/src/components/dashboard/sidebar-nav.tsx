@@ -8,6 +8,7 @@ import {
   GATEWAY_ITEMS,
   INTEGRATION_ITEMS,
   MONITORING_ITEMS,
+  SYSTEM_ITEMS,
   type NavItem,
 } from "./nav-items";
 
@@ -97,6 +98,15 @@ export function SidebarNav({
       ))}
 
       <SectionLabel collapsed={collapsed}>System</SectionLabel>
+      {SYSTEM_ITEMS.map((item) => (
+        <NavLink
+          key={item.href}
+          item={item}
+          active={pathname === item.href}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+        />
+      ))}
       {COMING_SOON_ITEMS.map((item) => (
         <div
           key={item.label}

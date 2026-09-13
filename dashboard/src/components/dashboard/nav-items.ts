@@ -21,12 +21,14 @@ export interface NavItem {
 /**
  * Halaman-halaman ini datanya sungguhan ada: heartbeat dan event sejak
  * M2–M4, invoice/nominal unik/matching/API key sejak sub-project 3 fase 1,
- * webhook sejak fase 2, konsol pengecualian sejak fase 4 (lihat
+ * webhook sejak fase 2, konsol pengecualian sejak fase 4, lisensi sejak
+ * sistem lisensi offline (lihat
  * docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md,
- * 2026-09-13-webhook-delivery-design.md, dan
- * 2026-09-13-exception-console-design.md). License dan Settings menunggu
- * sistem lisensi — menampilkannya sebagai link aktif sekarang berarti
- * membangun halaman untuk data yang bentuknya belum pasti.
+ * 2026-09-13-webhook-delivery-design.md,
+ * 2026-09-13-exception-console-design.md, dan
+ * 2026-09-13-license-system-design.md). Settings dan Logs masih menunggu —
+ * menampilkannya sebagai link aktif sekarang berarti membangun halaman
+ * untuk data yang bentuknya belum pasti.
  */
 export const MONITORING_ITEMS: NavItem[] = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
@@ -44,13 +46,16 @@ export const GATEWAY_ITEMS: NavItem[] = [
   { label: "Exceptions", href: "/exceptions", icon: AlertTriangle },
 ];
 
+export const SYSTEM_ITEMS: NavItem[] = [
+  { label: "License", href: "/license", icon: ShieldCheck },
+];
+
 /**
  * Ditampilkan, tidak disembunyikan — supaya bentuk akhir produk tetap
  * terlihat (sesuai dashboard-spec §16, pola yang sama dipakai untuk
  * connector DANA/OVO yang belum diimplementasikan).
  */
 export const COMING_SOON_ITEMS: { label: string; icon: LucideIcon }[] = [
-  { label: "License", icon: ShieldCheck },
   { label: "Logs", icon: ScrollText },
   { label: "Settings", icon: Settings },
 ];

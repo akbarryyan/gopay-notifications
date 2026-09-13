@@ -368,3 +368,29 @@ export function dismissException(eventId: string, note?: string): Promise<{ succ
     body: JSON.stringify({ note: note ?? "" }),
   });
 }
+
+// --- License -----------------------------------------------------------
+//
+// Lisensi offline (lihat docs/superpowers/specs/2026-09-13-license-system-design.md).
+// Endpoint ini SENGAJA tetap bisa dipanggil walau lisensi tidak aktif —
+// beda dari endpoint lain di file ini yang akan gagal dengan ApiError
+// (code "license_expired"/"license_missing"/"license_invalid", status 402)
+// bila lisensi tidak aktif.
+
+export type LicenseStatus = "active" | "missing" | "invalid" | "expired";
+
+export interface LicenseInfo {
+  customer?: string;
+  domain?: string;
+  plan?: string;
+  issued_at?: string;
+  expires_at?: string;
+  days_remaining?: number;
+  status: LicenseStatus;
+  reason?: string;
+}
+
+export async function getLicense(): Promise<LicenseInfo> {
+  const res = await apiFetch<{ license: LicenseInfo }>("/api/v1/admin/license");
+  return res.license;
+}
