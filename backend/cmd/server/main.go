@@ -13,7 +13,7 @@ import (
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/licenseclient"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -37,13 +37,17 @@ func main() {
 	}
 	defer s.Close()
 
-	lic := licensecheck.Load(cfg.LicenseFilePath, cfg.PublicDomain, time.Now())
-	if lic.Status != licensecheck.StatusActive {
-		slog.Warn("lisensi tidak aktif — endpoint device/admin/API key akan ditolak sampai diperbaiki",
-			"status", lic.Status, "reason", lic.Reason)
-	}
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey,
+		cfg.LicenseFilePath, time.Now)
 
-	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, lic, time.Now)
+	licClient := licenseclient.New(cfg.LicenseServerURL, cfg.LicenseKey, cfg.Environment,
+		cfg.LicenseFilePath, time.Now)
+	if err := licClient.Refresh(ctx); err != nil {
+		// Tidak fatal -- server tetap start dan menampilkan status apa
+		// adanya lewat GET /admin/license (requireLicense yang menegakkan
+		// konsekuensinya, bukan startup ini).
+		slog.Warn("aktivasi/validasi lisensi awal gagal", "err", err)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -75,6 +79,24 @@ func main() {
 			case <-webhookTicker.C:
 				if err := api.ProcessDueWebhooks(ctx, time.Now()); err != nil {
 					slog.Error("process due webhooks gagal", "err", err)
+				}
+			}
+		}
+	}()
+
+	// Validasi lisensi berkala: TERPISAH dari ticker webhook di atas —
+	// interval beda jauh (1 menit vs 24 jam), menyatukannya cuma bikin
+	// bingung. Lihat internal/licenseclient dan spec §6.
+	licenseTicker := time.NewTicker(24 * time.Hour)
+	defer licenseTicker.Stop()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-licenseTicker.C:
+				if err := licClient.Refresh(ctx); err != nil {
+					slog.Warn("validasi lisensi berkala gagal", "err", err)
 				}
 			}
 		}

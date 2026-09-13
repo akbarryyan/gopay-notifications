@@ -12,10 +12,9 @@ import (
 
 // testKeyPair menghasilkan key pair BARU khusus untuk test ini, terpisah
 // dari licensePublicKeyBase64 yang di-hardcode untuk produksi. Private key
-// produksi sengaja tidak pernah ada di repo, jadi test memverifikasi
-// jalur "signature valid" lewat fungsi tak-diekspor `load` yang menerima
-// public key sebagai parameter, bukan lewat `Load` yang dipakai server
-// sungguhan.
+// produksi sengaja tidak pernah ada di repo, jadi test memverifikasi jalur
+// "signature valid" lewat fungsi tak-diekspor `load` yang menerima public
+// key sebagai parameter, bukan lewat `Load` yang dipakai server sungguhan.
 func testKeyPair(t *testing.T) (pub ed25519.PublicKey, privBase64 string) {
 	t.Helper()
 	p, s, err := ed25519.GenerateKey(rand.Reader)
@@ -25,18 +24,32 @@ func testKeyPair(t *testing.T) (pub ed25519.PublicKey, privBase64 string) {
 	return p, base64.StdEncoding.EncodeToString(s)
 }
 
-func writeLicenseFile(t *testing.T, dir string, content string) string {
+func writeStateFile(t *testing.T, dir string, content string) string {
 	t.Helper()
-	path := filepath.Join(dir, "license.lic")
+	path := filepath.Join(dir, "license-state.lic")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("tulis file lisensi: %v", err)
+		t.Fatalf("tulis local license state: %v", err)
 	}
 	return path
 }
 
+func baseInput(now time.Time) IssueInput {
+	return IssueInput{
+		LicenseID:      "lic_test",
+		InstallationID: "inst_test",
+		Customer:       "Toko Contoh",
+		Plan:           "Business",
+		AdminStatus:    "active",
+		MaxDevices:     10,
+		IssuedAt:       now.AddDate(-1, 0, 0),
+		ExpiresAt:      now.AddDate(1, 0, 0),
+		ValidatedAt:    now,
+	}
+}
+
 func TestLoadFileTidakAdaMenghasilkanMissing(t *testing.T) {
 	pub, _ := testKeyPair(t)
-	lic := load(filepath.Join(t.TempDir(), "tidak-ada.lic"), "whuzpay.com", time.Now(), pub)
+	lic := load(filepath.Join(t.TempDir(), "tidak-ada.lic"), time.Now(), pub)
 	if lic.Status != StatusMissing {
 		t.Fatalf("status = %q, mau %q", lic.Status, StatusMissing)
 	}
@@ -45,84 +58,141 @@ func TestLoadFileTidakAdaMenghasilkanMissing(t *testing.T) {
 func TestLoadFormatKorupMenghasilkanInvalid(t *testing.T) {
 	pub, _ := testKeyPair(t)
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, "cuma-satu-baris\n")
-	lic := load(path, "whuzpay.com", time.Now(), pub)
+	path := writeStateFile(t, dir, "cuma-satu-baris\n")
+	lic := load(path, time.Now(), pub)
 	if lic.Status != StatusInvalid {
 		t.Fatalf("status = %q, mau %q", lic.Status, StatusInvalid)
 	}
 }
 
-func TestLoadSignatureValidDomainCocokMenghasilkanActive(t *testing.T) {
+func TestLoadSignatureValidMenghasilkanActive(t *testing.T) {
 	pub, priv := testKeyPair(t)
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
-	content, err := Issue(priv, "Toko Contoh", "whuzpay.com", "Business",
-		now, now.AddDate(1, 0, 0))
+	in := baseInput(now)
+	content, err := Issue(priv, in)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
 
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, content)
-	lic := load(path, "whuzpay.com", now, pub)
+	path := writeStateFile(t, dir, content)
+	lic := load(path, now, pub)
 	if lic.Status != StatusActive {
 		t.Fatalf("status = %q (reason=%q), mau %q", lic.Status, lic.Reason, StatusActive)
 	}
-	if lic.Customer != "Toko Contoh" || lic.Domain != "whuzpay.com" || lic.Plan != "Business" {
-		t.Fatalf("field lisensi tidak sesuai: %+v", lic)
+	if lic.LicenseID != "lic_test" || lic.InstallationID != "inst_test" || lic.Customer != "Toko Contoh" {
+		t.Fatalf("field tidak sesuai: %+v", lic)
+	}
+	if lic.MaxDevices != 10 {
+		t.Fatalf("MaxDevices = %d, mau 10", lic.MaxDevices)
 	}
 }
 
-func TestLoadTepatDiHariTerakhirMasihActive(t *testing.T) {
+func TestLoadSisaKurangDariAmbangMenghasilkanExpiring(t *testing.T) {
 	pub, priv := testKeyPair(t)
-	issuedAt := time.Date(2025, 9, 13, 0, 0, 0, 0, time.UTC)
-	expiresAt := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
-	content, err := Issue(priv, "Toko Contoh", "whuzpay.com", "Business", issuedAt, expiresAt)
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	in := baseInput(now)
+	in.ExpiresAt = now.AddDate(0, 0, 10) // 10 hari, di bawah ambang 30
+	content, err := Issue(priv, in)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, content)
+	path := writeStateFile(t, dir, content)
 
-	// Jam 23:00 di hari expires_at itu sendiri — masih harus active.
-	now := time.Date(2026, 9, 13, 23, 0, 0, 0, time.UTC)
-	lic := load(path, "whuzpay.com", now, pub)
-	if lic.Status != StatusActive {
-		t.Fatalf("status = %q, mau %q (masih di hari expires_at)", lic.Status, StatusActive)
+	lic := load(path, now, pub)
+	if lic.Status != StatusExpiring {
+		t.Fatalf("status = %q, mau %q", lic.Status, StatusExpiring)
 	}
 }
 
 func TestLoadSetelahExpiresAtMenghasilkanExpired(t *testing.T) {
 	pub, priv := testKeyPair(t)
-	issuedAt := time.Date(2025, 9, 13, 0, 0, 0, 0, time.UTC)
-	expiresAt := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
-	content, err := Issue(priv, "Toko Contoh", "whuzpay.com", "Business", issuedAt, expiresAt)
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	in := baseInput(now)
+	in.ExpiresAt = now.AddDate(0, 0, -1)
+	content, err := Issue(priv, in)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, content)
+	path := writeStateFile(t, dir, content)
 
-	now := time.Date(2026, 9, 14, 0, 0, 1, 0, time.UTC)
-	lic := load(path, "whuzpay.com", now, pub)
+	lic := load(path, now, pub)
 	if lic.Status != StatusExpired {
 		t.Fatalf("status = %q, mau %q", lic.Status, StatusExpired)
 	}
 }
 
-func TestLoadDomainTidakCocokMenghasilkanInvalid(t *testing.T) {
+func TestLoadAdminStatusSuspended(t *testing.T) {
 	pub, priv := testKeyPair(t)
 	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
-	content, err := Issue(priv, "Toko Contoh", "domain-lain.com", "Business",
-		now, now.AddDate(1, 0, 0))
+	in := baseInput(now)
+	in.AdminStatus = "suspended"
+	content, err := Issue(priv, in)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, content)
+	path := writeStateFile(t, dir, content)
 
-	lic := load(path, "whuzpay.com", now, pub)
-	if lic.Status != StatusInvalid {
-		t.Fatalf("status = %q, mau %q", lic.Status, StatusInvalid)
+	lic := load(path, now, pub)
+	if lic.Status != StatusSuspended {
+		t.Fatalf("status = %q, mau %q", lic.Status, StatusSuspended)
+	}
+}
+
+func TestLoadAdminStatusRevoked(t *testing.T) {
+	pub, priv := testKeyPair(t)
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	in := baseInput(now)
+	in.AdminStatus = "revoked"
+	content, err := Issue(priv, in)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	dir := t.TempDir()
+	path := writeStateFile(t, dir, content)
+
+	lic := load(path, now, pub)
+	if lic.Status != StatusRevoked {
+		t.Fatalf("status = %q, mau %q", lic.Status, StatusRevoked)
+	}
+}
+
+func TestLoadValidatedAtBasiMenghasilkanUnreachable(t *testing.T) {
+	pub, priv := testKeyPair(t)
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	in := baseInput(now)
+	in.ValidatedAt = now.Add(-8 * 24 * time.Hour) // lewat grace period 7 hari
+	content, err := Issue(priv, in)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	dir := t.TempDir()
+	path := writeStateFile(t, dir, content)
+
+	lic := load(path, now, pub)
+	if lic.Status != StatusUnreachable {
+		t.Fatalf("status = %q, mau %q", lic.Status, StatusUnreachable)
+	}
+}
+
+func TestLoadValidatedAtDalamGracePeriodTetapActive(t *testing.T) {
+	pub, priv := testKeyPair(t)
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	in := baseInput(now)
+	in.ValidatedAt = now.Add(-6 * 24 * time.Hour) // masih dalam grace period 7 hari
+	content, err := Issue(priv, in)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	dir := t.TempDir()
+	path := writeStateFile(t, dir, content)
+
+	lic := load(path, now, pub)
+	if lic.Status != StatusActive {
+		t.Fatalf("status = %q, mau %q", lic.Status, StatusActive)
 	}
 }
 
@@ -131,30 +201,52 @@ func TestLoadSignatureDitandatanganiKunciLainDitolak(t *testing.T) {
 	_, privB := testKeyPair(t)
 
 	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
-	// Ditandatangani dengan privB, tapi diverifikasi terhadap pubA —
-	// mensimulasikan file lisensi yang ditandatangani kunci privat siapa
-	// pun selain yang public key-nya dipercaya server.
-	content, err := Issue(privB, "Toko Contoh", "whuzpay.com", "Business",
-		now, now.AddDate(1, 0, 0))
+	content, err := Issue(privB, baseInput(now))
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, content)
+	path := writeStateFile(t, dir, content)
 
-	lic := load(path, "whuzpay.com", now, pubA)
+	lic := load(path, now, pubA)
 	if lic.Status != StatusInvalid {
 		t.Fatalf("status = %q, mau %q", lic.Status, StatusInvalid)
 	}
 }
 
-func TestLoadBarisPayloadBukanBase64(t *testing.T) {
-	pub, _ := testKeyPair(t)
+func TestLoadAdminStatusTidakDikenalDitolak(t *testing.T) {
+	pub, priv := testKeyPair(t)
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	in := baseInput(now)
+	in.AdminStatus = "apa-saja"
+	content, err := Issue(priv, in)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
 	dir := t.TempDir()
-	path := writeLicenseFile(t, dir, "bukan-base64!!!\nYWJj\n")
-	lic := load(path, "whuzpay.com", time.Now(), pub)
+	path := writeStateFile(t, dir, content)
+
+	lic := load(path, now, pub)
 	if lic.Status != StatusInvalid {
 		t.Fatalf("status = %q, mau %q", lic.Status, StatusInvalid)
+	}
+}
+
+func TestOperationalHanyaActiveDanExpiring(t *testing.T) {
+	cases := map[Status]bool{
+		StatusActive:      true,
+		StatusExpiring:    true,
+		StatusExpired:     false,
+		StatusSuspended:   false,
+		StatusRevoked:     false,
+		StatusMissing:     false,
+		StatusInvalid:     false,
+		StatusUnreachable: false,
+	}
+	for status, want := range cases {
+		if got := status.Operational(); got != want {
+			t.Errorf("Status(%q).Operational() = %v, mau %v", status, got, want)
+		}
 	}
 }
 
@@ -172,16 +264,14 @@ func TestDaysRemainingDihitungDariExpiresAt(t *testing.T) {
 }
 
 func TestIssueMenolakPrivateKeyBukanBase64(t *testing.T) {
-	_, err := Issue("bukan-base64!!!", "Toko", "whuzpay.com", "Business",
-		time.Now(), time.Now().AddDate(1, 0, 0))
+	_, err := Issue("bukan-base64!!!", baseInput(time.Now()))
 	if err == nil {
 		t.Fatal("mau error, dapat nil")
 	}
 }
 
 func TestIssueMenolakPrivateKeySalahUkuran(t *testing.T) {
-	_, err := Issue(base64.StdEncoding.EncodeToString([]byte("terlalu-pendek")),
-		"Toko", "whuzpay.com", "Business", time.Now(), time.Now().AddDate(1, 0, 0))
+	_, err := Issue(base64.StdEncoding.EncodeToString([]byte("terlalu-pendek")), baseInput(time.Now()))
 	if err == nil {
 		t.Fatal("mau error, dapat nil")
 	}

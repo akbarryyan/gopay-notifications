@@ -2,20 +2,23 @@ package httpapi
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
 )
 
-// requireLicense menolak request kalau lisensi instalasi ini tidak aktif.
-// Ditaruh paling luar (sebelum requireDevice/requireAdmin/requireAPIKey)
-// karena pengecekannya cuma baca status di memori — murah dibanding
-// membuka sesi/DB dulu untuk kemudian tetap ditolak. Lihat
-// docs/superpowers/specs/2026-09-13-license-system-design.md §5.
+// requireLicense menolak request kalau lisensi instalasi ini tidak
+// operasional (aktif/akan berakhir). Ditaruh paling luar (sebelum
+// requireDevice/requireAdmin/requireAPIKey) karena pengecekannya cuma baca
+// file lokal di memori — murah dibanding membuka sesi/DB dulu untuk
+// kemudian tetap ditolak. Lihat
+// docs/superpowers/specs/2026-09-13-online-license-platform-design.md §7.
 func (a *API) requireLicense(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if a.license.Status != licensecheck.StatusActive {
+		lic := a.loadLicense()
+		if !lic.Status.Operational() {
 			a.writeError(w, http.StatusPaymentRequired,
-				"license_"+string(a.license.Status), licenseErrorMessage(a.license.Status))
+				"license_"+string(lic.Status), licenseErrorMessage(lic.Status))
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -25,9 +28,15 @@ func (a *API) requireLicense(next http.Handler) http.Handler {
 func licenseErrorMessage(status licensecheck.Status) string {
 	switch status {
 	case licensecheck.StatusMissing:
-		return "lisensi belum terpasang di instalasi ini"
+		return "lisensi belum diaktivasi di instalasi ini"
 	case licensecheck.StatusExpired:
 		return "lisensi instalasi ini sudah kedaluwarsa"
+	case licensecheck.StatusSuspended:
+		return "lisensi instalasi ini sedang disuspend"
+	case licensecheck.StatusRevoked:
+		return "lisensi instalasi ini sudah dicabut"
+	case licensecheck.StatusUnreachable:
+		return "instalasi ini sudah lama tidak berhasil menghubungi License Server"
 	case licensecheck.StatusInvalid:
 		return "lisensi instalasi ini tidak valid"
 	default:
@@ -36,39 +45,45 @@ func licenseErrorMessage(status licensecheck.Status) string {
 }
 
 type licenseJSON struct {
-	Customer      string `json:"customer,omitempty"`
-	Domain        string `json:"domain,omitempty"`
-	Plan          string `json:"plan,omitempty"`
-	IssuedAt      string `json:"issued_at,omitempty"`
-	ExpiresAt     string `json:"expires_at,omitempty"`
-	DaysRemaining *int   `json:"days_remaining,omitempty"`
-	Status        string `json:"status"`
-	Reason        string `json:"reason,omitempty"`
+	LicenseID      string `json:"license_id,omitempty"`
+	InstallationID string `json:"installation_id,omitempty"`
+	Customer       string `json:"customer,omitempty"`
+	Plan           string `json:"plan,omitempty"`
+	MaxDevices     int    `json:"max_devices,omitempty"`
+	IssuedAt       string `json:"issued_at,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
+	ValidatedAt    string `json:"validated_at,omitempty"`
+	DaysRemaining  *int   `json:"days_remaining,omitempty"`
+	Status         string `json:"status"`
+	Reason         string `json:"reason,omitempty"`
 }
+
+const dateOnlyLayout = "2006-01-02"
 
 // handleAdminLicense mengembalikan status lisensi instalasi ini. SENGAJA
 // tidak dibungkus requireLicense — admin harus selalu bisa melihat kenapa
-// lisensinya tidak aktif, bukan cuma saat aktif.
+// lisensinya tidak aktif, bukan cuma saat aktif. Read-only sepenuhnya:
+// tidak ada endpoint untuk mengetik license key di sini, itu lewat
+// LICENSE_KEY di .env (lihat internal/licenseclient dan §5 spec).
 func (a *API) handleAdminLicense(w http.ResponseWriter, r *http.Request) {
-	lic := a.license
+	lic := a.loadLicense()
 	out := licenseJSON{Status: string(lic.Status), Reason: lic.Reason}
 
-	// Detail lisensi (customer/domain/plan/tanggal) cuma ditampilkan kalau
-	// ada sesuatu yang benar-benar valid untuk ditunjukkan — active atau
-	// expired (signature dan domain sama-sama sudah lolos verifikasi,
-	// tinggal tanggalnya yang lewat). missing dan invalid tidak punya data
-	// yang bisa dipercaya untuk ditampilkan.
-	if lic.Status == licensecheck.StatusActive || lic.Status == licensecheck.StatusExpired {
+	// Detail cuma ditampilkan kalau ada sesuatu yang benar-benar valid
+	// untuk ditunjukkan (signature dan installation sudah lolos verifikasi)
+	// — missing dan invalid tidak punya data yang bisa dipercaya.
+	if lic.Status != licensecheck.StatusMissing && lic.Status != licensecheck.StatusInvalid {
+		out.LicenseID = lic.LicenseID
+		out.InstallationID = lic.InstallationID
 		out.Customer = lic.Customer
-		out.Domain = lic.Domain
 		out.Plan = lic.Plan
+		out.MaxDevices = lic.MaxDevices
 		out.IssuedAt = lic.IssuedAt.Format(dateOnlyLayout)
 		out.ExpiresAt = lic.ExpiresAt.Format(dateOnlyLayout)
+		out.ValidatedAt = lic.ValidatedAt.Format(time.RFC3339)
 		days := lic.DaysRemaining(a.now())
 		out.DaysRemaining = &days
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "license": out})
 }
-
-const dateOnlyLayout = "2006-01-02"

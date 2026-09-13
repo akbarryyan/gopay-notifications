@@ -9,10 +9,9 @@ import (
 	"time"
 )
 
-// GenerateKeyPair menghasilkan key pair Ed25519 baru untuk `licensetool
-// -genkey`. Dipanggil sekali saja seumur hidup produk ini kecuali terjadi
-// rotasi darurat (lihat spec §3) — bukan operasi yang dilakukan tiap
-// menerbitkan lisensi.
+// GenerateKeyPair menghasilkan key pair Ed25519 baru untuk License Server.
+// Dipanggil sekali saat setup awal (atau rotasi darurat) lewat
+// `licenseserver -genkey`, bukan operasi rutin.
 func GenerateKeyPair() (pub, priv []byte, err error) {
 	p, s, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -21,10 +20,25 @@ func GenerateKeyPair() (pub, priv []byte, err error) {
 	return p, s, nil
 }
 
-// Issue membangun isi berkas lisensi (dua baris: payload lalu signature)
-// yang ditandatangani dengan privKey. Dipakai oleh `licensetool -issue`,
-// dijalankan hanya di mesin Akbar.
-func Issue(privKeyBase64, customer, domain, plan string, issuedAt, expiresAt time.Time) (string, error) {
+// IssueInput adalah data satu local license state yang akan ditandatangani.
+// AdminStatus harus salah satu dari "active"/"suspended"/"revoked" — nilai
+// lain ditolak Load() di sisi verifikasi.
+type IssueInput struct {
+	LicenseID      string
+	InstallationID string
+	Customer       string
+	Plan           string
+	AdminStatus    string
+	MaxDevices     int
+	IssuedAt       time.Time
+	ExpiresAt      time.Time
+	ValidatedAt    time.Time
+}
+
+// Issue membangun local license state (dua baris: payload lalu signature)
+// yang ditandatangani dengan privKeyBase64. Dipakai HANYA oleh
+// internal/licenseserver, tiap kali menjawab /activate atau /validate.
+func Issue(privKeyBase64 string, in IssueInput) (string, error) {
 	privKey, err := base64.StdEncoding.DecodeString(privKeyBase64)
 	if err != nil {
 		return "", fmt.Errorf("licensecheck: private key bukan base64 yang sah: %w", err)
@@ -35,11 +49,15 @@ func Issue(privKeyBase64, customer, domain, plan string, issuedAt, expiresAt tim
 	}
 
 	p := payload{
-		Customer:  customer,
-		Domain:    domain,
-		Plan:      plan,
-		IssuedAt:  issuedAt.Format(dateLayout),
-		ExpiresAt: expiresAt.Format(dateLayout),
+		LicenseID:      in.LicenseID,
+		InstallationID: in.InstallationID,
+		Customer:       in.Customer,
+		Plan:           in.Plan,
+		AdminStatus:    in.AdminStatus,
+		MaxDevices:     in.MaxDevices,
+		IssuedAt:       in.IssuedAt.Format(dateLayout),
+		ExpiresAt:      in.ExpiresAt.Format(dateLayout),
+		ValidatedAt:    in.ValidatedAt.Format(time.RFC3339),
 	}
 	payloadBytes, err := json.Marshal(p)
 	if err != nil {

@@ -75,7 +75,7 @@ func newAPIWithDevice(t *testing.T) http.Handler {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
 }
 
 // signedRequest membuat request yang sudah ditandatangani dengan benar.

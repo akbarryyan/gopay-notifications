@@ -1,0 +1,24 @@
+[Unit]
+Description=GoPay Vendor Dashboard (Next.js, vendor-only)
+After=network.target gopay-licenseserver.service
+
+[Service]
+Type=simple
+User=gopay-license
+Group=gopay-license
+WorkingDirectory=/opt/gopay-license/vendor-dashboard
+Environment=NODE_ENV=production
+Environment=PORT=3010
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gopay-license/vendor-dashboard
+
+[Install]
+WantedBy=multi-user.target

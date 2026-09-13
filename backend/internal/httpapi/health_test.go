@@ -16,7 +16,7 @@ var fixedNow = time.Unix(1789036200, 0)
 func newTestAPI(t *testing.T) http.Handler {
 	t.Helper()
 	lic := licensecheck.License{Status: licensecheck.StatusActive}
-	return httpapi.New(nil, nil, nil, nil, lic, func() time.Time { return fixedNow }).Handler()
+	return httpapi.NewWithLicense(nil, nil, nil, nil, lic, func() time.Time { return fixedNow }).Handler()
 }
 
 func TestHealthReturnsOKAndServerTime(t *testing.T) {

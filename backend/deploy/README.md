@@ -74,9 +74,10 @@ tabel di atas dan pakai `.env.uat.example` serta
    `DEVICE_SECRET_KEY`, `ADMIN_SESSION_KEY`, dan `WEBHOOK_SECRET_KEY`
    sama-sama dihasilkan dengan `go run ./cmd/devicetool -genkey` — jalankan
    tiga kali untuk tiga nilai yang berbeda, jangan memakai hasil yang sama
-   untuk lebih dari satu. Isi juga `PUBLIC_DOMAIN` dengan domain sungguhan
-   instalasi ini — lihat §"Lisensi" di bawah, nilainya harus persis sama
-   dengan `domain` di file lisensi customer.
+   untuk lebih dari satu. `LICENSE_KEY` boleh dikosongkan dulu di langkah
+   ini — instalasi tetap menyala tanpanya, cuma `402` di endpoint
+   device/admin/API key sampai lisensi diaktifkan (lihat §"Lisensi" di
+   bawah).
 
    ```bash
    sudo chmod 600 /opt/gopay-ingestion/.env
@@ -175,40 +176,174 @@ Secret tidak akan ditampilkan lagi.
 ## Lisensi
 
 Rancangan lengkap di
-[`docs/superpowers/specs/2026-09-13-license-system-design.md`](../../docs/superpowers/specs/2026-09-13-license-system-design.md).
-Ringkasnya: tanpa file lisensi yang valid dan belum kedaluwarsa, backend
-tetap menyala tapi menolak `402` seluruh endpoint device/admin/API key —
-hanya login dan halaman `/license` dashboard yang tetap bisa dibuka.
+[`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](../../docs/superpowers/specs/2026-09-13-online-license-platform-design.md)
+(mengikuti [`docs/license-spec.md`](../../docs/license-spec.md), spec bisnis
+otoritatif). Model lama berbasis file lisensi offline yang ditandatangani
+manual lewat `licensetool` (spec
+[`2026-09-13-license-system-design.md`](../../docs/superpowers/specs/2026-09-13-license-system-design.md),
+SUPERSEDED) sudah **diganti total**, bukan sekadar diperluas — `licensetool`
+sudah dihapus dari repo.
 
-**`licensetool` HANYA dijalankan di laptop Akbar, tidak pernah di-build atau
-dikirim ke VPS customer** — beda dari `server`/`devicetool`/`admintool` di
-atas. Ia tidak butuh koneksi database sama sekali.
+Sekarang ada dua License Server dan Vendor Dashboard yang **hanya di-deploy
+sekali, milik vendor (Akbar), terpisah total dari instalasi customer
+manapun** — termasuk dari instalasi Akbar sendiri sebagai customer pertama
+di `whuzpay.com`. Tanpa lisensi aktif/akan-berakhir, backend customer tetap
+menyala tapi `requireLicense` menolak `402` seluruh endpoint device/admin/API
+key — hanya login dan halaman `/license` dashboard (read-only) yang tetap
+bisa dibuka.
 
-Sekali seumur produk (atau saat rotasi darurat kalau private key bocor):
+### A. Deploy License Server + Vendor Dashboard (sekali, infra vendor)
 
-```bash
-go run ./cmd/licensetool -genkey
-# Private Key: simpan HANYA di laptop ini, mis. ~/.gopay-license/private.key
-# Public Key : sudah dipasang di internal/licensecheck/license.go
-```
+Bedanya dari instalasi customer di atas: user sistem, direktori, database,
+dan domain sendiri — jangan dicampur dengan `/opt/gopay-ingestion`.
 
-Tiap kali menerbitkan atau memperpanjang lisensi customer:
+1. User sistem dan direktori:
 
-```bash
-go run ./cmd/licensetool -issue \
-  -key ~/.gopay-license/private.key \
-  -customer "Toko Contoh" -domain "whuzpay.com" \
-  -plan "Business" -expires "2027-09-13" \
-  -out license.lic
+   ```bash
+   sudo useradd --system --home /opt/gopay-license --shell /usr/sbin/nologin gopay-license
+   sudo mkdir -p /opt/gopay-license
+   sudo chown gopay-license:gopay-license /opt/gopay-license
+   ```
 
-scp license.lic <VPS>:/opt/gopay-ingestion/license.lic
-ssh <VPS> sudo systemctl restart gopay-ingestion
-```
+2. Database Postgres terpisah (`gopay_license`, bukan `gopay`/`gopay_uat`):
 
-`-domain` di sini **wajib** persis sama dengan `PUBLIC_DOMAIN` di `.env`
-instalasi tersebut — beda satu karakter pun (`https://` ikut ditulis,
-trailing slash, dsb.) akan membuat lisensi ditolak sebagai `invalid`
-meski tanda tangannya sah.
+   ```bash
+   sudo -u postgres createuser gopay_license --pwprompt
+   sudo -u postgres createdb gopay_license --owner gopay_license
+   goose -dir migrations-license postgres "$DATABASE_URL" up
+   ```
+
+3. Hasilkan `ADMIN_SESSION_KEY` (sesi dashboard vendor) dan pasangan kunci
+   penanda tangan Ed25519 — **pasangan ini beda dari tiga kunci backend
+   customer manapun**, dan private key-nya HANYA pernah ada di `.env`
+   License Server, tidak pernah di laptop atau di-commit:
+
+   ```bash
+   go run ./cmd/licenseserver -genkey
+   # cetak: ADMIN_SESSION_KEY, LICENSE_SIGNING_PRIVATE_KEY, LICENSE_SIGNING_PUBLIC_KEY
+   ```
+
+   Tempel `LICENSE_SIGNING_PUBLIC_KEY` ke konstanta
+   `licensePublicKeyBase64` di `internal/licensecheck/license.go`, commit —
+   **seluruh instalasi customer memakai public key yang sama ini** untuk
+   memverifikasi tanda tangan state lisensi lokalnya. Kalau public key
+   berubah (rotasi darurat), setiap instalasi customer wajib ikut rebuild
+   dengan binary baru.
+
+4. Isi `/opt/gopay-license/.env`:
+
+   ```env
+   DATABASE_URL=postgres://gopay_license:GANTI_PASSWORD@localhost:5432/gopay_license?sslmode=disable
+   LISTEN_ADDR=127.0.0.1:8095
+   ADMIN_SESSION_KEY=<dari -genkey>
+   LICENSE_SIGNING_PRIVATE_KEY=<dari -genkey>
+   ```
+
+5. Pasang unit systemd:
+
+   ```bash
+   sudo cp deploy/gopay-licenseserver.service /etc/systemd/system/
+   sudo cp deploy/gopay-vendor-dashboard.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable gopay-licenseserver gopay-vendor-dashboard
+   ```
+
+6. Build dan kirim `licenseserver` seperti `server`/`devicetool` di atas,
+   lalu `vendor-dashboard` dengan cara yang sama seperti `dashboard/`
+   (`output: "standalone"`, `npx next build`, salin `public/`+`.next/static`
+   manual):
+
+   ```bash
+   GOOS=linux GOARCH=amd64 go build -o licenseserver ./cmd/licenseserver
+   scp licenseserver VPS:/opt/gopay-license/
+   ssh VPS 'sudo chown gopay-license:gopay-license /opt/gopay-license/licenseserver \
+     && sudo chmod 755 /opt/gopay-license/licenseserver'
+
+   cd ../vendor-dashboard
+   npm ci && npx next build
+   cp -r public .next/standalone/
+   cp -r .next/static .next/standalone/.next/
+   scp -r .next/standalone/. VPS:/tmp/vendor-dashboard/
+   ssh VPS 'sudo rm -rf /opt/gopay-license/vendor-dashboard \
+     && sudo mv /tmp/vendor-dashboard /opt/gopay-license/vendor-dashboard \
+     && sudo chown -R gopay-license:gopay-license /opt/gopay-license/vendor-dashboard'
+
+   ssh VPS 'sudo systemctl start gopay-licenseserver gopay-vendor-dashboard'
+   ```
+
+7. Tambahkan blok baru di `Caddyfile` untuk subdomain vendor (mis.
+   `license.whuzpay.com`), sama polanya dengan blok domain customer:
+   `/api/*` ke `licenseserver` (port 8095), sisanya ke `vendor-dashboard`
+   (port 3010):
+
+   ```caddyfile
+   license.whuzpay.com {
+   	encode zstd gzip
+
+   	@api path /api/*
+   	handle @api {
+   		reverse_proxy 127.0.0.1:8095
+   	}
+
+   	handle {
+   		reverse_proxy 127.0.0.1:3010
+   	}
+
+   	log {
+   		output file /var/log/caddy/gopay-license.log
+   		format json
+   	}
+   }
+   ```
+
+   `sudo systemctl reload caddy` setelahnya.
+
+8. Buat akun admin vendor (interaktif, sekali per admin):
+
+   ```bash
+   cd /opt/gopay-license
+   sudo -u gopay-license env $(cat .env | xargs) ./licenseserver -create-admin akbar
+   ```
+
+   Login di `https://license.whuzpay.com`.
+
+### B. Menerbitkan/memperpanjang lisensi customer (tiap customer, lewat Vendor Dashboard)
+
+Tidak ada lagi CLI atau file `.lic` yang di-scp. Di Vendor Dashboard:
+
+1. Buat customer (nama + kontak) kalau belum ada.
+2. Di halaman customer, buat license — pilih plan (Starter/Business/
+   Enterprise, menentukan `max_devices`) dan tanggal kedaluwarsa. Dashboard
+   menampilkan **License Key sekali saja** saat dibuat (format
+   `PB-<PLAN>-XXXX-XXXX-XXXX`) — catat sebelum menutup dialog, tidak bisa
+   dilihat ulang (yang tersimpan di database cuma hash-nya).
+
+3. Kirim License Key ke customer. Di sisi customer (`/opt/gopay-ingestion/.env`
+   atau `.env.uat`), isi:
+
+   ```env
+   LICENSE_KEY=PB-BUSINESS-XXXX-XXXX-XXXX
+   ENVIRONMENT=production
+   LICENSE_SERVER_URL=https://license.whuzpay.com
+   ```
+
+   lalu `sudo systemctl restart gopay-ingestion` (atau `gopay-ingestion-uat`
+   untuk `ENVIRONMENT=uat`). Backend mengaktivasi otomatis saat start —
+   membuat baris `installations` baru yang terikat ke license ini, lalu
+   memvalidasi ulang tiap 24 jam. Tidak ada langkah manual lain di sisi
+   customer.
+
+4. Memperpanjang: buka license di Vendor Dashboard, klik Renew, isi tanggal
+   kedaluwarsa baru. Tidak perlu mengirim apa pun ke customer atau restart
+   backend mereka — validasi 24-jam berikutnya otomatis mengambil tanggal
+   baru. Suspend/Revoke bekerja sama: efeknya baru terlihat di customer
+   setelah siklus validasi berikutnya (atau setelah grace period 7 hari
+   habis, kalau License Server sedang tidak terjangkau customer itu).
+
+5. Reset installation (mis. customer pindah server/reinstall): buka license
+   di Vendor Dashboard, reset installation yang lama supaya kuota
+   `max_devices` terbuka lagi. Aktivasi berikutnya dari `.env` yang sama
+   akan membuat installation baru.
 
 ## Membangun aplikasi Android per varian
 

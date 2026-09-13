@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -77,7 +76,7 @@ func (a *API) ProcessDueWebhooks(ctx context.Context, now time.Time) error {
 	// lebih dulu, tapi ticker berkala di cmd/server berjalan terus terlepas
 	// dari ada tidaknya request masuk, jadi butuh pengecekannya sendiri di
 	// sini. Tidak di-log tiap tick — statusnya sudah terlihat di dashboard.
-	if a.license.Status != licensecheck.StatusActive {
+	if !a.loadLicense().Status.Operational() {
 		return nil
 	}
 

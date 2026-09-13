@@ -16,34 +16,52 @@ type API struct {
 	encKey            []byte
 	adminSessionKey   []byte
 	webhookSecretKey  []byte
-	license           licensecheck.License
+	loadLicense       func() licensecheck.License
 	now               func() time.Time
 	loginThrottle     *loginThrottle
 	webhookHTTPClient *http.Client
 }
 
 // New membuat API. Parameter now disuntikkan agar test dapat memalsukan jam.
-// license dimuat sekali saat start (lihat cmd/server/main.go) dan disimpan
-// di memori — mengganti file lisensi butuh restart proses, sama seperti
-// mengganti kunci-kunci lain di atas. Lihat
-// docs/superpowers/specs/2026-09-13-license-system-design.md.
+// licenseFilePath dibaca ULANG tiap request lewat requireLicense/handleAdminLicense
+// (internal/licensecheck.Load, cuma file 2 baris — murah), bukan dimuat
+// sekali ke memori: internal/licenseclient menulis file ini secara live
+// tiap 24 jam (dan sekali di awal saat startup), jadi status harus selalu
+// mencerminkan isi file TERBARU, bukan snapshot saat proses start. Lihat
+// docs/superpowers/specs/2026-09-13-online-license-platform-design.md.
 func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey []byte,
-	lic licensecheck.License, now func() time.Time) *API {
+	licenseFilePath string, now func() time.Time) *API {
 	if now == nil {
 		now = time.Now
 	}
-	return &API{
+	a := &API{
 		store:            s,
 		encKey:           encKey,
 		adminSessionKey:  adminSessionKey,
 		webhookSecretKey: webhookSecretKey,
-		license:          lic,
 		now:              now,
 		loginThrottle:    newLoginThrottle(),
 		// Timeout 10 detik sesuai spec §3.1 — server merchant yang lambat
 		// tidak boleh menahan worker webhook lebih lama dari itu.
 		webhookHTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
+	a.loadLicense = func() licensecheck.License { return licensecheck.Load(licenseFilePath, a.now()) }
+	return a
+}
+
+// NewWithLicense adalah HANYA untuk test: menyuntikkan status lisensi
+// langsung, melewati verifikasi signature/file sama sekali. Production
+// (New di atas) selalu memverifikasi file sungguhan terhadap public key
+// yang di-hardcode — private key pasangannya cuma ada di License Server,
+// tidak pernah ada di kode test manapun, jadi test TIDAK MUNGKIN membuat
+// file lisensi ber-signature valid. Tanpa jalur ini, seluruh test yang
+// tidak sedang menguji lisensi (device auth, admin, invoice, webhook) tidak
+// akan pernah bisa mendapat status "active".
+func NewWithLicense(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey []byte,
+	lic licensecheck.License, now func() time.Time) *API {
+	a := New(s, encKey, adminSessionKey, webhookSecretKey, "", now)
+	a.loadLicense = func() licensecheck.License { return lic }
+	return a
 }
 
 func (a *API) Handler() http.Handler {

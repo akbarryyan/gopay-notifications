@@ -12,3 +12,21 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+  # Database TERPISAH untuk License Server (internal/licenseserver) --
+  # schema sama sekali berbeda dari gopay_test di atas (customers, licenses,
+  # installations, bukan devices/events/invoices), sengaja container sendiri
+  # supaya tidak pernah tercampur walau cuma untuk test.
+  postgres-license:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gopay
+      POSTGRES_PASSWORD: gopay
+      POSTGRES_DB: gopay_license_test
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gopay"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

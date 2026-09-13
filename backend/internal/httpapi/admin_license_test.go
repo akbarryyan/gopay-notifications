@@ -54,7 +54,7 @@ func newAPIWithLicense(t *testing.T, lic licensecheck.License) (h http.Handler, 
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	handler := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), lic,
+	handler := httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), lic,
 		func() time.Time { return fixedNow }).Handler()
 	return handler, rawKey
 }
