@@ -280,7 +280,7 @@ func TestExpireInvoicesAndListNewlyExpiredHanyaSekaliPerInvoice(t *testing.T) {
 	ctx := context.Background()
 
 	past := time.Now().Add(-1 * time.Hour)
-	inv, _, err := s.CreateInvoice(ctx, past, "ORDER-expire-webhook", 30000)
+	inv, _, err := s.CreateInvoice(ctx, past, "acc_1", "ORDER-expire-webhook", 30000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}

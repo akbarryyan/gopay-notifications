@@ -15,12 +15,12 @@ func TestListExceptionsMengecualikanYangSudahCocok(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	inv, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 	eventWithAmount(t, s, "evt_cocok", inv.UniqueAmount)
-	if _, err := s.MatchEvent(ctx, now, "evt_cocok", &inv.UniqueAmount); err != nil {
+	if _, err := s.MatchEvent(ctx, now, "acc_1", "evt_cocok", &inv.UniqueAmount); err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func TestManualMatchEventBerhasilKeInvoicePending(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	inv, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestManualMatchEventBerhasilKeInvoicePending(t *testing.T) {
 		t.Fatalf("ManualMatchEvent: %v", err)
 	}
 
-	got, err := s.GetInvoiceByID(ctx, inv.ID)
+	got, err := s.GetInvoiceByID(ctx, "acc_1", inv.ID)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestManualMatchEventBerhasilKeInvoiceExpired(t *testing.T) {
 	ctx := context.Background()
 
 	past := time.Now().Add(-1 * time.Hour)
-	inv, _, err := s.CreateInvoice(ctx, past, "ORDER-telat", 50000)
+	inv, _, err := s.CreateInvoice(ctx, past, "acc_1", "ORDER-telat", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestManualMatchEventBerhasilKeInvoiceExpired(t *testing.T) {
 		t.Fatalf("ManualMatchEvent ke invoice EXPIRED: %v", err)
 	}
 
-	got, err := s.GetInvoiceByID(ctx, inv.ID)
+	got, err := s.GetInvoiceByID(ctx, "acc_1", inv.ID)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -165,12 +165,12 @@ func TestManualMatchEventGagalKeInvoicePaid(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	inv, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 	eventWithAmount(t, s, "evt_pertama", inv.UniqueAmount)
-	if _, err := s.MatchEvent(ctx, now, "evt_pertama", &inv.UniqueAmount); err != nil {
+	if _, err := s.MatchEvent(ctx, now, "acc_1", "evt_pertama", &inv.UniqueAmount); err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
 
@@ -187,11 +187,11 @@ func TestManualMatchEventGagalEventSudahDipakaiInvoiceLain(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	invA, _, err := s.CreateInvoice(ctx, now, "ORDER-A", 50000)
+	invA, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-A", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice A: %v", err)
 	}
-	invB, _, err := s.CreateInvoice(ctx, now, "ORDER-B", 70000)
+	invB, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-B", 70000)
 	if err != nil {
 		t.Fatalf("CreateInvoice B: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestManualMatchEventRaceHanyaSatuYangMenang(t *testing.T) {
 	const invoiceCount = 8
 	invoiceIDs := make([]string, invoiceCount)
 	for i := 0; i < invoiceCount; i++ {
-		inv, _, err := s.CreateInvoice(ctx, now, "ORDER-race-"+string(rune('a'+i)), int64(10000+i*1000))
+		inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-race-"+string(rune('a'+i)), int64(10000+i*1000))
 		if err != nil {
 			t.Fatalf("CreateInvoice #%d: %v", i, err)
 		}

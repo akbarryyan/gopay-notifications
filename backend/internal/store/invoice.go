@@ -37,6 +37,7 @@ var (
 
 type Invoice struct {
 	ID              string
+	AccountID       string
 	ExternalRef     string
 	RequestedAmount int64
 	UniqueAmount    int64
@@ -47,7 +48,7 @@ type Invoice struct {
 	PaidAt          *time.Time
 }
 
-const invoiceSelectCols = `SELECT id, external_ref, requested_amount, unique_amount,
+const invoiceSelectCols = `SELECT id, account_id, external_ref, requested_amount, unique_amount,
 	status, matched_event_id, created_at, expires_at, paid_at FROM invoices`
 
 type invoiceScanner interface {
@@ -56,7 +57,7 @@ type invoiceScanner interface {
 
 func scanInvoice(row invoiceScanner) (Invoice, error) {
 	var inv Invoice
-	err := row.Scan(&inv.ID, &inv.ExternalRef, &inv.RequestedAmount, &inv.UniqueAmount,
+	err := row.Scan(&inv.ID, &inv.AccountID, &inv.ExternalRef, &inv.RequestedAmount, &inv.UniqueAmount,
 		&inv.Status, &inv.MatchedEventID, &inv.CreatedAt, &inv.ExpiresAt, &inv.PaidAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Invoice{}, ErrInvoiceNotFound
@@ -133,12 +134,12 @@ func isUniqueViolation(err error, constraint string) bool {
 // dengan requested_amount yang SAMA, invoice yang sudah ada dikembalikan
 // (created=false) alih-alih membuat invoice kedua — retry jaringan dari sisi
 // merchant jadi aman. Bila requested_amount BEDA, ErrInvoiceRefConflict.
-func (s *Store) CreateInvoice(ctx context.Context, now time.Time, externalRef string, requestedAmount int64) (inv Invoice, created bool, err error) {
+func (s *Store) CreateInvoice(ctx context.Context, now time.Time, accountID, externalRef string, requestedAmount int64) (inv Invoice, created bool, err error) {
 	if err := s.expireStaleInvoices(ctx, now); err != nil {
 		return Invoice{}, false, err
 	}
 
-	existing, err := s.GetInvoiceByExternalRef(ctx, externalRef)
+	existing, err := s.GetInvoiceByExternalRef(ctx, accountID, externalRef)
 	switch {
 	case err == nil:
 		if existing.RequestedAmount == requestedAmount {
@@ -165,12 +166,13 @@ func (s *Store) CreateInvoice(ctx context.Context, now time.Time, externalRef st
 		uniqueAmount := requestedAmount + offset
 
 		_, err = s.pool.Exec(ctx,
-			`INSERT INTO invoices (id, external_ref, requested_amount, unique_amount, status, created_at, expires_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			id, externalRef, requestedAmount, uniqueAmount, InvoiceStatusPending, now, expiresAt)
+			`INSERT INTO invoices (id, account_id, external_ref, requested_amount, unique_amount, status, created_at, expires_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			id, accountID, externalRef, requestedAmount, uniqueAmount, InvoiceStatusPending, now, expiresAt)
 		if err == nil {
 			return Invoice{
 				ID:              id,
+				AccountID:       accountID,
 				ExternalRef:     externalRef,
 				RequestedAmount: requestedAmount,
 				UniqueAmount:    uniqueAmount,
@@ -180,12 +182,12 @@ func (s *Store) CreateInvoice(ctx context.Context, now time.Time, externalRef st
 			}, true, nil
 		}
 
-		if isUniqueViolation(err, "invoices_pending_unique_amount_idx") {
+		if isUniqueViolation(err, "invoices_account_pending_unique_amount_idx") {
 			continue // offset ini sedang dipakai invoice PENDING lain, coba lagi
 		}
-		if isUniqueViolation(err, "invoices_external_ref_idx") {
+		if isUniqueViolation(err, "invoices_account_external_ref_idx") {
 			// Race: request lain barusan membuat external_ref yang sama.
-			existing, ferr := s.GetInvoiceByExternalRef(ctx, externalRef)
+			existing, ferr := s.GetInvoiceByExternalRef(ctx, accountID, externalRef)
 			if ferr != nil {
 				return Invoice{}, false, ferr
 			}
@@ -212,7 +214,7 @@ func (s *Store) CreateInvoice(ctx context.Context, now time.Time, externalRef st
 // pernah string kosong, jadi ini pembeda yang aman tanpa perlu *string.
 // Dikembalikan (bukan cuma bool) supaya pemanggil (handleCallback) tahu
 // invoice mana yang harus dipicu webhook invoice.paid-nya.
-func (s *Store) MatchEvent(ctx context.Context, now time.Time, eventID string, amount *int64) (matchedInvoiceID string, err error) {
+func (s *Store) MatchEvent(ctx context.Context, now time.Time, accountID, eventID string, amount *int64) (matchedInvoiceID string, err error) {
 	if amount == nil {
 		return "", nil
 	}
@@ -222,9 +224,9 @@ func (s *Store) MatchEvent(ctx context.Context, now time.Time, eventID string, a
 
 	err = s.pool.QueryRow(ctx,
 		`UPDATE invoices SET status = $1, matched_event_id = $2, paid_at = $3
-		 WHERE status = $4 AND unique_amount = $5
+		 WHERE status = $4 AND unique_amount = $5 AND account_id = $6
 		 RETURNING id`,
-		InvoiceStatusPaid, eventID, now, InvoiceStatusPending, *amount).Scan(&matchedInvoiceID)
+		InvoiceStatusPaid, eventID, now, InvoiceStatusPending, *amount, accountID).Scan(&matchedInvoiceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
@@ -234,14 +236,16 @@ func (s *Store) MatchEvent(ctx context.Context, now time.Time, eventID string, a
 	return matchedInvoiceID, nil
 }
 
-// GetInvoiceByID mengambil satu invoice untuk GET /invoices/{id}.
-func (s *Store) GetInvoiceByID(ctx context.Context, id string) (Invoice, error) {
-	return scanInvoice(s.pool.QueryRow(ctx, invoiceSelectCols+` WHERE id = $1`, id))
+// GetInvoiceByID mengambil satu invoice untuk GET /invoices/{id}, dibatasi
+// account_id -- invoice milik akun lain diperlakukan sama seperti tidak ada.
+func (s *Store) GetInvoiceByID(ctx context.Context, accountID, id string) (Invoice, error) {
+	return scanInvoice(s.pool.QueryRow(ctx, invoiceSelectCols+` WHERE id = $1 AND account_id = $2`, id, accountID))
 }
 
 // GetInvoiceByExternalRef dipakai untuk pengecekan idempotency di CreateInvoice.
-func (s *Store) GetInvoiceByExternalRef(ctx context.Context, externalRef string) (Invoice, error) {
-	return scanInvoice(s.pool.QueryRow(ctx, invoiceSelectCols+` WHERE external_ref = $1`, externalRef))
+func (s *Store) GetInvoiceByExternalRef(ctx context.Context, accountID, externalRef string) (Invoice, error) {
+	return scanInvoice(s.pool.QueryRow(ctx,
+		invoiceSelectCols+` WHERE account_id = $1 AND external_ref = $2`, accountID, externalRef))
 }
 
 // InvoiceFilter menyaring ListInvoices. Field kosong/nil berarti tidak
@@ -258,13 +262,15 @@ type InvoiceFilter struct {
 
 // ListInvoices mengembalikan invoice terbaru lebih dulu, untuk halaman
 // Transactions di dashboard.
-func (s *Store) ListInvoices(ctx context.Context, limit, offset int, filter InvoiceFilter) ([]Invoice, error) {
+func (s *Store) ListInvoices(ctx context.Context, accountID string, limit, offset int, filter InvoiceFilter) ([]Invoice, error) {
 	query := invoiceSelectCols + ` WHERE 1 = 1`
 	var args []any
 	arg := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
+
+	query += " AND account_id = " + arg(accountID)
 
 	if len(filter.Statuses) > 0 {
 		query += " AND status = ANY(" + arg(filter.Statuses) + ")"

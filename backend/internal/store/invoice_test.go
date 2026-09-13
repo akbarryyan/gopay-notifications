@@ -20,9 +20,10 @@ func eventWithAmount(t *testing.T, s *store.Store, eventID string, amount int64)
 
 func TestCreateInvoiceMengalokasikanNominalUnik(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	now := time.Now()
 
-	inv, created, err := s.CreateInvoice(context.Background(), now, "ORDER-1", 50000)
+	inv, created, err := s.CreateInvoice(context.Background(), now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
@@ -42,10 +43,11 @@ func TestCreateInvoiceMengalokasikanNominalUnik(t *testing.T) {
 
 func TestCreateInvoiceExternalRefSamaAmountSamaIdempotent(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	now := time.Now()
 	ctx := context.Background()
 
-	first, created1, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	first, created1, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice pertama: %v", err)
 	}
@@ -53,7 +55,7 @@ func TestCreateInvoiceExternalRefSamaAmountSamaIdempotent(t *testing.T) {
 		t.Fatal("created pertama = false, mau true")
 	}
 
-	second, created2, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	second, created2, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice kedua: %v", err)
 	}
@@ -67,27 +69,46 @@ func TestCreateInvoiceExternalRefSamaAmountSamaIdempotent(t *testing.T) {
 
 func TestCreateInvoiceExternalRefSamaAmountBedaDitolak(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	now := time.Now()
 	ctx := context.Background()
 
-	if _, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000); err != nil {
+	if _, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000); err != nil {
 		t.Fatalf("CreateInvoice pertama: %v", err)
 	}
 
-	_, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 75000)
+	_, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 75000)
 	if err != store.ErrInvoiceRefConflict {
 		t.Fatalf("err = %v, mau ErrInvoiceRefConflict", err)
 	}
 }
 
+func TestExternalRefSamaBolehDiAkunBerbeda(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	now := time.Now()
+	ctx := context.Background()
+
+	_, created, err := s.CreateInvoice(ctx, now, "acc_a", "INV-001", 50000)
+	if err != nil || !created {
+		t.Fatalf("create invoice acc_a: created=%v err=%v", created, err)
+	}
+	_, created, err = s.CreateInvoice(ctx, now, "acc_b", "INV-001", 75000)
+	if err != nil || !created {
+		t.Fatalf("create invoice acc_b (external_ref sama, akun beda): created=%v err=%v", created, err)
+	}
+}
+
 func TestCreateInvoiceMenghindariTabrakanNominal(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	now := time.Now()
 	ctx := context.Background()
 
 	seen := map[int64]bool{}
 	for i := range 5 {
-		inv, _, err := s.CreateInvoice(ctx, now, "ORDER-"+string(rune('A'+i)), 50000)
+		inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-"+string(rune('A'+i)), 50000)
 		if err != nil {
 			t.Fatalf("CreateInvoice #%d: %v", i, err)
 		}
@@ -108,29 +129,42 @@ func TestCreateInvoiceMenghindariTabrakanNominal(t *testing.T) {
 // di invoice.go untuk alasan predicate index-nya).
 func TestCreateInvoiceMenulisTransisiExpiredSebelumAlokasi(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	ctx := context.Background()
 	now := time.Now()
 	past := now.Add(-1 * time.Hour)
 
 	_, err := s.Pool().Exec(ctx,
-		`INSERT INTO invoices (id, external_ref, requested_amount, unique_amount, status, created_at, expires_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		"inv_stale", "ORDER-lama", int64(50000), int64(50123), store.InvoiceStatusPending,
+		`INSERT INTO invoices (id, account_id, external_ref, requested_amount, unique_amount, status, created_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		"inv_stale", "acc_1", "ORDER-lama", int64(50000), int64(50123), store.InvoiceStatusPending,
 		past, past.Add(15*time.Minute))
 	if err != nil {
 		t.Fatalf("seed invoice stale: %v", err)
 	}
 
-	if _, _, err := s.CreateInvoice(ctx, now, "ORDER-baru", 20000); err != nil {
+	if _, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-baru", 20000); err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 
-	got, err := s.GetInvoiceByID(ctx, "inv_stale")
+	got, err := s.GetInvoiceByID(ctx, "acc_1", "inv_stale")
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
 	if got.Status != store.InvoiceStatusExpired {
 		t.Fatalf("Status invoice lama = %s, mau EXPIRED setelah CreateInvoice lain dipanggil", got.Status)
+	}
+}
+
+func TestGetInvoiceByIDMilikAccountLainDitolak(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	inv, _, _ := s.CreateInvoice(context.Background(), time.Now(), "acc_a", "INV-002", 50000)
+
+	_, err := s.GetInvoiceByID(context.Background(), "acc_b", inv.ID)
+	if err != store.ErrInvoiceNotFound {
+		t.Fatalf("err = %v, mau ErrInvoiceNotFound (invoice milik akun lain)", err)
 	}
 }
 
@@ -140,13 +174,13 @@ func TestMatchEventMenandaiInvoicePaid(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	inv, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 	eventWithAmount(t, s, "evt_match_1", inv.UniqueAmount)
 
-	matchedID, err := s.MatchEvent(ctx, now, "evt_match_1", &inv.UniqueAmount)
+	matchedID, err := s.MatchEvent(ctx, now, "acc_1", "evt_match_1", &inv.UniqueAmount)
 	if err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
@@ -154,7 +188,7 @@ func TestMatchEventMenandaiInvoicePaid(t *testing.T) {
 		t.Fatalf("matchedID = %q, mau %q", matchedID, inv.ID)
 	}
 
-	got, err := s.GetInvoiceByID(ctx, inv.ID)
+	got, err := s.GetInvoiceByID(ctx, "acc_1", inv.ID)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -171,16 +205,17 @@ func TestMatchEventMenandaiInvoicePaid(t *testing.T) {
 
 func TestMatchEventTidakCocokTidakMengubahApaPun(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	ctx := context.Background()
 	now := time.Now()
 
-	inv, _, err := s.CreateInvoice(ctx, now, "ORDER-1", 50000)
+	inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-1", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 
 	wrongAmount := inv.UniqueAmount + 1
-	matchedID, err := s.MatchEvent(ctx, now, "evt_tidak_cocok", &wrongAmount)
+	matchedID, err := s.MatchEvent(ctx, now, "acc_1", "evt_tidak_cocok", &wrongAmount)
 	if err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
@@ -188,7 +223,7 @@ func TestMatchEventTidakCocokTidakMengubahApaPun(t *testing.T) {
 		t.Fatalf("matchedID = %q, mau kosong — nominal tidak cocok invoice manapun", matchedID)
 	}
 
-	got, err := s.GetInvoiceByID(ctx, inv.ID)
+	got, err := s.GetInvoiceByID(ctx, "acc_1", inv.ID)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -199,9 +234,10 @@ func TestMatchEventTidakCocokTidakMengubahApaPun(t *testing.T) {
 
 func TestMatchEventAmountNilDilewati(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	ctx := context.Background()
 
-	matchedID, err := s.MatchEvent(ctx, time.Now(), "evt_tanpa_amount", nil)
+	matchedID, err := s.MatchEvent(ctx, time.Now(), "acc_1", "evt_tanpa_amount", nil)
 	if err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
@@ -220,7 +256,7 @@ func TestMatchEventRaceHanyaSatuYangMenang(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	inv, _, err := s.CreateInvoice(ctx, now, "ORDER-race", 50000)
+	inv, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-race", 50000)
 	if err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
@@ -248,7 +284,7 @@ func TestMatchEventRaceHanyaSatuYangMenang(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			matchedID, err := s.MatchEvent(ctx, now, eventIDs[i], &inv.UniqueAmount)
+			matchedID, err := s.MatchEvent(ctx, now, "acc_1", eventIDs[i], &inv.UniqueAmount)
 			if err != nil {
 				t.Errorf("MatchEvent: %v", err)
 				return
@@ -274,19 +310,19 @@ func TestListInvoicesFilterStatusDanQuery(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	inv1, _, err := s.CreateInvoice(ctx, now, "ORDER-cari-1", 10000)
+	inv1, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-cari-1", 10000)
 	if err != nil {
 		t.Fatalf("CreateInvoice 1: %v", err)
 	}
-	if _, _, err := s.CreateInvoice(ctx, now, "ORDER-lain-2", 20000); err != nil {
+	if _, _, err := s.CreateInvoice(ctx, now, "acc_1", "ORDER-lain-2", 20000); err != nil {
 		t.Fatalf("CreateInvoice 2: %v", err)
 	}
 	eventWithAmount(t, s, "evt_list_1", inv1.UniqueAmount)
-	if _, err := s.MatchEvent(ctx, now, "evt_list_1", &inv1.UniqueAmount); err != nil {
+	if _, err := s.MatchEvent(ctx, now, "acc_1", "evt_list_1", &inv1.UniqueAmount); err != nil {
 		t.Fatalf("MatchEvent: %v", err)
 	}
 
-	paid, err := s.ListInvoices(ctx, 50, 0, store.InvoiceFilter{Statuses: []string{store.InvoiceStatusPaid}})
+	paid, err := s.ListInvoices(ctx, "acc_1", 50, 0, store.InvoiceFilter{Statuses: []string{store.InvoiceStatusPaid}})
 	if err != nil {
 		t.Fatalf("ListInvoices status=PAID: %v", err)
 	}
@@ -294,11 +330,34 @@ func TestListInvoicesFilterStatusDanQuery(t *testing.T) {
 		t.Fatalf("ListInvoices status=PAID = %+v, mau 1 baris ORDER-cari-1", paid)
 	}
 
-	byQuery, err := s.ListInvoices(ctx, 50, 0, store.InvoiceFilter{Query: "cari"})
+	byQuery, err := s.ListInvoices(ctx, "acc_1", 50, 0, store.InvoiceFilter{Query: "cari"})
 	if err != nil {
 		t.Fatalf("ListInvoices q=cari: %v", err)
 	}
 	if len(byQuery) != 1 || byQuery[0].ExternalRef != "ORDER-cari-1" {
 		t.Fatalf("ListInvoices q=cari = %+v, mau 1 baris ORDER-cari-1", byQuery)
+	}
+}
+
+func TestListInvoicesHanyaMilikAccountSendiri(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	ctx := context.Background()
+	now := time.Now()
+
+	if _, _, err := s.CreateInvoice(ctx, now, "acc_a", "ORDER-a", 10000); err != nil {
+		t.Fatalf("CreateInvoice a: %v", err)
+	}
+	if _, _, err := s.CreateInvoice(ctx, now, "acc_b", "ORDER-b", 20000); err != nil {
+		t.Fatalf("CreateInvoice b: %v", err)
+	}
+
+	listA, err := s.ListInvoices(ctx, "acc_a", 50, 0, store.InvoiceFilter{})
+	if err != nil {
+		t.Fatalf("ListInvoices acc_a: %v", err)
+	}
+	if len(listA) != 1 || listA[0].ExternalRef != "ORDER-a" {
+		t.Fatalf("acc_a seharusnya cuma lihat ORDER-a, dapat: %+v", listA)
 	}
 }
