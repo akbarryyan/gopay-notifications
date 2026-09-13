@@ -34,8 +34,9 @@ type overviewResponse struct {
 }
 
 type dailyCountJSON struct {
-	Date  string `json:"date"`
-	Count int    `json:"count"`
+	Date         string `json:"date"`
+	Count        int    `json:"count"`
+	PaidAmountRp int64  `json:"paid_amount_rp"`
 }
 
 // overviewTrendDays adalah panjang grafik tren di Overview. 14 hari cukup
@@ -90,7 +91,9 @@ func (a *API) handleAdminOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Events.Daily = make([]dailyCountJSON, len(daily))
 	for i, d := range daily {
-		resp.Events.Daily[i] = dailyCountJSON{Date: d.Date.Format("2006-01-02"), Count: d.Count}
+		resp.Events.Daily[i] = dailyCountJSON{
+			Date: d.Date.Format("2006-01-02"), Count: d.Count, PaidAmountRp: d.PaidAmountRp,
+		}
 	}
 
 	resp.System.Backend = "operational"

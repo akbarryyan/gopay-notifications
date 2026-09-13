@@ -40,20 +40,27 @@ func (s *Store) EventStats(ctx context.Context, accountID string, now time.Time)
 	return st, nil
 }
 
-// DailyEventCount adalah satu titik pada grafik tren Overview.
+// DailyEventCount adalah satu titik pada grafik tren Overview -- dua
+// series sekaligus (jumlah event dan nominal diterima) supaya dashboard
+// bisa menampilkan grafik biaxial, dua skala yang jauh berbeda pada satu
+// sumbu waktu yang sama.
 type DailyEventCount struct {
-	Date  time.Time // tengah malam UTC hari itu
-	Count int
+	Date         time.Time // tengah malam UTC hari itu
+	Count        int
+	PaidAmountRp int64 // jumlah invoice yang lunas (paid_at) pada hari itu, dalam rupiah
 }
 
-// DailyEventCounts mengembalikan jumlah event per hari untuk `days` hari
-// terakhir (termasuk hari ini), hari tertua lebih dulu. Hari tanpa event ikut
-// disertakan dengan Count 0 — dihitung di Go, bukan mengandalkan SQL generate
-// seri tanggal — supaya grafik di dashboard tidak bolong pada hari sepi.
+// DailyEventCounts mengembalikan jumlah event DAN total nominal lunas per
+// hari untuk `days` hari terakhir (termasuk hari ini), hari tertua lebih
+// dulu. Hari tanpa event/pembayaran ikut disertakan dengan nilai 0 —
+// dihitung di Go, bukan mengandalkan SQL generate seri tanggal — supaya
+// grafik di dashboard tidak bolong pada hari sepi.
 //
-// Dikelompokkan lewat ingested_at (bukan received_at yang berasal dari
-// perangkat), selaras dengan EventStats — kejadian dihitung menurut kapan ia
-// benar-benar sampai di server, bukan jam HP pengirim yang bisa meleset.
+// Jumlah event dikelompokkan lewat ingested_at (bukan received_at yang
+// berasal dari perangkat), selaras dengan EventStats — kejadian dihitung
+// menurut kapan ia benar-benar sampai di server, bukan jam HP pengirim yang
+// bisa meleset. Nominal lunas dikelompokkan lewat paid_at (invoice bisa
+// dibuat satu hari dan baru lunas hari lain).
 func (s *Store) DailyEventCounts(ctx context.Context, accountID string, now time.Time, days int) ([]DailyEventCount, error) {
 	now = now.UTC()
 	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
@@ -82,10 +89,34 @@ func (s *Store) DailyEventCounts(ctx context.Context, accountID string, now time
 		return nil, fmt.Errorf("store: iterasi daily event counts: %w", err)
 	}
 
+	amountRows, err := s.pool.Query(ctx,
+		`SELECT date_trunc('day', paid_at AT TIME ZONE 'UTC') AS day, sum(requested_amount)
+		 FROM invoices
+		 WHERE paid_at >= $1 AND status = $2 AND account_id = $3
+		 GROUP BY day`, since, InvoiceStatusPaid, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("store: daily paid amount: %w", err)
+	}
+	defer amountRows.Close()
+
+	amounts := make(map[string]int64, days)
+	for amountRows.Next() {
+		var day time.Time
+		var sum int64
+		if err := amountRows.Scan(&day, &sum); err != nil {
+			return nil, fmt.Errorf("store: scan daily paid amount: %w", err)
+		}
+		amounts[day.Format("2006-01-02")] = sum
+	}
+	if err := amountRows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterasi daily paid amount: %w", err)
+	}
+
 	out := make([]DailyEventCount, days)
 	for i := range days {
 		d := since.AddDate(0, 0, i)
-		out[i] = DailyEventCount{Date: d, Count: counts[d.Format("2006-01-02")]}
+		key := d.Format("2006-01-02")
+		out[i] = DailyEventCount{Date: d, Count: counts[key], PaidAmountRp: amounts[key]}
 	}
 	return out, nil
 }

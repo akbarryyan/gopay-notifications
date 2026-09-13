@@ -94,8 +94,8 @@ export interface OverviewResponse {
     today: number;
     last_7_days: number;
     latest_at: string | null;
-    /** 14 hari terakhir, hari tertua lebih dulu, hari sepi ikut disertakan dengan count 0. */
-    daily: { date: string; count: number }[];
+    /** 14 hari terakhir, hari tertua lebih dulu, hari sepi ikut disertakan dengan count/paid_amount_rp 0. */
+    daily: { date: string; count: number; paid_amount_rp: number }[];
   };
   system: {
     backend: string;
