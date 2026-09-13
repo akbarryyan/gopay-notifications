@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useCallback, useState } from "react";
 import Link from "next/link";
 import { RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,8 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function LicenseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data, loading, error, reload } = useApiData(() => getLicenseDetail(id));
+  const fetcher = useCallback(() => getLicenseDetail(id), [id]);
+  const { data, loading, error, reload } = useApiData(fetcher);
 
   const [renewing, setRenewing] = useState(false);
   const [newExpiresAt, setNewExpiresAt] = useState("");

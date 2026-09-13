@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useCallback, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, Plus, RotateCw } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -42,7 +42,8 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data, loading, error, reload } = useApiData(() => getCustomerDetail(id));
+  const fetcher = useCallback(() => getCustomerDetail(id), [id]);
+  const { data, loading, error, reload } = useApiData(fetcher);
 
   const [creating, setCreating] = useState(false);
   const [plan, setPlan] = useState<LicensePlan>("Business");
