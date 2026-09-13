@@ -1,36 +1,44 @@
 "use client";
 
-import { AlertTriangle, RotateCw, ShieldCheck, ShieldOff, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, RotateCw, ShieldAlert, ShieldCheck, ShieldOff, ShieldQuestion } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLicense, type LicenseInfo, type LicenseStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
-import { formatDateOnly } from "@/lib/format";
-
-// Sinkron dengan licensecheck.WarningThresholdDays di backend — halaman ini
-// satu-satunya tempat yang perlu tahu angka ini.
-const WARNING_THRESHOLD_DAYS = 30;
+import { formatDateOnly, formatDateTime } from "@/lib/format";
 
 const STATUS_LABEL: Record<LicenseStatus, string> = {
   active: "Aktif",
+  expiring: "Akan berakhir",
   expired: "Kedaluwarsa",
+  suspended: "Disuspend",
+  revoked: "Dicabut",
+  missing: "Belum diaktivasi",
   invalid: "Tidak valid",
-  missing: "Belum terpasang",
+  unreachable: "Tidak terjangkau",
 };
 
-function StatusBadge({ status, daysRemaining }: { status: LicenseStatus; daysRemaining?: number }) {
-  if (status === "active" && daysRemaining !== undefined && daysRemaining <= WARNING_THRESHOLD_DAYS) {
-    return (
-      <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400">
-        Akan berakhir
-      </Badge>
-    );
-  }
+// Status yang masih dianggap operasional (endpoint lain tetap jalan) —
+// sinkron dengan licensecheck.Status.Operational() di backend. Type
+// predicate (bukan cuma boolean) supaya TypeScript ikut menyempitkan tipe
+// license.status di pemanggil setelah early-return.
+function isOperational(status: LicenseStatus): status is "active" | "expiring" {
+  return status === "active" || status === "expiring";
+}
+
+function StatusBadge({ status }: { status: LicenseStatus }) {
   if (status === "active") {
     return (
       <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+        {STATUS_LABEL[status]}
+      </Badge>
+    );
+  }
+  if (status === "expiring") {
+    return (
+      <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400">
         {STATUS_LABEL[status]}
       </Badge>
     );
@@ -52,41 +60,49 @@ function StatusBadge({ status, daysRemaining }: { status: LicenseStatus; daysRem
 function StatusIcon({ status }: { status: LicenseStatus }) {
   switch (status) {
     case "active":
+    case "expiring":
       return <ShieldCheck className="size-8 text-emerald-600 dark:text-emerald-400" />;
     case "missing":
       return <ShieldQuestion className="size-8 text-muted-foreground" />;
+    case "unreachable":
+      return <ShieldAlert className="size-8 text-red-600 dark:text-red-400" />;
     default:
       return <ShieldOff className="size-8 text-red-600 dark:text-red-400" />;
   }
 }
 
-function InactiveBanner({ license }: { license: LicenseInfo }) {
-  const explanation: Record<Exclude<LicenseStatus, "active">, string> = {
-    missing:
-      "Belum ada lisensi terpasang untuk instalasi ini. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini tidak akan berfungsi sampai lisensi terpasang.",
-    expired:
-      "Lisensi instalasi ini sudah kedaluwarsa. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini sedang tidak berfungsi sampai lisensi diperpanjang.",
-    invalid:
-      "Lisensi instalasi ini tidak valid. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini sedang tidak berfungsi sampai lisensi yang benar terpasang.",
-  };
+const INACTIVE_EXPLANATION: Record<Exclude<LicenseStatus, "active" | "expiring">, string> = {
+  missing:
+    "Lisensi belum diaktivasi di instalasi ini. Isi LICENSE_KEY di berkas .env, lalu restart layanan untuk mengaktivasi.",
+  expired:
+    "Lisensi instalasi ini sudah kedaluwarsa. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini sedang tidak berfungsi sampai lisensi diperpanjang.",
+  suspended:
+    "Lisensi instalasi ini sedang disuspend. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini sedang tidak berfungsi.",
+  revoked:
+    "Lisensi instalasi ini sudah dicabut. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini tidak akan berfungsi lagi.",
+  unreachable:
+    "Instalasi ini sudah lama tidak berhasil menghubungi server lisensi. Periksa koneksi keluar (outbound HTTPS) dari server ini.",
+  invalid:
+    "Lisensi instalasi ini tidak valid. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini sedang tidak berfungsi.",
+};
 
-  if (license.status === "active") return null;
+function InactiveBanner({ license }: { license: LicenseInfo }) {
+  if (isOperational(license.status)) return null;
 
   return (
     <Alert variant="destructive">
       <AlertTriangle className="size-4" />
       <AlertTitle>{STATUS_LABEL[license.status]}</AlertTitle>
       <AlertDescription>
-        {explanation[license.status]} Hubungi penyedia layanan kamu untuk memperpanjang atau
-        memperbaiki lisensi ini.
+        {INACTIVE_EXPLANATION[license.status]}
+        {license.status !== "missing" && " Hubungi penyedia layanan kamu untuk memperbaiki lisensi ini."}
       </AlertDescription>
     </Alert>
   );
 }
 
 function ExpiringWarning({ license }: { license: LicenseInfo }) {
-  if (license.status !== "active" || license.days_remaining === undefined) return null;
-  if (license.days_remaining > WARNING_THRESHOLD_DAYS) return null;
+  if (license.status !== "expiring" || license.days_remaining === undefined) return null;
 
   return (
     <Alert>
@@ -107,6 +123,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <span className="text-sm font-medium">{value}</span>
     </div>
   );
+}
+
+// Detail cuma ditampilkan untuk status yang punya data sungguhan untuk
+// ditunjukkan (signature & installation sudah lolos verifikasi) — sinkron
+// dengan handleAdminLicense di backend.
+function hasDetail(status: LicenseStatus): boolean {
+  return status !== "missing" && status !== "invalid";
 }
 
 export default function LicensePage() {
@@ -143,15 +166,15 @@ export default function LicensePage() {
             <div className="flex items-center gap-4">
               <StatusIcon status={data.status} />
               <div className="flex flex-col gap-1">
-                <StatusBadge status={data.status} daysRemaining={data.days_remaining} />
+                <StatusBadge status={data.status} />
                 {data.plan && <p className="text-lg font-semibold">{data.plan}</p>}
               </div>
             </div>
 
-            {(data.status === "active" || data.status === "expired") && (
+            {hasDetail(data.status) && (
               <div className="mt-6 border-t border-border/60 pt-2">
                 <DetailRow label="Customer" value={data.customer ?? "—"} />
-                <DetailRow label="Domain" value={data.domain ?? "—"} />
+                <DetailRow label="Installation ID" value={data.installation_id ?? "—"} />
                 <DetailRow
                   label="Diaktifkan"
                   value={data.issued_at ? formatDateOnly(data.issued_at) : "—"}
@@ -170,6 +193,10 @@ export default function LicensePage() {
                     }
                   />
                 )}
+                <DetailRow
+                  label="Validasi terakhir"
+                  value={data.validated_at ? formatDateTime(data.validated_at) : "—"}
+                />
               </div>
             )}
           </div>

@@ -371,20 +371,35 @@ export function dismissException(eventId: string, note?: string): Promise<{ succ
 
 // --- License -----------------------------------------------------------
 //
-// Lisensi offline (lihat docs/superpowers/specs/2026-09-13-license-system-design.md).
-// Endpoint ini SENGAJA tetap bisa dipanggil walau lisensi tidak aktif —
-// beda dari endpoint lain di file ini yang akan gagal dengan ApiError
-// (code "license_expired"/"license_missing"/"license_invalid", status 402)
-// bila lisensi tidak aktif.
+// Lisensi online (lihat
+// docs/superpowers/specs/2026-09-13-online-license-platform-design.md).
+// Aktivasi lewat LICENSE_KEY di .env + restart, BUKAN form di halaman ini —
+// halaman /license sepenuhnya read-only, konsisten dengan seluruh kunci
+// lain di proyek ini. Endpoint ini SENGAJA tetap bisa dipanggil walau
+// lisensi tidak aktif — beda dari endpoint lain di file ini yang akan
+// gagal dengan ApiError (code "license_expired"/"license_missing"/
+// "license_suspended"/"license_revoked"/"license_unreachable"/
+// "license_invalid", status 402) bila lisensi tidak aktif.
 
-export type LicenseStatus = "active" | "missing" | "invalid" | "expired";
+export type LicenseStatus =
+  | "active"
+  | "expiring"
+  | "expired"
+  | "suspended"
+  | "revoked"
+  | "missing"
+  | "invalid"
+  | "unreachable";
 
 export interface LicenseInfo {
+  license_id?: string;
+  installation_id?: string;
   customer?: string;
-  domain?: string;
   plan?: string;
+  max_devices?: number;
   issued_at?: string;
   expires_at?: string;
+  validated_at?: string;
   days_remaining?: number;
   status: LicenseStatus;
   reason?: string;
