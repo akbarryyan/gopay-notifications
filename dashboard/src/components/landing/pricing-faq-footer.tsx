@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { ArrowRight, Check, Zap } from "lucide-react";
 
-function Eyebrow({ children }: { children: string }) {
+function Eyebrow({ children, invert }: { children: string; invert?: boolean }) {
   return (
-    <span className="text-xs font-semibold tracking-widest text-teal-600 uppercase">
+    <span
+      className={`inline-flex items-center justify-center gap-2 text-xs font-semibold tracking-widest uppercase ${
+        invert ? "text-teal-400" : "text-teal-700"
+      }`}
+    >
+      <span className={`h-px w-4 ${invert ? "bg-teal-400/60" : "bg-teal-700/40"}`} />
       {children}
+      <span className={`h-px w-4 ${invert ? "bg-teal-400/60" : "bg-teal-700/40"}`} />
     </span>
   );
 }
@@ -36,8 +42,8 @@ export function DashboardPreviewSection() {
             Semua transaksi, satu layar.
           </h2>
         </div>
-        <div className="mt-12 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl shadow-slate-900/5">
-          <div className="flex items-center gap-1.5 border-b border-slate-100 px-4 py-3">
+        <div className="mt-12 overflow-hidden rounded-2xl bg-white shadow-xl shadow-slate-900/5 ring-1 ring-slate-900/6">
+          <div className="flex items-center gap-1.5 border-b border-slate-100/80 px-4 py-3">
             <span className="size-2.5 rounded-full bg-red-300" />
             <span className="size-2.5 rounded-full bg-amber-300" />
             <span className="size-2.5 rounded-full bg-teal-400" />
@@ -60,7 +66,7 @@ export function DashboardPreviewSection() {
                   className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
                 >
                   <span className="flex items-center gap-2 text-slate-700">
-                    <Check className="size-3.5 text-teal-600" />
+                    <Check className="size-3.5 text-teal-700" />
                     Pembayaran diterima
                   </span>
                   <span className="font-mono text-xs text-slate-400">{r.amount}</span>
@@ -115,14 +121,17 @@ export function PricingSection() {
               key={plan.name}
               className={
                 plan.highlight
-                  ? "flex flex-col rounded-2xl bg-teal-600 p-6 text-white shadow-xl shadow-teal-600/20 transition-transform duration-300 hover:-translate-y-4 sm:-translate-y-3"
-                  : "flex flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5"
+                  ? "relative flex flex-col overflow-hidden rounded-2xl bg-slate-900 p-6 text-white shadow-xl shadow-slate-900/20 ring-1 ring-slate-900/10 transition-transform duration-300 hover:-translate-y-4 sm:-translate-y-3"
+                  : "flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5 hover:ring-slate-900/10"
               }
             >
               {plan.highlight && (
-                <span className="mb-2 w-fit rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">
-                  Direkomendasikan
-                </span>
+                <>
+                  <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-teal-400" />
+                  <span className="mb-2 w-fit rounded-md bg-teal-400/15 px-2.5 py-1 text-xs font-semibold text-teal-300 ring-1 ring-teal-400/20">
+                    Direkomendasikan
+                  </span>
+                </>
               )}
               <p className={`text-lg font-semibold ${plan.highlight ? "text-white" : "text-slate-900"}`}>
                 {plan.name}
@@ -135,15 +144,15 @@ export function PricingSection() {
               </p>
               <ul className={`mt-4 flex flex-col gap-2 text-sm ${plan.highlight ? "text-white/80" : "text-slate-500"}`}>
                 <li className="flex items-center gap-2">
-                  <Check className={`size-4 ${plan.highlight ? "text-white" : "text-teal-600"}`} />
+                  <Check className={`size-4 ${plan.highlight ? "text-teal-300" : "text-teal-700"}`} />
                   Webhook & retry
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className={`size-4 ${plan.highlight ? "text-white" : "text-teal-600"}`} />
+                  <Check className={`size-4 ${plan.highlight ? "text-teal-300" : "text-teal-700"}`} />
                   Dashboard realtime
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className={`size-4 ${plan.highlight ? "text-white" : "text-teal-600"}`} />
+                  <Check className={`size-4 ${plan.highlight ? "text-teal-300" : "text-teal-700"}`} />
                   Konsol pengecualian
                 </li>
               </ul>
@@ -151,8 +160,8 @@ export function PricingSection() {
                 href="/register"
                 className={
                   plan.highlight
-                    ? "mt-6 flex h-10 items-center justify-center rounded-full bg-white text-sm font-semibold text-teal-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
-                    : "mt-6 flex h-10 items-center justify-center rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
+                    ? "mt-6 flex h-10 items-center justify-center rounded-lg bg-teal-400 text-sm font-semibold text-slate-900 transition-all duration-200 hover:bg-teal-300 active:scale-[0.97]"
+                    : "mt-6 flex h-10 items-center justify-center rounded-lg text-sm font-medium text-slate-700 ring-1 ring-slate-900/10 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
                 }
               >
                 Mulai Gratis 3 Hari
@@ -217,7 +226,7 @@ export function FaqSection() {
             Pertanyaan yang sering ditanyakan.
           </h2>
         </div>
-        <div className="mt-10 flex flex-col divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white">
+        <div className="mt-10 flex flex-col divide-y divide-slate-100 rounded-2xl bg-white ring-1 ring-slate-900/6">
           {FAQS.map((faq) => (
             <details key={faq.q} className="group px-5 py-4 open:pb-4">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-slate-900 transition-colors duration-200 marker:content-none hover:text-teal-700">
@@ -255,14 +264,14 @@ export function FinalCtaSection() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/register"
-            className="group flex h-11 items-center gap-1.5 rounded-full bg-teal-500 px-5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-400 hover:shadow-lg hover:shadow-teal-500/20 active:translate-y-0 active:scale-[0.97]"
+            className="group flex h-11 items-center gap-1.5 rounded-lg bg-teal-400 px-5 text-sm font-semibold text-slate-900 transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-300 hover:shadow-lg hover:shadow-teal-400/20 active:translate-y-0 active:scale-[0.97]"
           >
             Mulai Gratis 3 Hari
             <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </Link>
           <a
             href="#fitur"
-            className="flex h-11 items-center rounded-full border border-white/20 px-5 text-sm font-medium text-white/80 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/5"
+            className="flex h-11 items-center rounded-lg px-5 text-sm font-medium text-white/80 ring-1 ring-white/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/5"
           >
             Lihat Fitur
           </a>
@@ -283,7 +292,7 @@ export function LandingFooter() {
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 font-semibold text-slate-900">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-slate-900 text-white">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-slate-900 text-white ring-1 ring-slate-900/10">
                 <Zap className="size-3.5" fill="currentColor" strokeWidth={0} />
               </span>
               Payment Bridge

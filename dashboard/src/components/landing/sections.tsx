@@ -15,9 +15,14 @@ import {
   Zap,
 } from "lucide-react";
 
-function Eyebrow({ children }: { children: string }) {
+function Eyebrow({ children, invert }: { children: string; invert?: boolean }) {
   return (
-    <span className="text-xs font-semibold tracking-widest text-teal-600 uppercase">
+    <span
+      className={`inline-flex items-center gap-2 text-xs font-semibold tracking-widest uppercase ${
+        invert ? "text-teal-400" : "text-teal-700"
+      }`}
+    >
+      <span className={`h-px w-4 ${invert ? "bg-teal-400/60" : "bg-teal-700/40"}`} />
       {children}
     </span>
   );
@@ -68,7 +73,7 @@ export function ProblemSection() {
           <div className="mt-10 grid gap-8 border-t border-slate-200 pt-8 sm:grid-cols-3">
             {EXPERIENCE_POINTS.map((point) => (
               <div key={point.title} className="group flex flex-col gap-2">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-white text-teal-600 shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-white text-teal-700 shadow-sm ring-1 ring-slate-900/6 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
                   <point.icon className="size-4.5" />
                 </span>
                 <p className="text-sm font-semibold text-slate-900">{point.title}</p>
@@ -108,7 +113,7 @@ export function HowItWorksSection() {
   return (
     <section id="cara-kerja" className="bg-slate-900 py-20 text-white sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <Eyebrow>Cara kerja</Eyebrow>
+        <Eyebrow invert>Cara kerja</Eyebrow>
         <h2 className="font-(--font-lp-heading) mt-3 max-w-md text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
           Dari notifikasi sampai ke sistem kamu.
         </h2>
@@ -197,9 +202,9 @@ function FeatureCard({
 }) {
   return (
     <div
-      className={`group rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5 ${className ?? ""}`}
+      className={`group rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5 hover:ring-slate-900/10 ${className ?? ""}`}
     >
-      <span className="mb-4 flex size-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600 transition-colors duration-300 group-hover:bg-teal-100">
+      <span className="mb-4 flex size-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700 ring-1 ring-teal-700/10 transition-colors duration-300 group-hover:bg-teal-100">
         <Icon className="size-5" />
       </span>
       <p className="text-sm font-semibold text-slate-900">{title}</p>
@@ -235,8 +240,8 @@ export function ArchitectureSection() {
         <div className="mx-auto mt-10 flex max-w-sm flex-col items-center">
           {layers.map((layer, i) => (
             <div key={layer.label} className="flex w-full flex-col items-center">
-              <div className="group flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all duration-300 hover:-translate-x-0.5 hover:shadow-md">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-teal-50 text-teal-600 transition-colors duration-300 group-hover:bg-teal-100">
+              <div className="group flex w-full items-center gap-3 rounded-xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-900/6 transition-all duration-300 hover:-translate-x-0.5 hover:shadow-md hover:ring-slate-900/10">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700 ring-1 ring-teal-700/10 transition-colors duration-300 group-hover:bg-teal-100">
                   <layer.icon className="size-4.5" />
                 </span>
                 <span className="text-sm font-semibold text-slate-900">{layer.label}</span>
@@ -301,9 +306,9 @@ export function UseCasesSection() {
           {USE_CASES.map((uc) => (
             <div
               key={uc.title}
-              className="rounded-2xl border border-slate-100 bg-slate-50 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-teal-100 hover:bg-white hover:shadow-md"
+              className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-900/6 transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-md hover:ring-teal-700/15"
             >
-              <uc.icon className="mb-3 size-5 text-teal-600" />
+              <uc.icon className="mb-3 size-5 text-teal-700" />
               <p className="text-sm font-semibold text-slate-900">{uc.title}</p>
               <p className="mt-1 text-sm text-slate-500">{uc.desc}</p>
             </div>
