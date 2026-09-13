@@ -11,48 +11,52 @@ var sessionKey = []byte("session-key-untuk-test")
 
 func TestSessionTokenValidLangsungSetelahDibuat(t *testing.T) {
 	now := time.Unix(1789200000, 0)
-	token := auth.NewSessionToken(sessionKey, now)
+	token := auth.NewSessionToken(sessionKey, now, "acc_test")
 
-	if !auth.VerifySessionToken(sessionKey, token, now) {
+	subject, ok := auth.VerifySessionToken(sessionKey, token, now)
+	if !ok {
 		t.Fatal("token yang baru dibuat seharusnya valid")
+	}
+	if subject != "acc_test" {
+		t.Fatalf("subject = %q, mau %q", subject, "acc_test")
 	}
 }
 
 func TestSessionTokenValidSelamaBelumKedaluwarsa(t *testing.T) {
 	now := time.Unix(1789200000, 0)
-	token := auth.NewSessionToken(sessionKey, now)
+	token := auth.NewSessionToken(sessionKey, now, "acc_test")
 
 	nantiTapiMasihDalamMasaBerlaku := now.Add(auth.SessionDuration - time.Minute)
-	if !auth.VerifySessionToken(sessionKey, token, nantiTapiMasihDalamMasaBerlaku) {
+	if _, ok := auth.VerifySessionToken(sessionKey, token, nantiTapiMasihDalamMasaBerlaku); !ok {
 		t.Fatal("token seharusnya masih valid sebelum kedaluwarsa")
 	}
 }
 
 func TestSessionTokenKedaluwarsaDitolak(t *testing.T) {
 	now := time.Unix(1789200000, 0)
-	token := auth.NewSessionToken(sessionKey, now)
+	token := auth.NewSessionToken(sessionKey, now, "acc_test")
 
 	setelahKedaluwarsa := now.Add(auth.SessionDuration + time.Minute)
-	if auth.VerifySessionToken(sessionKey, token, setelahKedaluwarsa) {
+	if _, ok := auth.VerifySessionToken(sessionKey, token, setelahKedaluwarsa); ok {
 		t.Fatal("token yang sudah kedaluwarsa seharusnya ditolak")
 	}
 }
 
 func TestSessionTokenKunciSalahDitolak(t *testing.T) {
 	now := time.Unix(1789200000, 0)
-	token := auth.NewSessionToken(sessionKey, now)
+	token := auth.NewSessionToken(sessionKey, now, "acc_test")
 
-	if auth.VerifySessionToken([]byte("kunci-lain"), token, now) {
+	if _, ok := auth.VerifySessionToken([]byte("kunci-lain"), token, now); ok {
 		t.Fatal("token dengan kunci verifikasi yang salah seharusnya ditolak")
 	}
 }
 
 func TestSessionTokenYangDiubahDitolak(t *testing.T) {
 	now := time.Unix(1789200000, 0)
-	token := auth.NewSessionToken(sessionKey, now)
+	token := auth.NewSessionToken(sessionKey, now, "acc_test")
 
 	diubah := token[:len(token)-1] + "x"
-	if auth.VerifySessionToken(sessionKey, diubah, now) {
+	if _, ok := auth.VerifySessionToken(sessionKey, diubah, now); ok {
 		t.Fatal("token yang tanda tangannya diubah seharusnya ditolak")
 	}
 }
@@ -60,9 +64,24 @@ func TestSessionTokenYangDiubahDitolak(t *testing.T) {
 func TestSessionTokenSampahDitolakTanpaCrash(t *testing.T) {
 	now := time.Unix(1789200000, 0)
 
-	for _, sampah := range []string{"", "tanpa-titik", ".", "abc.def", "123", "123."} {
-		if auth.VerifySessionToken(sessionKey, sampah, now) {
+	for _, sampah := range []string{"", "tanpa-titik", ".", "abc.def", "123", "123.", "acc_x:abc.sig"} {
+		if _, ok := auth.VerifySessionToken(sessionKey, sampah, now); ok {
 			t.Fatalf("token sampah %q seharusnya ditolak", sampah)
 		}
+	}
+}
+
+func TestSessionTokenDuaSubjectBerbeda(t *testing.T) {
+	now := time.Unix(1789200000, 0)
+	tokenA := auth.NewSessionToken(sessionKey, now, "acc_a")
+	tokenB := auth.NewSessionToken(sessionKey, now, "acc_b")
+
+	subjectA, ok := auth.VerifySessionToken(sessionKey, tokenA, now)
+	if !ok || subjectA != "acc_a" {
+		t.Fatalf("tokenA: subject=%q ok=%v, mau acc_a/true", subjectA, ok)
+	}
+	subjectB, ok := auth.VerifySessionToken(sessionKey, tokenB, now)
+	if !ok || subjectB != "acc_b" {
+		t.Fatalf("tokenB: subject=%q ok=%v, mau acc_b/true", subjectB, ok)
 	}
 }
