@@ -24,6 +24,7 @@ func sampleEvent(eventID string) store.Event {
 	amount := int64(1)
 	return store.Event{
 		EventID:     eventID,
+		AccountID:   "acc_1",
 		DeviceID:    "dev_01ABC",
 		Source:      "gopay",
 		PackageName: "com.gojek.gopay",
@@ -139,7 +140,7 @@ func TestListEventsNewestFirst(t *testing.T) {
 		}
 	}
 
-	got, err := s.ListEvents(ctx, 2, 0, store.EventFilter{})
+	got, err := s.ListEvents(ctx, "acc_1", 2, 0, store.EventFilter{})
 	if err != nil {
 		t.Fatalf("ListEvents: %v", err)
 	}
@@ -148,5 +149,35 @@ func TestListEventsNewestFirst(t *testing.T) {
 	}
 	if got[0].EventID != "evt_3" {
 		t.Fatalf("event pertama = %s, mau evt_3 (terbaru dulu)", got[0].EventID)
+	}
+}
+
+func TestListEventsHanyaMilikAccountSendiri(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	mustCreateDevice(t, s, "acc_a", "dev_a1", "HP A1")
+	mustCreateDevice(t, s, "acc_b", "dev_b1", "HP B1")
+
+	evtA := sampleEvent("evt_a1")
+	evtA.AccountID = "acc_a"
+	evtA.DeviceID = "dev_a1"
+	evtB := sampleEvent("evt_b1")
+	evtB.AccountID = "acc_b"
+	evtB.DeviceID = "dev_b1"
+
+	if _, err := s.InsertEvent(context.Background(), evtA); err != nil {
+		t.Fatalf("insert evtA: %v", err)
+	}
+	if _, err := s.InsertEvent(context.Background(), evtB); err != nil {
+		t.Fatalf("insert evtB: %v", err)
+	}
+
+	listA, err := s.ListEvents(context.Background(), "acc_a", 10, 0, store.EventFilter{})
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if len(listA) != 1 || listA[0].EventID != "evt_a1" {
+		t.Fatalf("acc_a seharusnya cuma lihat evt_a1, dapat: %+v", listA)
 	}
 }

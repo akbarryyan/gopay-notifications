@@ -7,13 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
-
-func isForeignKeyViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23503"
-}
 
 var (
 	// ErrInvoiceNotEligibleForMatch: invoice tidak ditemukan, atau sudah
@@ -42,15 +36,16 @@ type ExceptionFilter struct {
 // direferensikan invoice manapun sebagai matched_event_id, dan belum pernah
 // di-dismiss — "exception" dihitung lewat query, bukan status yang
 // disimpan, supaya tidak ada dua sumber kebenaran yang bisa tidak sinkron.
-func (s *Store) ListExceptions(ctx context.Context, limit, offset int, filter ExceptionFilter) ([]Event, error) {
-	query := `SELECT e.event_id, e.device_id, e.source, e.package_name,
+func (s *Store) ListExceptions(ctx context.Context, accountID string, limit, offset int, filter ExceptionFilter) ([]Event, error) {
+	query := `SELECT e.event_id, e.account_id, e.device_id, e.source, e.package_name,
 	                 e.title, e.body_text, e.big_text, e.amount_hint,
 	                 e.posted_at, e.received_at, e.raw_payload
 	          FROM notification_events e
-	          WHERE e.amount_hint IS NOT NULL
+	          WHERE e.account_id = $1
+	            AND e.amount_hint IS NOT NULL
 	            AND NOT EXISTS (SELECT 1 FROM invoices i WHERE i.matched_event_id = e.event_id)
 	            AND NOT EXISTS (SELECT 1 FROM event_reviews r WHERE r.event_id = e.event_id)`
-	var args []any
+	args := []any{accountID}
 	arg := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
@@ -77,7 +72,7 @@ func (s *Store) ListExceptions(ctx context.Context, limit, offset int, filter Ex
 	out := make([]Event, 0)
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.EventID, &e.DeviceID, &e.Source, &e.PackageName,
+		if err := rows.Scan(&e.EventID, &e.AccountID, &e.DeviceID, &e.Source, &e.PackageName,
 			&e.Title, &e.BodyText, &e.BigText, &e.AmountHint,
 			&e.PostedAt, &e.ReceivedAt, &e.RawPayload); err != nil {
 			return nil, fmt.Errorf("store: scan exception: %w", err)
@@ -95,13 +90,18 @@ func (s *Store) ListExceptions(ctx context.Context, limit, offset int, filter Ex
 // id invoice, bukan nominal. Invoice boleh PENDING atau EXPIRED (customer
 // bayar telat adalah kasus paling umum yang justru butuh konsol ini) —
 // tidak boleh PAID, supaya tidak menimpa yang sudah lunas.
-func (s *Store) ManualMatchEvent(ctx context.Context, now time.Time, invoiceID, eventID string) error {
+// ManualMatchEvent hanya boleh mencocokkan invoice dan event yang SAMA-SAMA
+// milik accountID ini -- EXISTS di bawah memastikan event_id yang dipakai
+// benar-benar milik account yang sama dengan invoice-nya, bukan event
+// account lain yang kebetulan ID-nya diketahui/ditebak.
+func (s *Store) ManualMatchEvent(ctx context.Context, now time.Time, accountID, invoiceID, eventID string) error {
 	var id string
 	err := s.pool.QueryRow(ctx,
 		`UPDATE invoices SET status = $1, matched_event_id = $2, paid_at = $3
-		 WHERE id = $4 AND status IN ($5, $6)
+		 WHERE id = $4 AND account_id = $5 AND status IN ($6, $7)
+		   AND EXISTS (SELECT 1 FROM notification_events ne WHERE ne.event_id = $2 AND ne.account_id = $5)
 		 RETURNING id`,
-		InvoiceStatusPaid, eventID, now, invoiceID, InvoiceStatusPending, InvoiceStatusExpired).
+		InvoiceStatusPaid, eventID, now, invoiceID, accountID, InvoiceStatusPending, InvoiceStatusExpired).
 		Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrInvoiceNotEligibleForMatch
@@ -118,17 +118,25 @@ func (s *Store) ManualMatchEvent(ctx context.Context, now time.Time, invoiceID, 
 // DismissEvent menandai event sebagai sengaja diabaikan — tidak akan
 // muncul lagi di ListExceptions. Tidak ada "undo", konsisten dengan pola
 // tidak-ada-un-revoke di seluruh sistem ini (API key, webhook).
-func (s *Store) DismissEvent(ctx context.Context, eventID string, note *string) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO event_reviews (event_id, note) VALUES ($1, $2)`, eventID, note)
+//
+// INSERT ... SELECT ... WHERE EXISTS (bukan INSERT polos) memastikan
+// event_id yang didismiss benar-benar milik accountID ini -- 0 baris
+// ter-affect berarti event tidak ada ATAU milik account lain, keduanya
+// dilaporkan sama sebagai ErrEventNotFound.
+func (s *Store) DismissEvent(ctx context.Context, accountID, eventID string, note *string) error {
+	tag, err := s.pool.Exec(ctx,
+		`INSERT INTO event_reviews (event_id, account_id, note)
+		 SELECT $1, $2, $3
+		 WHERE EXISTS (SELECT 1 FROM notification_events WHERE event_id = $1 AND account_id = $2)`,
+		eventID, accountID, note)
 	if isUniqueViolation(err, "event_reviews_pkey") {
 		return ErrEventAlreadyDismissed
 	}
-	if isForeignKeyViolation(err) {
-		return ErrEventNotFound
-	}
 	if err != nil {
 		return fmt.Errorf("store: dismiss event: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrEventNotFound
 	}
 	return nil
 }

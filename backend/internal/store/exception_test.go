@@ -24,7 +24,7 @@ func TestListExceptionsMengecualikanYangSudahCocok(t *testing.T) {
 		t.Fatalf("MatchEvent: %v", err)
 	}
 
-	got, err := s.ListExceptions(ctx, 50, 0, store.ExceptionFilter{})
+	got, err := s.ListExceptions(ctx, "acc_1", 50, 0, store.ExceptionFilter{})
 	if err != nil {
 		t.Fatalf("ListExceptions: %v", err)
 	}
@@ -41,11 +41,11 @@ func TestListExceptionsMengecualikanYangSudahDismiss(t *testing.T) {
 	ctx := context.Background()
 
 	eventWithAmount(t, s, "evt_diabaikan", 12345)
-	if err := s.DismissEvent(ctx, "evt_diabaikan", nil); err != nil {
+	if err := s.DismissEvent(ctx, "acc_1", "evt_diabaikan", nil); err != nil {
 		t.Fatalf("DismissEvent: %v", err)
 	}
 
-	got, err := s.ListExceptions(ctx, 50, 0, store.ExceptionFilter{})
+	got, err := s.ListExceptions(ctx, "acc_1", 50, 0, store.ExceptionFilter{})
 	if err != nil {
 		t.Fatalf("ListExceptions: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestListExceptionsMenampilkanYangBelumCocok(t *testing.T) {
 
 	eventWithAmount(t, s, "evt_belum_cocok", 99999)
 
-	got, err := s.ListExceptions(ctx, 50, 0, store.ExceptionFilter{})
+	got, err := s.ListExceptions(ctx, "acc_1", 50, 0, store.ExceptionFilter{})
 	if err != nil {
 		t.Fatalf("ListExceptions: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestListExceptionsMengecualikanAmountHintNil(t *testing.T) {
 		t.Fatalf("InsertEvent: %v", err)
 	}
 
-	got, err := s.ListExceptions(ctx, 50, 0, store.ExceptionFilter{})
+	got, err := s.ListExceptions(ctx, "acc_1", 50, 0, store.ExceptionFilter{})
 	if err != nil {
 		t.Fatalf("ListExceptions: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestManualMatchEventBerhasilKeInvoicePending(t *testing.T) {
 	// skenario khas konsol pengecualian: customer salah ketik nominal.
 	eventWithAmount(t, s, "evt_manual", inv.UniqueAmount+7)
 
-	if err := s.ManualMatchEvent(ctx, now, inv.ID, "evt_manual"); err != nil {
+	if err := s.ManualMatchEvent(ctx, now, "acc_1", inv.ID, "evt_manual"); err != nil {
 		t.Fatalf("ManualMatchEvent: %v", err)
 	}
 
@@ -146,7 +146,7 @@ func TestManualMatchEventBerhasilKeInvoiceExpired(t *testing.T) {
 	}
 	eventWithAmount(t, s, "evt_telat", inv.UniqueAmount)
 
-	if err := s.ManualMatchEvent(ctx, now, inv.ID, "evt_telat"); err != nil {
+	if err := s.ManualMatchEvent(ctx, now, "acc_1", inv.ID, "evt_telat"); err != nil {
 		t.Fatalf("ManualMatchEvent ke invoice EXPIRED: %v", err)
 	}
 
@@ -175,7 +175,7 @@ func TestManualMatchEventGagalKeInvoicePaid(t *testing.T) {
 	}
 
 	eventWithAmount(t, s, "evt_kedua", 11111)
-	err = s.ManualMatchEvent(ctx, now, inv.ID, "evt_kedua")
+	err = s.ManualMatchEvent(ctx, now, "acc_1", inv.ID, "evt_kedua")
 	if err != store.ErrInvoiceNotEligibleForMatch {
 		t.Fatalf("err = %v, mau ErrInvoiceNotEligibleForMatch (invoice sudah PAID)", err)
 	}
@@ -197,11 +197,11 @@ func TestManualMatchEventGagalEventSudahDipakaiInvoiceLain(t *testing.T) {
 	}
 	eventWithAmount(t, s, "evt_rebutan", 12345)
 
-	if err := s.ManualMatchEvent(ctx, now, invA.ID, "evt_rebutan"); err != nil {
+	if err := s.ManualMatchEvent(ctx, now, "acc_1", invA.ID, "evt_rebutan"); err != nil {
 		t.Fatalf("ManualMatchEvent pertama: %v", err)
 	}
 
-	err = s.ManualMatchEvent(ctx, now, invB.ID, "evt_rebutan")
+	err = s.ManualMatchEvent(ctx, now, "acc_1", invB.ID, "evt_rebutan")
 	if err != store.ErrEventAlreadyMatched {
 		t.Fatalf("err = %v, mau ErrEventAlreadyMatched", err)
 	}
@@ -240,7 +240,7 @@ func TestManualMatchEventRaceHanyaSatuYangMenang(t *testing.T) {
 		go func(invoiceID string) {
 			defer wg.Done()
 			<-start
-			if err := s.ManualMatchEvent(ctx, now, invoiceID, "evt_direbut"); err == nil {
+			if err := s.ManualMatchEvent(ctx, now, "acc_1", invoiceID, "evt_direbut"); err == nil {
 				mu.Lock()
 				matched++
 				mu.Unlock()
@@ -262,7 +262,7 @@ func TestDismissEventBerhasil(t *testing.T) {
 	eventWithAmount(t, s, "evt_abaikan", 22222)
 
 	note := "transfer pribadi, bukan order"
-	if err := s.DismissEvent(ctx, "evt_abaikan", &note); err != nil {
+	if err := s.DismissEvent(ctx, "acc_1", "evt_abaikan", &note); err != nil {
 		t.Fatalf("DismissEvent: %v", err)
 	}
 }
@@ -273,10 +273,10 @@ func TestDismissEventDuaKaliDitolak(t *testing.T) {
 	ctx := context.Background()
 	eventWithAmount(t, s, "evt_abaikan_2x", 33333)
 
-	if err := s.DismissEvent(ctx, "evt_abaikan_2x", nil); err != nil {
+	if err := s.DismissEvent(ctx, "acc_1", "evt_abaikan_2x", nil); err != nil {
 		t.Fatalf("DismissEvent pertama: %v", err)
 	}
-	err := s.DismissEvent(ctx, "evt_abaikan_2x", nil)
+	err := s.DismissEvent(ctx, "acc_1", "evt_abaikan_2x", nil)
 	if err != store.ErrEventAlreadyDismissed {
 		t.Fatalf("err = %v, mau ErrEventAlreadyDismissed", err)
 	}
@@ -284,8 +284,29 @@ func TestDismissEventDuaKaliDitolak(t *testing.T) {
 
 func TestDismissEventTidakDitemukan(t *testing.T) {
 	s := testStore(t)
-	err := s.DismissEvent(context.Background(), "evt_tidak_pernah_ada", nil)
+	seedAccount(t, s, "acc_1")
+	err := s.DismissEvent(context.Background(), "acc_1", "evt_tidak_pernah_ada", nil)
 	if err != store.ErrEventNotFound {
 		t.Fatalf("err = %v, mau ErrEventNotFound", err)
+	}
+}
+
+func TestDismissEventMilikAccountLainDitolak(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	mustCreateDevice(t, s, "acc_a", "dev_a1", "HP A1")
+
+	evt := sampleEvent("evt_milik_a")
+	evt.AccountID = "acc_a"
+	evt.DeviceID = "dev_a1"
+	if _, err := s.InsertEvent(ctx, evt); err != nil {
+		t.Fatalf("insert event: %v", err)
+	}
+
+	err := s.DismissEvent(ctx, "acc_b", "evt_milik_a", nil)
+	if err != store.ErrEventNotFound {
+		t.Fatalf("err = %v, mau ErrEventNotFound (event milik akun lain)", err)
 	}
 }

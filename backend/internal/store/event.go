@@ -8,6 +8,7 @@ import (
 
 type Event struct {
 	EventID     string
+	AccountID   string
 	DeviceID    string
 	Source      string
 	PackageName string
@@ -28,12 +29,12 @@ type Event struct {
 func (s *Store) InsertEvent(ctx context.Context, e Event) (bool, error) {
 	tag, err := s.pool.Exec(ctx,
 		`INSERT INTO notification_events
-		   (event_id, device_id, source, package_name,
+		   (event_id, account_id, device_id, source, package_name,
 		    title, body_text, big_text, amount_hint,
 		    posted_at, received_at, raw_payload)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		 ON CONFLICT (event_id) DO NOTHING`,
-		e.EventID, e.DeviceID, e.Source, e.PackageName,
+		e.EventID, e.AccountID, e.DeviceID, e.Source, e.PackageName,
 		e.Title, e.BodyText, e.BigText, e.AmountHint,
 		e.PostedAt, e.ReceivedAt, e.RawPayload)
 	if err != nil {
@@ -52,13 +53,13 @@ type EventFilter struct {
 }
 
 // ListEvents mengembalikan event terbaru lebih dulu.
-func (s *Store) ListEvents(ctx context.Context, limit, offset int, filter EventFilter) ([]Event, error) {
-	query := `SELECT event_id, device_id, source, package_name,
+func (s *Store) ListEvents(ctx context.Context, accountID string, limit, offset int, filter EventFilter) ([]Event, error) {
+	query := `SELECT event_id, account_id, device_id, source, package_name,
 	                 title, body_text, big_text, amount_hint,
 	                 posted_at, received_at, raw_payload
 	          FROM notification_events
-	          WHERE 1 = 1`
-	var args []any
+	          WHERE account_id = $1`
+	args := []any{accountID}
 	arg := func(v any) string {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
@@ -88,7 +89,7 @@ func (s *Store) ListEvents(ctx context.Context, limit, offset int, filter EventF
 	var out []Event
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.EventID, &e.DeviceID, &e.Source, &e.PackageName,
+		if err := rows.Scan(&e.EventID, &e.AccountID, &e.DeviceID, &e.Source, &e.PackageName,
 			&e.Title, &e.BodyText, &e.BigText, &e.AmountHint,
 			&e.PostedAt, &e.ReceivedAt, &e.RawPayload); err != nil {
 			return nil, fmt.Errorf("store: scan event: %w", err)
