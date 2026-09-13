@@ -27,7 +27,15 @@ tabel di atas dan pakai `.env.uat.example` serta
 
 ## Sekali di awal
 
-1. Pasang PostgreSQL 16 dan Caddy.
+1. Pasang PostgreSQL 16, Caddy, dan **Node.js 20 LTS** (dipakai untuk
+   menjalankan dashboard — Next.js 16 butuh Node 20+):
+
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+   node -v   # pastikan v20.x atau lebih baru
+   ```
+
 2. Buat user sistem dan direktori:
 
    ```bash
@@ -54,19 +62,23 @@ tabel di atas dan pakai `.env.uat.example` serta
    sudo chown gopay:gopay /opt/gopay-ingestion/.env
    ```
 
-5. Pasang unit systemd:
+5. Pasang unit systemd untuk backend **dan** dashboard:
 
    ```bash
    sudo cp deploy/gopay-ingestion.service /etc/systemd/system/
+   sudo cp deploy/gopay-dashboard.service /etc/systemd/system/
    sudo systemctl daemon-reload
-   sudo systemctl enable gopay-ingestion
+   sudo systemctl enable gopay-ingestion gopay-dashboard
    ```
 
 6. Isi `Caddyfile` dengan domain sungguhan dan hash basic auth
    (`caddy hash-password`), lalu salin ke `/etc/caddy/Caddyfile` dan
-   `sudo systemctl reload caddy`.
+   `sudo systemctl reload caddy`. Caddyfile yang sudah disiapkan merutekan
+   `/api/*` ke backend (port 8080) dan sisanya ke dashboard (port 3000) —
+   satu domain, tanpa CORS, persis seperti yang diasumsikan
+   `dashboard/README.md`.
 
-## Tiap rilis
+## Tiap rilis — backend
 
 ```bash
 GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
@@ -85,6 +97,36 @@ Migrasi dijalankan terpisah:
 ```bash
 goose -dir migrations postgres "$DATABASE_URL" up
 ```
+
+## Tiap rilis — dashboard
+
+`output: "standalone"` di `dashboard/next.config.ts` membuat `next build`
+menghasilkan server Node yang berdiri sendiri di `.next/standalone` —
+lengkap dengan subset `node_modules` yang benar-benar dipakai. VPS tidak
+pernah perlu `npm install`.
+
+```bash
+cd dashboard
+npm ci
+npx next build
+
+# .next/standalone TIDAK menyertakan aset statis (public/, .next/static)
+# secara default — disalin manual ke dalamnya sebelum dikirim.
+cp -r public .next/standalone/
+cp -r .next/static .next/standalone/.next/
+
+scp -r .next/standalone/. VPS:/tmp/dashboard/
+ssh VPS 'sudo systemctl stop gopay-dashboard \
+  && sudo rm -rf /opt/gopay-ingestion/dashboard \
+  && sudo mv /tmp/dashboard /opt/gopay-ingestion/dashboard \
+  && sudo chown -R gopay:gopay /opt/gopay-ingestion/dashboard \
+  && sudo systemctl start gopay-dashboard'
+```
+
+Dashboard produksi **tidak butuh** `.env.local` atau `BACKEND_URL` sama
+sekali — itu cuma dipakai `next dev` di laptop. Di belakang Caddy, dashboard
+tidak pernah memanggil backend lewat rewrite-nya sendiri; browser yang
+memanggil `/api/*` langsung, dan Caddy yang merutekannya ke backend.
 
 ## Membuat device untuk HP
 
@@ -150,3 +192,16 @@ curl -s -o /dev/null -w '%{http_code}\n' "http://$D/api/v1/health"              
 Satu pemeriksaan tambahan yang membuktikan pemisahannya nyata: ambil Device ID
 dan Secret dari **UAT**, lalu coba kirim ke **produksi**. Harus ditolak
 `401 invalid_signature`.
+
+Khusus dashboard (produksi saja, UAT belum dipasang):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "https://GANTI-DOMAIN.com/"        # mau 200 atau 307 (redirect ke /login)
+curl -s -o /dev/null -w '%{http_code}\n' "https://GANTI-DOMAIN.com/login"   # mau 200
+```
+
+`307` untuk `/` berarti `proxy.ts` benar mengalihkan karena belum ada cookie
+sesi — itu tanda dashboard-nya sendiri sudah jalan, bukan error. Buka
+`https://GANTI-DOMAIN.com/login` di browser sungguhan dan coba login dengan
+akun yang dibuat lewat `admintool` (§"Membuat akun admin dashboard" di
+atas) untuk verifikasi penuh.

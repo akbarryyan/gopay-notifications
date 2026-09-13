@@ -6,6 +6,11 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8090";
 
 const nextConfig: NextConfig = {
+  // Menghasilkan .next/standalone: server Node minimal + subset node_modules
+  // yang benar-benar dipakai, tanpa perlu `npm install` di VPS sama sekali.
+  // Krusial untuk model self-hosted ini — tiap customer akan melakukan
+  // deploy yang sama, jadi makin sederhana langkahnya makin baik.
+  output: "standalone",
   async rewrites() {
     return [
       {

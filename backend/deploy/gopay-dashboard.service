@@ -1,0 +1,24 @@
+[Unit]
+Description=Payment Bridge dashboard (Next.js)
+After=network.target gopay-ingestion.service
+
+[Service]
+Type=simple
+User=gopay
+Group=gopay
+WorkingDirectory=/opt/gopay-ingestion/dashboard
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gopay-ingestion/dashboard
+
+[Install]
+WantedBy=multi-user.target

@@ -2,14 +2,32 @@
 GANTI-DOMAIN.com {
 	encode zstd gzip
 
-	# /events dilindungi basic auth — ini yang dibuka di browser.
-	# Hash dibuat dengan: caddy hash-password
+	# /events dilindungi basic auth — ini untuk dibuka manual di browser
+	# untuk verifikasi (lihat docs/api-contract.md §7), BUKAN dipakai
+	# dashboard (dashboard punya sesi cookie sendiri lewat requireAdmin).
+	# handle di sini dan handle @api di bawah saling eksklusif dan dicek
+	# berurutan, jadi path /api/v1/events selalu kena basic_auth duluan,
+	# tidak pernah ikut tembus ke reverse_proxy /api/* yang polos.
 	@events path /api/v1/events*
-	basic_auth @events {
-		admin GANTI_HASH_BCRYPT_PRODUKSI
+	handle @events {
+		basic_auth {
+			admin GANTI_HASH_BCRYPT_PRODUKSI
+		}
+		reverse_proxy 127.0.0.1:8080
 	}
 
-	reverse_proxy 127.0.0.1:8080
+	# Sisa /api/* (device, admin dashboard, invoice, webhook) ke backend Go.
+	@api path /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	# Apa pun selain /api/* ke dashboard Next.js — satu origin, tanpa CORS,
+	# persis seperti yang diasumsikan dashboard/README.md dan
+	# dashboard/src/proxy.ts.
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
 
 	log {
 		output file /var/log/caddy/gopay.log
@@ -18,6 +36,9 @@ GANTI-DOMAIN.com {
 }
 
 # UAT — layanan, database, dan DEVICE_SECRET_KEY terpisah dari produksi.
+# Dashboard UAT belum dipasang di sini — tambahkan blok "handle" yang sama
+# dengan port dashboard UAT-nya sendiri (mis. 127.0.0.1:3001) kalau nanti
+# dibutuhkan.
 uat.GANTI-DOMAIN.com {
 	encode zstd gzip
 
