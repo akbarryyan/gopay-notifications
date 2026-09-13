@@ -31,7 +31,7 @@ export function LandingNavbar() {
             <a
               key={link.href}
               href={link.href}
-              className="rounded-full px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              className="rounded-full px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-900"
             >
               {link.label}
             </a>
@@ -41,13 +41,13 @@ export function LandingNavbar() {
         <div className="hidden items-center gap-2 md:flex">
           <Link
             href="/login"
-            className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+            className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-slate-900"
           >
             Masuk
           </Link>
           <Link
             href="/register"
-            className="rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-teal-500/30 transition-colors hover:bg-teal-600"
+            className="rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-teal-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-600 hover:shadow-md hover:shadow-teal-500/40 active:translate-y-0 active:scale-[0.97]"
           >
             Daftar
           </Link>
@@ -72,7 +72,7 @@ export function LandingNavbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-900"
                 >
                   {link.label}
                 </a>
@@ -81,14 +81,14 @@ export function LandingNavbar() {
                 <Link
                   href="/login"
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-center text-sm font-medium text-slate-700"
+                  className="rounded-full border border-slate-200 px-4 py-2 text-center text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-slate-50"
                 >
                   Masuk
                 </Link>
                 <Link
                   href="/register"
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-full bg-teal-500 px-4 py-2 text-center text-sm font-semibold text-white"
+                  className="rounded-full bg-teal-500 px-4 py-2 text-center text-sm font-semibold text-white transition-colors duration-200 hover:bg-teal-600"
                 >
                   Daftar
                 </Link>

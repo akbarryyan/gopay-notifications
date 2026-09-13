@@ -115,8 +115,8 @@ export function PricingSection() {
               key={plan.name}
               className={
                 plan.highlight
-                  ? "flex flex-col rounded-2xl bg-teal-600 p-6 text-white shadow-xl shadow-teal-600/20 sm:-translate-y-3"
-                  : "flex flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
+                  ? "flex flex-col rounded-2xl bg-teal-600 p-6 text-white shadow-xl shadow-teal-600/20 transition-transform duration-300 hover:-translate-y-4 sm:-translate-y-3"
+                  : "flex flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5"
               }
             >
               {plan.highlight && (
@@ -151,8 +151,8 @@ export function PricingSection() {
                 href="/register"
                 className={
                   plan.highlight
-                    ? "mt-6 flex h-10 items-center justify-center rounded-full bg-white text-sm font-semibold text-teal-700 transition-colors hover:bg-slate-50"
-                    : "mt-6 flex h-10 items-center justify-center rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    ? "mt-6 flex h-10 items-center justify-center rounded-full bg-white text-sm font-semibold text-teal-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
+                    : "mt-6 flex h-10 items-center justify-center rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
                 }
               >
                 Mulai Gratis 3 Hari
@@ -220,13 +220,15 @@ export function FaqSection() {
         <div className="mt-10 flex flex-col divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white">
           {FAQS.map((faq) => (
             <details key={faq.q} className="group px-5 py-4 open:pb-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-slate-900 marker:content-none">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-slate-900 transition-colors duration-200 marker:content-none hover:text-teal-700">
                 {faq.q}
-                <span className="shrink-0 text-slate-400 transition-transform group-open:rotate-45">
+                <span className="shrink-0 text-slate-400 transition-transform duration-300 group-open:rotate-45">
                   +
                 </span>
               </summary>
-              <p className="mt-3 text-sm text-slate-500">{faq.a}</p>
+              <p className="animate-in fade-in-0 slide-in-from-top-1 mt-3 text-sm text-slate-500 duration-300">
+                {faq.a}
+              </p>
             </details>
           ))}
         </div>
@@ -253,14 +255,14 @@ export function FinalCtaSection() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/register"
-            className="flex h-11 items-center gap-1.5 rounded-full bg-teal-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-teal-400"
+            className="group flex h-11 items-center gap-1.5 rounded-full bg-teal-500 px-5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-400 hover:shadow-lg hover:shadow-teal-500/20 active:translate-y-0 active:scale-[0.97]"
           >
             Mulai Gratis 3 Hari
-            <ArrowRight className="size-4" />
+            <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </Link>
           <a
             href="#fitur"
-            className="flex h-11 items-center rounded-full border border-white/20 px-5 text-sm font-medium text-white/80 transition-colors hover:bg-white/5"
+            className="flex h-11 items-center rounded-full border border-white/20 px-5 text-sm font-medium text-white/80 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/5"
           >
             Lihat Fitur
           </a>
@@ -297,16 +299,16 @@ export function LandingFooter() {
               <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
                 Produk
               </p>
-              <a href="#fitur" className="text-sm text-slate-500 hover:text-slate-900">
+              <a href="#fitur" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
                 Fitur
               </a>
-              <a href="#cara-kerja" className="text-sm text-slate-500 hover:text-slate-900">
+              <a href="#cara-kerja" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
                 Cara Kerja
               </a>
-              <a href="#harga" className="text-sm text-slate-500 hover:text-slate-900">
+              <a href="#harga" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
                 Harga
               </a>
-              <a href="#faq" className="text-sm text-slate-500 hover:text-slate-900">
+              <a href="#faq" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
                 FAQ
               </a>
             </div>
@@ -314,10 +316,10 @@ export function LandingFooter() {
               <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
                 Akun
               </p>
-              <Link href="/login" className="text-sm text-slate-500 hover:text-slate-900">
+              <Link href="/login" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
                 Masuk
               </Link>
-              <Link href="/register" className="text-sm text-slate-500 hover:text-slate-900">
+              <Link href="/register" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
                 Daftar
               </Link>
             </div>

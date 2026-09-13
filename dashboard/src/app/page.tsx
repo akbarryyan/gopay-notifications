@@ -1,5 +1,6 @@
 import { LandingNavbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArchitectureSection,
   FeaturesSection,
@@ -21,15 +22,33 @@ export default function LandingPage() {
       <LandingNavbar />
       <main className="flex-1">
         <Hero />
-        <ProblemSection />
-        <HowItWorksSection />
-        <FeaturesSection />
-        <ArchitectureSection />
-        <DashboardPreviewSection />
-        <UseCasesSection />
-        <PricingSection />
-        <FaqSection />
-        <FinalCtaSection />
+        <Reveal>
+          <ProblemSection />
+        </Reveal>
+        <Reveal>
+          <HowItWorksSection />
+        </Reveal>
+        <Reveal>
+          <FeaturesSection />
+        </Reveal>
+        <Reveal>
+          <ArchitectureSection />
+        </Reveal>
+        <Reveal>
+          <DashboardPreviewSection />
+        </Reveal>
+        <Reveal>
+          <UseCasesSection />
+        </Reveal>
+        <Reveal>
+          <PricingSection />
+        </Reveal>
+        <Reveal>
+          <FaqSection />
+        </Reveal>
+        <Reveal>
+          <FinalCtaSection />
+        </Reveal>
       </main>
       <LandingFooter />
     </div>

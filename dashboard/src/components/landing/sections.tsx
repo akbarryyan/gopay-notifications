@@ -67,8 +67,8 @@ export function ProblemSection() {
 
           <div className="mt-10 grid gap-8 border-t border-slate-200 pt-8 sm:grid-cols-3">
             {EXPERIENCE_POINTS.map((point) => (
-              <div key={point.title} className="flex flex-col gap-2">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-white text-teal-600 shadow-sm">
+              <div key={point.title} className="group flex flex-col gap-2">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-white text-teal-600 shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
                   <point.icon className="size-4.5" />
                 </span>
                 <p className="text-sm font-semibold text-slate-900">{point.title}</p>
@@ -117,7 +117,7 @@ export function HowItWorksSection() {
           {STEPS.map((step, i) => (
             <div
               key={step.title}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6"
+              className="rounded-2xl border border-white/10 bg-white/5 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/10"
             >
               <span className="text-4xl font-semibold text-white/15">
                 {String(i + 1).padStart(2, "0")}
@@ -197,9 +197,9 @@ function FeatureCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-slate-100 bg-white p-6 shadow-sm ${className ?? ""}`}
+      className={`group rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5 ${className ?? ""}`}
     >
-      <span className="mb-4 flex size-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+      <span className="mb-4 flex size-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600 transition-colors duration-300 group-hover:bg-teal-100">
         <Icon className="size-5" />
       </span>
       <p className="text-sm font-semibold text-slate-900">{title}</p>
@@ -235,8 +235,8 @@ export function ArchitectureSection() {
         <div className="mx-auto mt-10 flex max-w-sm flex-col items-center">
           {layers.map((layer, i) => (
             <div key={layer.label} className="flex w-full flex-col items-center">
-              <div className="flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+              <div className="group flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all duration-300 hover:-translate-x-0.5 hover:shadow-md">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-teal-50 text-teal-600 transition-colors duration-300 group-hover:bg-teal-100">
                   <layer.icon className="size-4.5" />
                 </span>
                 <span className="text-sm font-semibold text-slate-900">{layer.label}</span>
@@ -299,7 +299,10 @@ export function UseCasesSection() {
         </h2>
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {USE_CASES.map((uc) => (
-            <div key={uc.title} className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+            <div
+              key={uc.title}
+              className="rounded-2xl border border-slate-100 bg-slate-50 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-teal-100 hover:bg-white hover:shadow-md"
+            >
               <uc.icon className="mb-3 size-5 text-teal-600" />
               <p className="text-sm font-semibold text-slate-900">{uc.title}</p>
               <p className="mt-1 text-sm text-slate-500">{uc.desc}</p>

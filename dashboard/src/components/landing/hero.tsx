@@ -6,7 +6,7 @@ export function Hero() {
     <section className="relative overflow-hidden bg-white">
       <div className="mx-auto grid max-w-6xl gap-14 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:gap-10 lg:px-8 lg:py-24">
         {/* Kolom kiri: copy + form ringkas */}
-        <div className="flex flex-col gap-6">
+        <div className="animate-in fade-in-0 slide-in-from-bottom-4 flex flex-col gap-6 duration-700 ease-out">
           <h1 className="font-(--font-lp-heading) text-4xl leading-[1.08] font-semibold tracking-tight text-slate-900 text-balance sm:text-5xl lg:text-[3.1rem]">
             Terima notifikasi pembayaran, otomatis masuk ke sistem kamu.
           </h1>
@@ -22,14 +22,14 @@ export function Hero() {
             <input
               type="email"
               placeholder="Email bisnis kamu"
-              className="h-11 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+              className="h-11 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition-colors duration-200 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
             />
             <Link
               href="/register"
-              className="flex h-11 items-center justify-center gap-1 rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+              className="group flex h-11 items-center justify-center gap-1 rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/20 active:translate-y-0 active:scale-[0.97]"
             >
               Mulai Gratis
-              <ArrowUpRight className="size-4" />
+              <ArrowUpRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </Link>
           </form>
 
@@ -43,8 +43,8 @@ export function Hero() {
         </div>
 
         {/* Kolom kanan: komposisi kartu produk */}
-        <div className="relative mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto">
-          <div className="relative rounded-2xl border border-slate-100 bg-white p-4 shadow-xl shadow-slate-900/5">
+        <div className="animate-in fade-in-0 slide-in-from-bottom-6 relative mx-auto w-full max-w-sm duration-700 ease-out delay-150 fill-mode-both lg:mx-0 lg:ml-auto">
+          <div className="relative rounded-2xl border border-slate-100 bg-white p-4 shadow-xl shadow-slate-900/5 transition-shadow duration-300 hover:shadow-2xl hover:shadow-slate-900/10">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <p className="text-xs text-slate-400">Invoice masuk</p>
@@ -64,7 +64,7 @@ export function Hero() {
           </div>
 
           {/* Kartu mengambang -- device terhubung, meniru komposisi kartu kredit di referensi */}
-          <div className="absolute -right-4 -bottom-8 w-52 rounded-2xl bg-linear-to-br from-slate-900 to-teal-900 p-4 text-white shadow-xl shadow-slate-900/20 sm:-right-8">
+          <div className="absolute -right-4 -bottom-8 w-52 rounded-2xl bg-linear-to-br from-slate-900 to-teal-900 p-4 text-white shadow-xl shadow-slate-900/20 transition-transform duration-300 hover:-translate-y-1 sm:-right-8">
             <div className="flex items-center justify-between">
               <Wifi className="size-4 rotate-90 text-teal-300" />
               <CreditCard className="size-5 text-white/70" />
