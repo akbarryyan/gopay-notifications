@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
@@ -26,11 +27,25 @@ func testStore(t *testing.T) *store.Store {
 	t.Cleanup(s.Close)
 
 	_, err = s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE")
+		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	return s
+}
+
+// seedAccount membuat account uji minimal, dipakai test yang butuh
+// account_id valid buat foreign key devices/invoices/dst.
+func seedAccount(t *testing.T, s *store.Store, id string) {
+	t.Helper()
+	err := s.CreateAccount(context.Background(), store.CreateAccountInput{
+		ID: id, BusinessName: id, Email: id + "@uji.test", Username: id,
+		PlaintextPassword: "rahasia123", Plan: "Business", MaxDevices: 10,
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("seed account %s: %v", id, err)
+	}
 }
 
 func TestNewConnectsAndTablesExist(t *testing.T) {

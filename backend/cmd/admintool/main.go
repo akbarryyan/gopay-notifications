@@ -1,9 +1,10 @@
-// Command admintool membuat atau mereset password akun admin dashboard.
+// Command admintool membuat atau mereset password akun VENDOR (Akbar) untuk
+// login ke Vendor Dashboard.
 //
-// Satu instalasi self-hosted melayani satu merchant, sehingga satu akun admin
-// sudah cukup untuk MVP — tidak ada manajemen banyak pengguna. Perintah ini
-// dipakai baik untuk pembuatan awal maupun reset password; keduanya operasi
-// yang sama (UpsertAdmin), bukan dua alur berbeda.
+// Bukan untuk akun customer -- di model hosted multi-tenant, akun customer
+// (accounts) dibuat lewat Vendor Dashboard sendiri (POST /api/v1/vendor/accounts),
+// bukan CLI di server. Perintah ini dipakai baik untuk pembuatan awal maupun
+// reset password vendor_admins; keduanya operasi yang sama (UpsertVendorAdmin).
 //
 // Untuk menghasilkan ADMIN_SESSION_KEY, pakai `go run ./cmd/devicetool -genkey`
 // yang sama seperti DEVICE_SECRET_KEY — keduanya sama-sama kunci acak 32 byte
@@ -58,11 +59,11 @@ func main() {
 		fail("password terlalu pendek, minimal 8 karakter")
 	}
 
-	if err := s.UpsertAdmin(ctx, *username, password); err != nil {
+	if err := s.UpsertVendorAdmin(ctx, *username, password); err != nil {
 		fail("%v", err)
 	}
 
-	fmt.Println("Akun admin berhasil disimpan.")
+	fmt.Println("Akun vendor berhasil disimpan.")
 	fmt.Println()
 	fmt.Println("  Username :", *username)
 	if *genPassword {
