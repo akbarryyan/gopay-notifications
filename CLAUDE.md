@@ -326,6 +326,13 @@ Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
 API Keys, Webhooks, Exceptions, License. Sisanya (Settings, Logs)
 ditampilkan di sidebar sebagai "Segera", non-aktif.
 
+Sejak sub-project #2+#6 (spec
+docs/superpowers/specs/2026-09-13-landing-signup-design.md): `/` adalah
+landing page publik dan `/register` form signup swalayan (plan Starter,
+trial 3 hari, langsung aktif tanpa campur tangan vendor) — keduanya di
+luar route group `(dashboard)`, dikecualikan dari gerbang sesi di
+`proxy.ts`. Overview yang dulu di `/` sekarang di `/overview`.
+
 Perlu account dulu sebelum bisa login — **bukan lagi** `make dev-admin`
 (itu sekarang membuat **akun vendor**, dipakai Vendor Dashboard, lihat di
 bawah). Untuk dev lokal: jalankan backend (`make run-dev`), buka Vendor
