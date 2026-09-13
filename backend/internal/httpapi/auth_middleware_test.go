@@ -42,6 +42,14 @@ func webhookSecretKey() []byte {
 	return k
 }
 
+func vendorSessionKey() []byte {
+	k := make([]byte, 32)
+	for i := range k {
+		k[i] = byte(i*11 + 4)
+	}
+	return k
+}
+
 // newTestStore membuka koneksi ke database test dan mengosongkan seluruh
 // tabel -- dipakai ulang oleh seluruh test di paket ini.
 func newTestStore(t *testing.T) *store.Store {
@@ -93,7 +101,7 @@ func newAPIWithDevice(t *testing.T) http.Handler {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), func() time.Time { return fixedNow }).Handler()
 }
 
 // signedRequest membuat request yang sudah ditandatangani dengan benar.

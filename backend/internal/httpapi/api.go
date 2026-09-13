@@ -11,28 +11,32 @@ import (
 )
 
 type API struct {
-	store             *store.Store
-	encKey            []byte
-	adminSessionKey   []byte
-	webhookSecretKey  []byte
-	now               func() time.Time
-	loginThrottle     *loginThrottle
-	webhookHTTPClient *http.Client
+	store               *store.Store
+	encKey              []byte
+	adminSessionKey     []byte
+	webhookSecretKey    []byte
+	vendorSessionKey    []byte
+	now                 func() time.Time
+	loginThrottle       *loginThrottle
+	vendorLoginThrottle *loginThrottle
+	webhookHTTPClient   *http.Client
 }
 
 // New membuat API. Parameter now disuntikkan agar test dapat memalsukan jam.
 func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey []byte,
-	now func() time.Time) *API {
+	vendorSessionKey []byte, now func() time.Time) *API {
 	if now == nil {
 		now = time.Now
 	}
 	return &API{
-		store:            s,
-		encKey:           encKey,
-		adminSessionKey:  adminSessionKey,
-		webhookSecretKey: webhookSecretKey,
-		now:              now,
-		loginThrottle:    newLoginThrottle(),
+		store:               s,
+		encKey:              encKey,
+		adminSessionKey:     adminSessionKey,
+		webhookSecretKey:    webhookSecretKey,
+		vendorSessionKey:    vendorSessionKey,
+		now:                 now,
+		loginThrottle:       newLoginThrottle(),
+		vendorLoginThrottle: newLoginThrottle(),
 		// Timeout 10 detik sesuai spec §3.1 — server merchant yang lambat
 		// tidak boleh menahan worker webhook lebih lama dari itu.
 		webhookHTTPClient: &http.Client{Timeout: 10 * time.Second},
@@ -106,6 +110,19 @@ func (a *API) Handler() http.Handler {
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminMatchException))))
 	mux.Handle("POST /api/v1/admin/exceptions/{eventID}/dismiss",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminDismissException))))
+
+	// Vendor Dashboard: superadmin (Akbar), sesi terpisah total dari
+	// admin_session (customer) -- vendor_session, tabel vendor_admins
+	// sendiri. Menggantikan License Server yang dulu terpisah service.
+	mux.HandleFunc("POST /api/v1/vendor/login", a.handleVendorLogin)
+	mux.HandleFunc("POST /api/v1/vendor/logout", a.handleVendorLogout)
+	mux.Handle("POST /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorCreateAccount)))
+	mux.Handle("GET /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorListAccounts)))
+	mux.Handle("GET /api/v1/vendor/accounts/{accountID}", a.requireVendor(http.HandlerFunc(a.handleVendorGetAccount)))
+	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/renew", a.requireVendor(http.HandlerFunc(a.handleVendorRenewAccount)))
+	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))
+	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/revoke", a.requireVendor(http.HandlerFunc(a.handleVendorRevokeAccount)))
+	mux.Handle("GET /api/v1/vendor/audit-log", a.requireVendor(http.HandlerFunc(a.handleVendorAuditLog)))
 
 	return mux
 }

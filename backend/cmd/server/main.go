@@ -36,7 +36,7 @@ func main() {
 	}
 	defer s.Close()
 
-	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, time.Now)
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, cfg.VendorSessionKey, time.Now)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

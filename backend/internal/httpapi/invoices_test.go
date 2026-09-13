@@ -38,7 +38,7 @@ func newAPIWithAPIKey(t *testing.T) (http.Handler, string) {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), func() time.Time { return fixedNow }).Handler()
 	return h, rawKey
 }
 
