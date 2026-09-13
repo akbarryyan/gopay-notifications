@@ -43,6 +43,7 @@ var (
 
 type WebhookEndpoint struct {
 	ID        string
+	AccountID string
 	Name      string
 	URL       string
 	Events    []string
@@ -113,15 +114,15 @@ func GenerateWebhookSecret() (raw string, secretBytes []byte, err error) {
 // keluar, jadi hash satu-arah tidak berlaku di sini (lihat invoice.go/
 // apikey.go untuk pola hash yang dipakai di tempat yang memang cukup
 // verifikasi satu arah).
-func (s *Store) CreateWebhookEndpoint(ctx context.Context, key []byte, id, name, url string, events []string, secret []byte) error {
+func (s *Store) CreateWebhookEndpoint(ctx context.Context, key []byte, accountID, id, name, url string, events []string, secret []byte) error {
 	enc, err := secretbox.Seal(key, secret)
 	if err != nil {
 		return fmt.Errorf("store: enkripsi secret webhook: %w", err)
 	}
 	_, err = s.pool.Exec(ctx,
-		`INSERT INTO webhook_endpoints (id, name, url, secret_encrypted, events)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		id, name, url, enc, events)
+		`INSERT INTO webhook_endpoints (id, account_id, name, url, secret_encrypted, events)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, accountID, name, url, enc, events)
 	if err != nil {
 		return fmt.Errorf("store: create webhook endpoint: %w", err)
 	}
@@ -130,16 +131,17 @@ func (s *Store) CreateWebhookEndpoint(ctx context.Context, key []byte, id, name,
 
 // ListWebhookEndpoints tidak pernah membaca secret_encrypted — dashboard
 // tidak butuh melihatnya, pola yang sama dengan ListDevices/ListAPIKeys.
-func (s *Store) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpointSummary, error) {
+func (s *Store) ListWebhookEndpoints(ctx context.Context, accountID string) ([]WebhookEndpointSummary, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT e.id, e.name, e.url, e.events, e.enabled, e.created_at,
+		`SELECT e.id, e.account_id, e.name, e.url, e.events, e.enabled, e.created_at,
 		        d.created_at, d.status
 		 FROM webhook_endpoints e
 		 LEFT JOIN LATERAL (
 		   SELECT created_at, status FROM webhook_deliveries
 		   WHERE endpoint_id = e.id ORDER BY created_at DESC LIMIT 1
 		 ) d ON true
-		 ORDER BY e.created_at DESC`)
+		 WHERE e.account_id = $1
+		 ORDER BY e.created_at DESC`, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list webhook endpoints: %w", err)
 	}
@@ -148,7 +150,7 @@ func (s *Store) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpointSumm
 	out := make([]WebhookEndpointSummary, 0)
 	for rows.Next() {
 		var w WebhookEndpointSummary
-		if err := rows.Scan(&w.ID, &w.Name, &w.URL, &w.Events, &w.Enabled, &w.CreatedAt,
+		if err := rows.Scan(&w.ID, &w.AccountID, &w.Name, &w.URL, &w.Events, &w.Enabled, &w.CreatedAt,
 			&w.LastDeliveryAt, &w.LastDeliveryStatus); err != nil {
 			return nil, fmt.Errorf("store: scan webhook endpoint: %w", err)
 		}
@@ -162,15 +164,17 @@ func (s *Store) ListWebhookEndpoints(ctx context.Context) ([]WebhookEndpointSumm
 
 // GetWebhookEndpoint mengembalikan endpoint beserta secret yang sudah
 // didekripsi — dipakai saat mengirim (attemptDelivery) dan saat test.
-func (s *Store) GetWebhookEndpoint(ctx context.Context, key []byte, id string) (WebhookEndpoint, []byte, error) {
+// Dibatasi account_id -- endpoint milik akun lain diperlakukan sama
+// seperti tidak ada.
+func (s *Store) GetWebhookEndpoint(ctx context.Context, key []byte, accountID, id string) (WebhookEndpoint, []byte, error) {
 	var (
 		w   WebhookEndpoint
 		enc []byte
 	)
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, url, events, enabled, created_at, secret_encrypted
-		 FROM webhook_endpoints WHERE id = $1`, id).
-		Scan(&w.ID, &w.Name, &w.URL, &w.Events, &w.Enabled, &w.CreatedAt, &enc)
+		`SELECT id, account_id, name, url, events, enabled, created_at, secret_encrypted
+		 FROM webhook_endpoints WHERE id = $1 AND account_id = $2`, id, accountID).
+		Scan(&w.ID, &w.AccountID, &w.Name, &w.URL, &w.Events, &w.Enabled, &w.CreatedAt, &enc)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WebhookEndpoint{}, nil, ErrWebhookNotFound
 	}
@@ -184,10 +188,10 @@ func (s *Store) GetWebhookEndpoint(ctx context.Context, key []byte, id string) (
 	return w, secret, nil
 }
 
-// SetWebhookEndpointEnabled mengaktifkan/menonaktifkan endpoint.
-func (s *Store) SetWebhookEndpointEnabled(ctx context.Context, id string, enabled bool) error {
+// SetWebhookEndpointEnabled mengaktifkan/menonaktifkan endpoint milik akun ini.
+func (s *Store) SetWebhookEndpointEnabled(ctx context.Context, accountID, id string, enabled bool) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE webhook_endpoints SET enabled = $2 WHERE id = $1`, id, enabled)
+		`UPDATE webhook_endpoints SET enabled = $3 WHERE id = $1 AND account_id = $2`, id, accountID, enabled)
 	if err != nil {
 		return fmt.Errorf("store: set webhook endpoint enabled: %w", err)
 	}
@@ -197,10 +201,11 @@ func (s *Store) SetWebhookEndpointEnabled(ctx context.Context, id string, enable
 	return nil
 }
 
-// DeleteWebhookEndpoint menghapus endpoint. ON DELETE CASCADE di migrasi
-// ikut menghapus seluruh webhook_deliveries miliknya.
-func (s *Store) DeleteWebhookEndpoint(ctx context.Context, id string) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM webhook_endpoints WHERE id = $1`, id)
+// DeleteWebhookEndpoint menghapus endpoint milik akun ini. ON DELETE CASCADE
+// di migrasi ikut menghapus seluruh webhook_deliveries miliknya.
+func (s *Store) DeleteWebhookEndpoint(ctx context.Context, accountID, id string) error {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM webhook_endpoints WHERE id = $1 AND account_id = $2`, id, accountID)
 	if err != nil {
 		return fmt.Errorf("store: delete webhook endpoint: %w", err)
 	}
@@ -215,19 +220,23 @@ func (s *Store) DeleteWebhookEndpoint(ctx context.Context, id string) error {
 // dibiarkan NULL, supaya baris itu langsung "jatuh tempo" tanpa menunggu
 // putaran worker berikutnya (lihat webhook_deliveries_due_idx).
 func (s *Store) EnqueueWebhookDeliveries(ctx context.Context, now time.Time, event string, invoiceID *string, payload []byte) ([]string, error) {
+	// account_id ikut diambil dari endpoint-nya (denormalisasi ke
+	// webhook_deliveries, spec §2.2) -- worker ini sengaja lintas akun,
+	// jadi tidak menerima accountID sebagai parameter.
 	rows, err := s.pool.Query(ctx,
-		`SELECT id FROM webhook_endpoints WHERE enabled = true AND $1 = ANY(events)`, event)
+		`SELECT id, account_id FROM webhook_endpoints WHERE enabled = true AND $1 = ANY(events)`, event)
 	if err != nil {
 		return nil, fmt.Errorf("store: cari webhook endpoints untuk %s: %w", event, err)
 	}
-	var endpointIDs []string
+	type endpointRef struct{ id, accountID string }
+	var endpoints []endpointRef
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var e endpointRef
+		if err := rows.Scan(&e.id, &e.accountID); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("store: scan endpoint id: %w", err)
 		}
-		endpointIDs = append(endpointIDs, id)
+		endpoints = append(endpoints, e)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -235,17 +244,17 @@ func (s *Store) EnqueueWebhookDeliveries(ctx context.Context, now time.Time, eve
 	}
 	rows.Close()
 
-	deliveryIDs := make([]string, 0, len(endpointIDs))
-	for _, endpointID := range endpointIDs {
+	deliveryIDs := make([]string, 0, len(endpoints))
+	for _, ep := range endpoints {
 		id, err := newWebhookDeliveryID()
 		if err != nil {
 			return nil, err
 		}
 		_, err = s.pool.Exec(ctx,
 			`INSERT INTO webhook_deliveries
-			   (id, endpoint_id, event, invoice_id, payload, status, next_attempt_at, created_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			id, endpointID, event, invoiceID, payload, WebhookDeliveryPending, now, now)
+			   (id, account_id, endpoint_id, event, invoice_id, payload, status, next_attempt_at, created_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			id, ep.accountID, ep.id, event, invoiceID, payload, WebhookDeliveryPending, now, now)
 		if err != nil {
 			return nil, fmt.Errorf("store: enqueue webhook delivery: %w", err)
 		}
@@ -354,18 +363,25 @@ func (s *Store) RecordDeliveryFailure(ctx context.Context, id string, now time.T
 // EnqueueTestDelivery menyisipkan satu baris delivery untuk SATU endpoint
 // tertentu (bukan dicari lewat events seperti EnqueueWebhookDeliveries),
 // dengan invoice_id NULL — dipakai tombol "Test" di dashboard.
-func (s *Store) EnqueueTestDelivery(ctx context.Context, now time.Time, endpointID string, payload []byte) (string, error) {
+// EnqueueTestDelivery hanya menyisipkan baris kalau endpointID itu memang
+// milik accountID -- EXISTS di bawah mencegah account A memicu test
+// delivery ke endpoint milik account B walau ID-nya diketahui/ditebak.
+func (s *Store) EnqueueTestDelivery(ctx context.Context, now time.Time, accountID, endpointID string, payload []byte) (string, error) {
 	id, err := newWebhookDeliveryID()
 	if err != nil {
 		return "", err
 	}
-	_, err = s.pool.Exec(ctx,
+	tag, err := s.pool.Exec(ctx,
 		`INSERT INTO webhook_deliveries
-		   (id, endpoint_id, event, invoice_id, payload, status, next_attempt_at, created_at)
-		 VALUES ($1, $2, $3, NULL, $4, $5, NULL, $6)`,
-		id, endpointID, WebhookEventTest, payload, WebhookDeliveryPending, now)
+		   (id, account_id, endpoint_id, event, invoice_id, payload, status, next_attempt_at, created_at)
+		 SELECT $1, $7, $2, $3, NULL, $4, $5, NULL, $6
+		 WHERE EXISTS (SELECT 1 FROM webhook_endpoints WHERE id = $2 AND account_id = $7)`,
+		id, endpointID, WebhookEventTest, payload, WebhookDeliveryPending, now, accountID)
 	if err != nil {
 		return "", fmt.Errorf("store: enqueue test delivery: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return "", ErrWebhookNotFound
 	}
 	return id, nil
 }
@@ -400,14 +416,15 @@ func (s *Store) RecordTestDeliveryResult(ctx context.Context, id string, now tim
 
 // ListWebhookDeliveries mengembalikan riwayat pengiriman satu endpoint,
 // terbaru lebih dulu — dipakai baris yang diperluas di dashboard.
-func (s *Store) ListWebhookDeliveries(ctx context.Context, endpointID string, limit, offset int) ([]WebhookDelivery, error) {
+func (s *Store) ListWebhookDeliveries(ctx context.Context, accountID, endpointID string, limit, offset int) ([]WebhookDelivery, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, endpoint_id, event, invoice_id, payload, status, attempt,
-		        next_attempt_at, http_status, duration_ms, created_at, delivered_at
-		 FROM webhook_deliveries
-		 WHERE endpoint_id = $1
-		 ORDER BY created_at DESC
-		 LIMIT $2 OFFSET $3`, endpointID, limit, offset)
+		`SELECT d.id, d.endpoint_id, d.event, d.invoice_id, d.payload, d.status, d.attempt,
+		        d.next_attempt_at, d.http_status, d.duration_ms, d.created_at, d.delivered_at
+		 FROM webhook_deliveries d
+		 JOIN webhook_endpoints e ON e.id = d.endpoint_id
+		 WHERE d.endpoint_id = $1 AND e.account_id = $2
+		 ORDER BY d.created_at DESC
+		 LIMIT $3 OFFSET $4`, endpointID, accountID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("store: list webhook deliveries: %w", err)
 	}

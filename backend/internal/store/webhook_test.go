@@ -17,6 +17,10 @@ func webhookKey() []byte {
 }
 
 func createTestWebhook(t *testing.T, s *store.Store, name string, events []string) (id string, secret []byte) {
+	return createTestWebhookForAccount(t, s, "acc_1", name, events)
+}
+
+func createTestWebhookForAccount(t *testing.T, s *store.Store, accountID, name string, events []string) (id string, secret []byte) {
 	t.Helper()
 	id, err := store.NewWebhookID()
 	if err != nil {
@@ -26,7 +30,7 @@ func createTestWebhook(t *testing.T, s *store.Store, name string, events []strin
 	if err != nil {
 		t.Fatalf("GenerateWebhookSecret: %v", err)
 	}
-	if err := s.CreateWebhookEndpoint(context.Background(), webhookKey(), id, name, "https://merchant.test/hook", events, secretBytes); err != nil {
+	if err := s.CreateWebhookEndpoint(context.Background(), webhookKey(), accountID, id, name, "https://merchant.test/hook", events, secretBytes); err != nil {
 		t.Fatalf("CreateWebhookEndpoint: %v", err)
 	}
 	return id, secretBytes
@@ -34,9 +38,10 @@ func createTestWebhook(t *testing.T, s *store.Store, name string, events []strin
 
 func TestCreateAndGetWebhookEndpointSecretBulatKembali(t *testing.T) {
 	s := testStore(t)
+	seedAccount(t, s, "acc_1")
 	id, secret := createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 
-	got, gotSecret, err := s.GetWebhookEndpoint(context.Background(), webhookKey(), id)
+	got, gotSecret, err := s.GetWebhookEndpoint(context.Background(), webhookKey(), "acc_1", id)
 	if err != nil {
 		t.Fatalf("GetWebhookEndpoint: %v", err)
 	}
@@ -50,7 +55,7 @@ func TestCreateAndGetWebhookEndpointSecretBulatKembali(t *testing.T) {
 
 func TestGetWebhookEndpointTidakDitemukan(t *testing.T) {
 	s := testStore(t)
-	_, _, err := s.GetWebhookEndpoint(context.Background(), webhookKey(), "wh_tidak_ada")
+	_, _, err := s.GetWebhookEndpoint(context.Background(), webhookKey(), "acc_1", "wh_tidak_ada")
 	if err != store.ErrWebhookNotFound {
 		t.Fatalf("err = %v, mau ErrWebhookNotFound", err)
 	}
@@ -60,9 +65,10 @@ func TestListWebhookEndpointsRingkasanPercobaanTerakhir(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now()
+	seedAccount(t, s, "acc_1")
 	id, _ := createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 
-	list, err := s.ListWebhookEndpoints(ctx)
+	list, err := s.ListWebhookEndpoints(ctx, "acc_1")
 	if err != nil {
 		t.Fatalf("ListWebhookEndpoints: %v", err)
 	}
@@ -70,11 +76,11 @@ func TestListWebhookEndpointsRingkasanPercobaanTerakhir(t *testing.T) {
 		t.Fatalf("list = %+v, mau 1 endpoint tanpa riwayat pengiriman", list)
 	}
 
-	if _, err := s.EnqueueTestDelivery(ctx, now, id, []byte(`{}`)); err != nil {
+	if _, err := s.EnqueueTestDelivery(ctx, now, "acc_1", id, []byte(`{}`)); err != nil {
 		t.Fatalf("EnqueueTestDelivery: %v", err)
 	}
 
-	list, err = s.ListWebhookEndpoints(ctx)
+	list, err = s.ListWebhookEndpoints(ctx, "acc_1")
 	if err != nil {
 		t.Fatalf("ListWebhookEndpoints kedua: %v", err)
 	}
@@ -89,12 +95,13 @@ func TestListWebhookEndpointsRingkasanPercobaanTerakhir(t *testing.T) {
 func TestSetWebhookEndpointEnabled(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
+	seedAccount(t, s, "acc_1")
 	id, _ := createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 
-	if err := s.SetWebhookEndpointEnabled(ctx, id, false); err != nil {
+	if err := s.SetWebhookEndpointEnabled(ctx, "acc_1", id, false); err != nil {
 		t.Fatalf("SetWebhookEndpointEnabled: %v", err)
 	}
-	got, _, err := s.GetWebhookEndpoint(ctx, webhookKey(), id)
+	got, _, err := s.GetWebhookEndpoint(ctx, webhookKey(), "acc_1", id)
 	if err != nil {
 		t.Fatalf("GetWebhookEndpoint: %v", err)
 	}
@@ -105,7 +112,7 @@ func TestSetWebhookEndpointEnabled(t *testing.T) {
 
 func TestSetWebhookEndpointEnabledTidakDitemukan(t *testing.T) {
 	s := testStore(t)
-	err := s.SetWebhookEndpointEnabled(context.Background(), "wh_tidak_ada", true)
+	err := s.SetWebhookEndpointEnabled(context.Background(), "acc_1", "wh_tidak_ada", true)
 	if err != store.ErrWebhookNotFound {
 		t.Fatalf("err = %v, mau ErrWebhookNotFound", err)
 	}
@@ -115,16 +122,17 @@ func TestDeleteWebhookEndpointCascadeDeliveries(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now()
+	seedAccount(t, s, "acc_1")
 	id, _ := createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
-	if _, err := s.EnqueueTestDelivery(ctx, now, id, []byte(`{}`)); err != nil {
+	if _, err := s.EnqueueTestDelivery(ctx, now, "acc_1", id, []byte(`{}`)); err != nil {
 		t.Fatalf("EnqueueTestDelivery: %v", err)
 	}
 
-	if err := s.DeleteWebhookEndpoint(ctx, id); err != nil {
+	if err := s.DeleteWebhookEndpoint(ctx, "acc_1", id); err != nil {
 		t.Fatalf("DeleteWebhookEndpoint: %v", err)
 	}
 
-	deliveries, err := s.ListWebhookDeliveries(ctx, id, 50, 0)
+	deliveries, err := s.ListWebhookDeliveries(ctx, "acc_1", id, 50, 0)
 	if err != nil {
 		t.Fatalf("ListWebhookDeliveries: %v", err)
 	}
@@ -135,7 +143,7 @@ func TestDeleteWebhookEndpointCascadeDeliveries(t *testing.T) {
 
 func TestDeleteWebhookEndpointTidakDitemukan(t *testing.T) {
 	s := testStore(t)
-	err := s.DeleteWebhookEndpoint(context.Background(), "wh_tidak_ada")
+	err := s.DeleteWebhookEndpoint(context.Background(), "acc_1", "wh_tidak_ada")
 	if err != store.ErrWebhookNotFound {
 		t.Fatalf("err = %v, mau ErrWebhookNotFound", err)
 	}
@@ -146,6 +154,7 @@ func TestEnqueueWebhookDeliveriesHanyaEndpointYangBerlangganan(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
+	seedAccount(t, s, "acc_1")
 	subscribed, _ := createTestWebhook(t, s, "Langganan invoice.paid", []string{store.WebhookEventInvoicePaid})
 	createTestWebhook(t, s, "Langganan invoice.expired saja", []string{store.WebhookEventInvoiceExpired})
 
@@ -171,8 +180,9 @@ func TestEnqueueWebhookDeliveriesMelewatiEndpointNonaktif(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
+	seedAccount(t, s, "acc_1")
 	id, _ := createTestWebhook(t, s, "Nonaktif", []string{store.WebhookEventInvoicePaid})
-	if err := s.SetWebhookEndpointEnabled(ctx, id, false); err != nil {
+	if err := s.SetWebhookEndpointEnabled(ctx, "acc_1", id, false); err != nil {
 		t.Fatalf("SetWebhookEndpointEnabled: %v", err)
 	}
 
@@ -189,6 +199,7 @@ func TestDueWebhookDeliveriesTidakMengambilYangBelumJatuhTempo(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now()
+	seedAccount(t, s, "acc_1")
 	createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 
 	future := now.Add(1 * time.Hour)
@@ -209,6 +220,7 @@ func TestRecordDeliverySuccess(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now()
+	seedAccount(t, s, "acc_1")
 	createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 	ids, err := s.EnqueueWebhookDeliveries(ctx, now, store.WebhookEventInvoicePaid, nil, []byte(`{}`))
 	if err != nil || len(ids) != 1 {
@@ -232,6 +244,7 @@ func TestRecordDeliveryFailureBackoffDanMenyerah(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now()
+	seedAccount(t, s, "acc_1")
 	createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 	ids, err := s.EnqueueWebhookDeliveries(ctx, now, store.WebhookEventInvoicePaid, nil, []byte(`{}`))
 	if err != nil || len(ids) != 1 {
@@ -278,6 +291,7 @@ func TestRecordDeliveryFailureBackoffDanMenyerah(t *testing.T) {
 func TestExpireInvoicesAndListNewlyExpiredHanyaSekaliPerInvoice(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
+	seedAccount(t, s, "acc_1")
 
 	past := time.Now().Add(-1 * time.Hour)
 	inv, _, err := s.CreateInvoice(ctx, past, "acc_1", "ORDER-expire-webhook", 30000)
@@ -307,9 +321,10 @@ func TestEnqueueAndRecordTestDeliveryTidakPernahRetrying(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now()
+	seedAccount(t, s, "acc_1")
 	id, _ := createTestWebhook(t, s, "Production", []string{store.WebhookEventInvoicePaid})
 
-	deliveryID, err := s.EnqueueTestDelivery(ctx, now, id, []byte(`{"event":"test"}`))
+	deliveryID, err := s.EnqueueTestDelivery(ctx, now, "acc_1", id, []byte(`{"event":"test"}`))
 	if err != nil {
 		t.Fatalf("EnqueueTestDelivery: %v", err)
 	}
@@ -327,7 +342,7 @@ func TestEnqueueAndRecordTestDeliveryTidakPernahRetrying(t *testing.T) {
 		t.Fatalf("due setelah test delivery gagal = %d, mau 0 (tidak pernah di-retry)", len(due))
 	}
 
-	deliveries, err := s.ListWebhookDeliveries(ctx, id, 50, 0)
+	deliveries, err := s.ListWebhookDeliveries(ctx, "acc_1", id, 50, 0)
 	if err != nil {
 		t.Fatalf("ListWebhookDeliveries: %v", err)
 	}
@@ -336,5 +351,45 @@ func TestEnqueueAndRecordTestDeliveryTidakPernahRetrying(t *testing.T) {
 	}
 	if deliveries[0].InvoiceID != nil {
 		t.Fatal("InvoiceID delivery test seharusnya nil — tidak pernah menyentuh invoice sungguhan")
+	}
+}
+
+func TestListWebhookEndpointsHanyaMilikAccountSendiri(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	idA, _ := createTestWebhookForAccount(t, s, "acc_a", "Endpoint A", []string{store.WebhookEventInvoicePaid})
+	createTestWebhookForAccount(t, s, "acc_b", "Endpoint B", []string{store.WebhookEventInvoicePaid})
+
+	listA, err := s.ListWebhookEndpoints(context.Background(), "acc_a")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(listA) != 1 || listA[0].ID != idA {
+		t.Fatalf("acc_a seharusnya cuma lihat endpoint miliknya, dapat: %+v", listA)
+	}
+}
+
+func TestDeleteWebhookEndpointMilikAccountLainDitolak(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	id, _ := createTestWebhookForAccount(t, s, "acc_a", "Endpoint A", []string{store.WebhookEventInvoicePaid})
+
+	err := s.DeleteWebhookEndpoint(context.Background(), "acc_b", id)
+	if err != store.ErrWebhookNotFound {
+		t.Fatalf("err = %v, mau ErrWebhookNotFound (endpoint milik akun lain)", err)
+	}
+}
+
+func TestEnqueueTestDeliveryMilikAccountLainDitolak(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	id, _ := createTestWebhookForAccount(t, s, "acc_a", "Endpoint A", []string{store.WebhookEventInvoicePaid})
+
+	_, err := s.EnqueueTestDelivery(context.Background(), time.Now(), "acc_b", id, []byte(`{}`))
+	if err != store.ErrWebhookNotFound {
+		t.Fatalf("err = %v, mau ErrWebhookNotFound (endpoint milik akun lain)", err)
 	}
 }
