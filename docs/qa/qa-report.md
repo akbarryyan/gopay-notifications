@@ -580,87 +580,101 @@ dengan catatan yang sama.
 
 ---
 
+## 15. Platform akun multi-tenant (hosted) — sub-project 5 (pivot arsitektur)
 
-## 15. Platform lisensi online — sub-project 5 (revisi)
+Spec: [`docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md`](../superpowers/specs/2026-09-13-multitenant-accounts-design.md),
+menggantikan **total** platform lisensi online yang tercatat sebelumnya di
+[`2026-09-13-online-license-platform-design.md`](../superpowers/specs/2026-09-13-online-license-platform-design.md)
+(SUPERSEDED) — yang itu sendiri sudah menggantikan versi offline murni
+paling awal
+([`2026-09-13-license-system-design.md`](../superpowers/specs/2026-09-13-license-system-design.md),
+SUPERSEDED juga). Rencana implementasi:
+[`docs/superpowers/plans/2026-09-13-multitenant-accounts-plan.md`](../superpowers/plans/2026-09-13-multitenant-accounts-plan.md)
+(15 task, seluruhnya selesai).
 
-Spec: [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](../superpowers/specs/2026-09-13-online-license-platform-design.md),
-menggantikan versi offline murni yang tercatat sebelumnya di
-[`2026-09-13-license-system-design.md`](../superpowers/specs/2026-09-13-license-system-design.md)
-(SUPERSEDED, `internal/licensecheck`-nya dipakai ulang — lihat spec baru §4).
-**Ringkasan:** `PASS` 9 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+**Ringkasan:** `PASS` 12 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
 
-Tiga komponen: `internal/licensecheck` (diperluas, sign+verify dipakai
-kedua sisi), `internal/licenseclient` (backend customer memanggil License
-Server), dan `backend/internal/licenseserver` + `backend/cmd/licenseserver`
-(server baru milik vendor) + `vendor-dashboard/` (Next.js baru).
+**Perubahan arsitektur:** produk berubah dari self-hosted (tiap customer
+deploy backend+dashboard sendiri) jadi hosted SaaS multi-tenant seperti
+Midtrans. `internal/licenseserver`, `internal/licenseclient`,
+`internal/licensecheck`, `internal/version` (seluruhnya dari platform
+lisensi online sebelumnya) **dibongkar total** — konsepnya (banyak
+instalasi tersebar memvalidasi ke satu otoritas pusat) sudah tidak
+berlaku begitu backend jadi satu. Digantikan:
 
-### Sudah diverifikasi Claude langsung (tidak butuh Docker)
+- Tabel `accounts` di database utama (`gopay`) — gabungan `admin_users`
+  lama + `customers`/`licenses` License Server, satu baris = satu
+  customer = satu login.
+- Kolom `account_id` di seluruh tabel data (`devices`, `invoices`,
+  `notification_events`, `api_keys`, `webhook_endpoints`,
+  `webhook_deliveries`, `event_reviews`) — diturunkan server-side dari
+  sesi/API key/HMAC device, tidak pernah dari input client.
+- `requireActiveAccount` menggantikan `requireLicense` — cek langsung ke
+  `accounts` (bukan file lokal + grace period, karena tidak ada lagi
+  jaringan antar dua service).
+- Endpoint vendor (`/api/v1/vendor/*`) di backend utama menggantikan
+  License Server yang dulu terpisah — sesi `vendor_session` + tabel
+  `vendor_admins`, terpisah total dari sesi customer.
+- `vendor-dashboard/` tetap app terpisah, sekarang manggil backend utama
+  langsung (bukan License Server terpisah).
+
+### Sudah diverifikasi Claude langsung (tidak butuh Docker/server)
 
 | Butir | Status | Bukti |
 |---|---|---|
-| `internal/licensecheck` — 16 test (signature valid/expiring/expired/suspended/revoked, grace period lewat/dalam batas, kunci lain ditolak, admin_status tak dikenal, format korup) | `PASS` | `go test ./internal/licensecheck/...` → `16 passed` |
-| `internal/licenseclient` — 7 test (tanpa key diam, activate berhasil tulis file, gagal jaringan tidak tulis apa pun, validate baca installation_id dari file lewat `PeekInstallationID`, validate ditolak 401/404 menghapus file, validate gagal jaringan TIDAK menghapus file) | `PASS` | `go test ./internal/licenseclient/...` → `7 passed` |
-| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih di seluruh backend (termasuk `internal/licenseserver`, `cmd/licenseserver`) | `PASS` | Dijalankan langsung, tanpa output error/diff |
-| Verifikasi ujung-ke-ujung manual: `licensecheck.Issue` dengan key pair sungguhan → `licensecheck.Load` (public key produksi ter-hardcode) menghasilkan `active` dengan field yang benar | `PASS` | Dijalankan langsung lewat command sekali-pakai, lihat riwayat sesi ini |
-| Dashboard customer: type-check, lint, build produksi bersih (halaman `/license` ditulis ulang read-only, status baru `expiring`/`suspended`/`revoked`/`unreachable`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
-| Vendor Dashboard (`vendor-dashboard/`, baru sepenuhnya): type-check, lint, build produksi bersih, 6 route (`/`, `/login`, `/customers/[id]`, `/licenses/[id]`, `/audit-log`, `/_not-found`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih di seluruh backend | `PASS` | Dijalankan langsung, tanpa output error/diff |
+| Dashboard customer (`dashboard/`): halaman `/license` ditulis ulang mengikuti skema account (5 status: active/expiring/expired/suspended/revoked) — type-check, lint, build produksi bersih, 10 route | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error, 10 route |
+| Vendor Dashboard (`vendor-dashboard/`): customers+licenses digabung jadi accounts, halaman `/accounts/[id]` menggantikan `/customers/[id]`+`/licenses/[id]` — type-check, lint, build produksi bersih, 5 route | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error, 5 route |
 
-### `make test` sungguhan (Postgres via Docker) — dijalankan Akbar
+### `make test` sungguhan (Postgres via Docker)
 
-`docker-compose.yml` menambah container Postgres kedua (`postgres-license`,
-port 5434) dan `Makefile` menambah `migrate-license` + `LICENSE_TEST_DATABASE_URL`
-— otomatis ikut jalan lewat `make test` biasa (target `test` bergantung ke
-`migrate-license` juga), tidak ada langkah manual tambahan.
+Satu database (`gopay_test`) — container Postgres kedua
+(`postgres-license`) yang sebelumnya dipakai License Server sudah dihapus
+dari `docker-compose.yml`, tidak ada lagi migrasi/database terpisah untuk
+dijalankan.
 
 | Butir | Status | Bukti |
 |---|---|---|
-| `make test` — seluruh `go test ./... -count=1 -p 1` (termasuk `internal/licenseserver/store`, `internal/licenseserver/httpapi`, dan `internal/httpapi` yang diperbarui ke status lisensi baru), dua database Postgres (`gopay_test` + `gopay_license_test`) | `PASS` | Ditempel Akbar 2026-09-13: `ok internal/httpapi 14.369s`, `ok internal/licensecheck 0.014s`, `ok internal/licenseclient 0.011s`, `ok internal/licenseserver/httpapi 1.881s`, `ok internal/licenseserver/store 0.580s`, `ok internal/store 4.666s`, `ok internal/auth`, `ok internal/connector`, `ok internal/secretbox` — semua `ok`, nol `FAIL` |
+| `make test` — seluruh `go test ./... -count=1 -p 1`, database `gopay_test` (migrasi sampai `00009_audit_log.sql`) | `PASS` | Dijalankan langsung: `ok internal/auth`, `ok internal/connector`, `ok internal/httpapi 15.408s`, `ok internal/secretbox`, `ok internal/store 8.156s` — 246 test, semua `ok`, nol `FAIL` |
+| Isolasi data lintas akun (`internal/httpapi/tenant_isolation_test.go`, 5 test) — akun A tidak bisa lihat/ubah device, invoice, webhook milik akun B lewat ID langsung (404); `account_id` di body request diabaikan sepenuhnya (dibuktikan eksplisit, bukan cuma diasumsikan); event lewat HMAC device satu akun tidak terlihat di daftar akun lain | `PASS` | Termasuk dalam 246 test di atas — kategori paling penting di seluruh sub-project ini, kesalahan di sini berarti kebocoran data lintas customer |
+| Endpoint vendor (`internal/httpapi/vendor_accounts_test.go`, 6 test) — create/list/renew/suspend/revoke account, audit log, sesi vendor tidak bisa dipakai sebagai sesi customer walau nama cookie dipalsukan manual | `PASS` | Termasuk dalam 246 test di atas |
+| Race condition kuota (bila relevan lagi di masa depan) — TIDAK ADA di model ini: `max_devices` bukan lagi dicek lewat quota lock terpisah seperti instalasi License Server dulu, penegakannya jadi tanggung jawab sub-project Customer Dashboard (swalayan tambah device) | N/A | Dicatat sebagai keputusan, bukan celah — lihat spec §7 |
 
-Cakupan `internal/licenseserver/store` (13 test, termasuk **Activate
-row-lock race test** dengan `-race`, 5 goroutine rebutan kuota 1, harus
-tepat 1 menang) dan `internal/licenseserver/httpapi` (15 test: activate/
-validate berhasil & gagal, kuota penuh 409, admin CRUD customer/license,
-reset installation, audit log) sudah lulus lewat run di atas.
-
-### Butir `NEEDS-DEVICE` — menunggu deploy License Server + Vendor Dashboard ke VPS
+### Butir `NEEDS-DEVICE` — menunggu deploy ke VPS produksi
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
-| 1 | Deploy `license-server` (systemd baru) + `vendor-dashboard` (Next.js baru) ke `license.whuzpay.com`, buat akun vendor lewat `licenseserver -create-admin` | Login ke Vendor Dashboard berhasil, halaman Customers kosong tampil tanpa error |
-| 2 | Buat customer + license Business lewat Vendor Dashboard, isi `LICENSE_KEY`/`ENVIRONMENT=production` di `.env` instalasi `whuzpay.com` sungguhan, restart `gopay-ingestion` | `/license` di dashboard `whuzpay.com` menampilkan `Aktif` dengan customer/plan/installation_id yang benar; Vendor Dashboard menampilkan 1 installation "Terikat" |
-| 3 | Suspend license itu dari Vendor Dashboard, tunggu satu siklus validasi (restart `gopay-ingestion` untuk memicu segera, tidak perlu tunggu 24 jam sungguhan) | `/license` berubah `Disuspend`; endpoint lain (mis. `/api/v1/events`) menjawab `402 license_suspended` |
+| 1 | Deploy backend baru (migrasi sampai `00009_audit_log.sql`, `VENDOR_SESSION_KEY` di `.env`) dan `vendor-dashboard` (Next.js, `BACKEND_URL` menunjuk ke backend yang sama) ke `whuzpay.com`, buat akun vendor lewat `admintool -username akbar` | Login ke Vendor Dashboard berhasil, halaman Accounts kosong (atau berisi akun lama hasil migrasi data) tampil tanpa error |
+| 2 | Buat account baru lewat Vendor Dashboard (plan Business, expires_at jauh), catat username+password awal, buat device lewat `devicetool -account <id> -name "HP Uji"` | Login dashboard customer dengan akun itu berhasil, `/license` menampilkan `Aktif` dengan plan/expires_at yang benar |
+| 3 | Suspend account itu dari Vendor Dashboard | Endpoint lain di dashboard customer (mis. Devices) langsung menjawab `402 account_suspended` pada request berikutnya — tidak perlu menunggu siklus validasi apa pun, karena statusnya dicek langsung tiap request |
 
-Sengaja `NEEDS-DEVICE` — perilaku ini butuh dua service sungguhan yang
-saling terhubung lewat internet, tidak bisa disimulasikan penuh dari
-`make test` satu repo.
+Sengaja `NEEDS-DEVICE` — perilaku ujung-ke-ujung produksi (migrasi data
+lama, DNS/Caddy, systemd) tidak bisa disimulasikan penuh dari `make test`
+satu repo.
 
-### Langkah verifikasi manual (dev lokal, tanpa VPS)
+### Langkah verifikasi manual (dev lokal)
 
 ```bash
-# 1. Sekali saja: bangkitkan kunci License Server
-go run ./cmd/licenseserver -genkey
-# Tempel Signing Public Key ke internal/licensecheck/license.go
-# (licensePublicKeyBase64), commit. Simpan ADMIN_SESSION_KEY dan
-# LICENSE_SIGNING_PRIVATE_KEY untuk .env License Server.
-
-# 2. Jalankan License Server (database gopay_license lokal, lihat
-#    docker-compose.yml/Makefile untuk provisioning)
+# 1. Buat akun vendor (Akbar) -- pakai .env.dev yang sudah ada
 cd backend
-go run ./cmd/licenseserver -create-admin vendor   # akun Vendor Dashboard
-go run ./cmd/licenseserver                        # perlu .env sendiri, lihat kode
+make run-dev &   # backend jalan di background sebentar untuk langkah berikut
+go run ./cmd/admintool -username akbar   # interaktif, buat password
 
-# 3. Jalankan Vendor Dashboard
-cd ../vendor-dashboard && npm run dev
+# 2. Jalankan Vendor Dashboard
+cd ../vendor-dashboard
+cp .env.local.example .env.local   # BACKEND_URL default :8090, cocok dengan run-dev
+npm run dev
 
-# 4. Login ke Vendor Dashboard, buat customer "Dev", buat license Business
-#    expires_at jauh -- salin key mentah yang muncul sekali.
+# 3. Login ke Vendor Dashboard (akbar), buat account baru (plan Business,
+#    expires_at jauh) -- catat username + initial_password yang muncul sekali.
 
-# 5. Di backend customer (.env.dev): LICENSE_KEY=<key tadi>, ENVIRONMENT=production
-cd ../backend && make run-dev
+# 4. Buat device untuk account itu
+cd ../backend
+go run ./cmd/devicetool -account <account_id_dari_langkah_3> -name "HP Uji"
+
+# 5. Login ke Customer Dashboard (dashboard/) dengan username+password dari
+#    langkah 3, buka /license -- harus Aktif dengan plan/expires_at yang benar.
+
+# 6. Suspend account itu dari Vendor Dashboard, refresh halaman apa pun di
+#    Customer Dashboard -- harus langsung 402, tanpa jeda/restart apa pun.
 ```
-
-Buka dashboard customer, login, buka `/license` — harus `Aktif` dengan
-`installation_id` terisi. Di Vendor Dashboard, buka license itu — satu
-installation "Terikat". Suspend dari Vendor Dashboard, restart
-`make run-dev` (memicu validasi segera) — `/license` customer berubah
-`Disuspend`, halaman lain (mis. Devices) gagal memuat dengan error `402`.

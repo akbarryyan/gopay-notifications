@@ -1,6 +1,9 @@
 # Dashboard
 
-Dashboard admin untuk satu instalasi self-hosted Payment Notification Bridge.
+Dashboard customer Payment Notification Bridge — hosted multi-tenant sejak
+pivot arsitektur 2026-09-13 (lihat root `CLAUDE.md` "Sistem akun
+multi-tenant"). Satu deployment melayani seluruh customer sekaligus, data
+dipisah lewat `account_id` per akun, bukan lewat instalasi terpisah lagi.
 Next.js 16 (App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
 
 Hanya mencakup halaman yang datanya benar-benar ada: **Overview**, **Devices**,
@@ -13,18 +16,19 @@ rancangan Transactions/API Keys,
 rancangan Webhooks,
 `docs/superpowers/specs/2026-09-13-exception-console-design.md` untuk
 rancangan Exceptions, dan
-`docs/superpowers/specs/2026-09-13-license-system-design.md` untuk
-rancangan License.
+`docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md` untuk
+rancangan License (halaman ini belum ikut disesuaikan penuh ke swalayan
+tambah device — lihat spec §7, ditunda ke sub-project terpisah).
 
-**Untuk siapa dashboard ini:** customer (pemilik instalasi), bukan vendor.
-Model self-hosted + annual license berarti tiap customer men-deploy backend
-dan dashboard-nya sendiri; vendor tidak pernah menyentuh instalasi mereka.
-Satu instalasi = satu dashboard = satu customer. Karena itu, **jangan
-menyebut istilah arsitektur internal ("backend", "database", nama service,
-dsb) di teks yang tampil ke pengguna** — field API boleh tetap bernama
-begitu, tapi label/copy di halaman diringkas jadi bahasa netral (mis.
-"Status Layanan" alih-alih "Backend: operational"). Detail lengkap ada di
-root `CLAUDE.md` bagian "Pemecahan scope".
+**Untuk siapa dashboard ini:** customer, bukan vendor. Satu akun = satu
+login = satu customer, tapi SEMUA customer berbagi deployment backend yang
+sama sekarang (bukan lagi satu instalasi per customer) — akun dibuat vendor
+lewat Vendor Dashboard, bukan lagi lewat CLI di server customer sendiri.
+Karena itu, **jangan menyebut istilah arsitektur internal ("backend",
+"database", nama service, dsb) di teks yang tampil ke pengguna** — field
+API boleh tetap bernama begitu, tapi label/copy di halaman diringkas jadi
+bahasa netral (mis. "Status Layanan" alih-alih "Backend: operational").
+Detail lengkap ada di root `CLAUDE.md` bagian "Pemecahan scope".
 
 ## Arsitektur singkat
 
@@ -54,12 +58,10 @@ cp .env.local.example .env.local   # isi BACKEND_URL bila backend tidak di :8090
 ```
 
 Backend harus sudah jalan (lihat `backend/CLAUDE.md` / root `CLAUDE.md`) dan
-sudah punya akun admin:
-
-```bash
-cd ../backend
-make dev-admin   # buat/reset password admin, interaktif
-```
+sudah ada account customer untuk login. Account dibuat lewat Vendor
+Dashboard (`vendor-dashboard/`, cuma dipakai Akbar) — **bukan lagi**
+`make dev-admin` (itu sekarang membuat akun vendor, dipakai login ke Vendor
+Dashboard itu sendiri, bukan akun customer). Lihat `vendor-dashboard/README.md`.
 
 Jalankan dev server (dijalankan sendiri oleh Akbar, bukan oleh Claude —
 lihat pembagian kerja di root `CLAUDE.md`):

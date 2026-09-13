@@ -1,6 +1,8 @@
 # GoPay Notification Bridge
 
-Bridge notifikasi GoPay dari HP Android ke backend, sebagai fondasi self-hosted payment gateway.
+Bridge notifikasi GoPay dari HP Android ke backend, sebagai fondasi payment
+gateway hosted multi-tenant (dulu self-hosted — lihat catatan pivot di
+"Pemecahan scope").
 
 ## Pindah AI
 
@@ -16,11 +18,12 @@ Urutan kewenangan bila terjadi perbedaan:
 2. [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md) — spec invoice, nominal unik, matching, API key untuk sub-project 3 fase 1
 3. [`docs/superpowers/specs/2026-09-13-webhook-delivery-design.md`](docs/superpowers/specs/2026-09-13-webhook-delivery-design.md) — spec webhook delivery untuk sub-project 3 fase 2
 4. [`docs/superpowers/specs/2026-09-13-exception-console-design.md`](docs/superpowers/specs/2026-09-13-exception-console-design.md) — spec konsol pengecualian untuk sub-project 3 fase 4
-5. [`docs/license-spec.md`](docs/license-spec.md) — spec bisnis lisensi (Self-Hosted + Annual License), paling berwenang untuk sub-project 5
-6. [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](docs/superpowers/specs/2026-09-13-online-license-platform-design.md) — potongan MVP dari spec #5 di atas, dipilih dan diimplementasikan untuk sub-project 5. [`2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md) (versi offline) SUPERSEDED oleh dokumen ini.
-7. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
-8. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
-9. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
+5. [`docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md`](docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md) — spec pivot arsitektur self-hosted → hosted multi-tenant, paling berwenang untuk sub-project 5 (fase 1: akun & data model). Rencana implementasi: [`docs/superpowers/plans/2026-09-13-multitenant-accounts-plan.md`](docs/superpowers/plans/2026-09-13-multitenant-accounts-plan.md).
+6. [`docs/license-spec.md`](docs/license-spec.md) — spec bisnis lisensi (Self-Hosted + Annual License) yang melatarbelakangi keputusan awal. SUPERSEDED sebagai model bisnis sejak pivot ke hosted (lihat #5) — dibaca untuk konteks sejarah, bukan lagi rujukan aktif.
+7. [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](docs/superpowers/specs/2026-09-13-online-license-platform-design.md), [`2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md) — dua spec lisensi sebelumnya (online lalu offline). Keduanya SUPERSEDED oleh #5 — License Server, `internal/licenseclient`, `internal/licensecheck` yang dibangun dari spec-spec ini sudah dibongkar total.
+8. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
+9. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
+10. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal, mengasumsikan model self-hosted lama
 
 Spec lebih berwenang daripada PRD karena memuat keputusan yang sengaja menyimpang dari PRD dan sudah disetujui. Penyimpangan itu terdaftar di §9 spec — jangan "memperbaiki" implementasi agar kembali sesuai PRD tanpa memeriksa daftar itu lebih dulu.
 
@@ -44,7 +47,7 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
 | 3 | Gateway: invoice, nominal unik, matching, webhook, API key, konsol pengecualian | seluruh 4 fase selesai |
 | 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks, Exceptions, License | sedang dikerjakan |
-| 5 | Platform lisensi online (License Server, Vendor Dashboard, `internal/licenseclient`, `requireLicense`) | implementasi selesai, menunggu deploy + `make test` |
+| 5 | Platform akun multi-tenant — fase 1 (tabel `accounts`, `account_id` di seluruh tabel data, endpoint vendor, Vendor Dashboard) | fase 1 selesai (`make test` PASS), deploy VPS `NEEDS-DEVICE`. Fase 2-6 (signup publik, penyesuaian Customer Dashboard, mobile bridge, landing page) belum dimulai |
 
 Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2–#4
 di atas. Seluruhnya sudah selesai — kalau ada permintaan fitur baru untuk
@@ -55,13 +58,21 @@ Dashboard mencakup halaman yang datanya sungguhan ada: Overview, Devices,
 Events, Transactions, API Keys, Webhooks, Exceptions, License. Settings dan
 Logs ditampilkan di sidebar sebagai "Segera" (non-aktif).
 
-**Dashboard ini untuk customer (pemilik instalasi), bukan untuk vendor.**
-Model self-hosted + annual license berarti tiap customer men-deploy backend
-dan dashboard-nya sendiri di server mereka sendiri — vendor tidak pernah
-menyentuh data atau infrastruktur mereka. Satu instalasi = satu backend =
-satu dashboard = satu customer, bukan satu dashboard multi-tenant milik
-vendor untuk memantau semua customer sekaligus. Akun admin yang dibuat lewat
-`make dev-admin` adalah akun milik customer itu sendiri.
+**PIVOT ARSITEKTUR (2026-09-13):** produk ini berubah dari self-hosted
+(tiap customer deploy backend+dashboard sendiri) jadi **hosted SaaS
+multi-tenant seperti Midtrans** — customer daftar, dapat akun, integrasi
+lewat REST API ke SATU backend yang dihost vendor (Akbar), login ke
+Customer Dashboard yang sama untuk semua customer (data dipisah per akun,
+bukan per instalasi). Keputusan ini dipecah jadi 6 sub-project di
+[`docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md`](docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md)
+§0; **baru #1 (fondasi: akun & data model) yang selesai**. Paragraf
+"Dashboard ini untuk customer, bukan vendor" tetap berlaku secara login
+(satu akun = satu login), TAPI kalimat "satu instalasi = satu backend =
+satu dashboard" di bawah ini **sudah tidak akurat** — backend sekarang
+satu untuk semua customer, dipisahkan lewat `account_id` per baris, bukan
+lewat instalasi terpisah. `make dev-admin`/`admintool` yang dulu membuat
+akun customer sekarang cuma membuat **akun vendor**; akun customer dibuat
+vendor lewat Vendor Dashboard (`POST /api/v1/vendor/accounts`).
 
 Konsekuensinya untuk copywriting dan desain dashboard: jangan menyebut
 istilah arsitektur internal ("backend", "database", nama service, dsb) di
@@ -72,47 +83,41 @@ akan menambah komponen lain ke sana), tapi label dan copy yang ditampilkan
 di halaman harus diringkas jadi bahasa yang netral, mis. "Status Layanan" /
 "Aktif", bukan "Backend: operational".
 
-Sistem lisensi (sub-project 5) sekarang online: License Server + Vendor
-Dashboard adalah komponen vendor yang sebelumnya sengaja ditunda ("baru
-masuk akal begitu customer lebih dari satu") — sudah dibangun lebih awal
-dari rencana karena `docs/license-spec.md` mensyaratkan validasi online.
-Detail lengkap di bagian "Sistem lisensi" di bawah.
+Sistem akun (sub-project 5) menggantikan sistem lisensi lama secara total.
+Detail lengkap di bagian "Sistem akun multi-tenant" di bawah.
 
-## Sistem lisensi
+## Sistem akun multi-tenant
 
-Spec lengkap: [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](docs/superpowers/specs/2026-09-13-online-license-platform-design.md)
-(mengikuti [`docs/license-spec.md`](docs/license-spec.md), dokumen bisnis
-otoritatif untuk model Self-Hosted + Annual License). Menggantikan versi
-offline murni yang sempat dibangun sebelumnya
-([`2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md),
-SUPERSEDED) — `internal/licensecheck` dipakai ulang, cuma yang
-menandatangani sekarang License Server, bukan CLI manual.
+Spec: [`docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md`](docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md).
+Menggantikan **total** dua platform lisensi sebelumnya (online lalu
+offline, keduanya SUPERSEDED) — License Server, `internal/licenseclient`,
+`internal/licensecheck` yang dibangun dari spec-spec itu sudah dibongkar
+habis, bukan sekadar diperluas.
 
-**Tiga komponen, tiga kepemilikan berbeda:**
+**Model sekarang:** satu tabel `accounts` di database utama (`gopay`) —
+gabungan akun login + plan/kuota, satu baris = satu customer = satu login.
+Seluruh tabel data (`devices`, `invoices`, `notification_events`,
+`api_keys`, `webhook_endpoints`, `webhook_deliveries`, `event_reviews`)
+punya kolom `account_id`, **selalu diturunkan server-side** dari sesi
+dashboard, API key, atau HMAC device yang sudah diautentikasi — tidak
+pernah dipercaya dari body/query/header request manapun.
 
-- `backend/cmd/licenseserver` + `backend/internal/licenseserver` — License
-  Server, **milik vendor (Akbar)**, database sendiri (`gopay_license`),
-  di-deploy terpisah di `license.whuzpay.com`. Satu Go module dengan
-  `backend/` (supaya bisa memakai ulang `internal/licensecheck` untuk
-  menandatangani), tapi database dan proses run-time-nya terpisah total
-  dari instalasi customer manapun — termasuk instalasi Akbar sendiri
-  sebagai customer pertamanya di `whuzpay.com`.
-- `vendor-dashboard/` — Next.js baru, **cuma Akbar yang pakai**, kelola
-  customer/license/installation/audit log. Terpisah total dari
-  `dashboard/` (dashboard customer) — jangan pernah dicampur.
-- `backend/internal/licenseclient` + `backend/internal/licensecheck` (baris
-  verifikasi) — **milik tiap instalasi customer**, memvalidasi ke License
-  Server tiap 24 jam (goroutine terpisah dari ticker webhook di
-  `cmd/server/main.go`), hasil signed di-cache lokal (`license-state.lic`)
-  dengan grace period 7 hari kalau License Server tak terjangkau.
+`requireActiveAccount` menggantikan `requireLicense` — mengecek status
+akun (`active`/`expiring`/`expired`/`suspended`/`revoked`) langsung ke
+`accounts` tiap request, tanpa file lokal atau grace period (tidak ada
+lagi jaringan antar dua service untuk dicek).
 
-Aktivasi lewat `.env`: `LICENSE_KEY` + `ENVIRONMENT` (`production`/`uat`),
-lalu restart — **bukan** form di dashboard, konsisten dengan pola seluruh
-kunci lain di proyek ini. Tanpa lisensi aktif/akan-berakhir,
-`requireLicense` menolak `402` seluruh endpoint device/admin/API key —
-hanya login dan halaman dashboard `/license` (read-only) yang tetap bisa
-diakses. Cara deploy License Server + Vendor Dashboard dan menerbitkan
-lisensi customer ada di `backend/deploy/README.md` §"Lisensi".
+**Vendor Dashboard** (`vendor-dashboard/`, Next.js terpisah, cuma Akbar
+yang pakai) sekarang manggil endpoint vendor **di backend utama**
+(`/api/v1/vendor/*`, sesi `vendor_session` + tabel `vendor_admins`
+terpisah total dari sesi customer `admin_session`) — bukan lagi service
+License Server yang berdiri sendiri. Vendor bikin/kelola account langsung
+(business_name/email/username/plan/expires_at), password awal digenerate
+dan ditampilkan sekali.
+
+Device dibuat lewat `cmd/devicetool -account <id> -name "..."` (flag
+`-account` sekarang wajib) sampai Customer Dashboard punya fitur swalayan
+tambah device (sub-project #3 di spec §0, belum dikerjakan).
 
 ## Keputusan arsitektur yang tidak boleh dilanggar diam-diam
 
@@ -321,21 +326,27 @@ Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
 API Keys, Webhooks, Exceptions, License. Sisanya (Settings, Logs)
 ditampilkan di sidebar sebagai "Segera", non-aktif.
 
-Perlu akun admin dulu sebelum bisa login: `cd backend && make dev-admin`.
+Perlu account dulu sebelum bisa login — **bukan lagi** `make dev-admin`
+(itu sekarang membuat **akun vendor**, dipakai Vendor Dashboard, lihat di
+bawah). Untuk dev lokal: jalankan backend (`make run-dev`), buka Vendor
+Dashboard, login pakai akun vendor, buat account customer baru dari sana —
+username+password awal yang muncul itu yang dipakai login ke
+`dashboard/`.
 
-Tiga kunci di backend, tiga tujuan berbeda, semuanya dihasilkan lewat
+Empat kunci di backend, empat tujuan berbeda, semuanya dihasilkan lewat
 `go run ./cmd/devicetool -genkey` tapi **wajib bernilai beda satu sama
 lain**: `DEVICE_SECRET_KEY` (enkripsi secret device), `ADMIN_SESSION_KEY`
-(tanda tangan cookie sesi admin), `WEBHOOK_SECRET_KEY` (enkripsi secret
-webhook — dipakai ulang tiap kirim payload, beda dari dua kunci lain yang
-cuma menandatangani/memverifikasi). Kunci penanda tangan lisensi (Ed25519)
-adalah pasangan terpisah lagi milik **License Server**, bukan bagian dari
-tiga kunci backend customer ini — lihat "Sistem lisensi" di atas.
+(tanda tangan cookie sesi customer, `admin_session`), `WEBHOOK_SECRET_KEY`
+(enkripsi secret webhook — dipakai ulang tiap kirim payload, beda dari
+kunci lain yang cuma menandatangani/memverifikasi), `VENDOR_SESSION_KEY`
+(tanda tangan cookie sesi vendor, `vendor_session` — lihat "Sistem akun
+multi-tenant" di atas, sesi vendor dan customer tidak boleh pernah
+tertukar).
 
 Backend punya satu goroutine berkala (`time.Ticker`, 1 menit, di
 `cmd/server/main.go`) yang memproses webhook — mendeteksi invoice yang baru
 kedaluwarsa dan mengeksekusi retry pengiriman yang jatuh tempo. Ini
-satu-satunya proses latar belakang di backend saat ini; kalau menambah yang
-serupa nanti, pertimbangkan apakah masih masuk akal digabung ke ticker yang
-sama atau butuh ticker terpisah. Lisensi tidak ikut ticker ini — dimuat
-sekali saat start (lihat "Sistem lisensi"), bukan diperiksa berkala.
+satu-satunya proses latar belakang di backend, sejak goroutine validasi
+lisensi 24-jam yang dulu ada (License Server) dihapus bersama seluruh
+platform lisensi lama — status akun sekarang dicek langsung ke database
+tiap request (`requireActiveAccount`), bukan diperiksa berkala.

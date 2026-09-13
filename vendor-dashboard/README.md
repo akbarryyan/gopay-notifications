@@ -1,54 +1,56 @@
 # Vendor Dashboard
 
-Dashboard vendor untuk mengelola License Server — **cuma dipakai Akbar**,
-sama sekali terpisah dari `dashboard/` (dashboard customer di tiap
-instalasi). Next.js 16 (App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
+Dashboard vendor untuk mengelola account customer — **cuma dipakai Akbar**,
+sama sekali terpisah dari `dashboard/` (dashboard customer). Next.js 16
+(App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
 
-Kelola Customers, Licenses, Installations, dan Audit Log. Rancangan penuh:
-`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`
-(mengikuti `docs/license-spec.md`, spec bisnis otoritatif). Cara deploy ada
-di `backend/deploy/README.md` §"Lisensi".
+Kelola Accounts (customer) dan Audit Log. Rancangan penuh:
+`docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md`. Sejak
+pivot ke hosted multi-tenant (2026-09-13), app ini memanggil endpoint
+vendor (`/api/v1/vendor/*`) **di backend utama yang sama** dipakai
+`dashboard/` — License Server yang dulu terpisah sudah dibongkar total,
+bukan lagi service sendiri.
 
-**Kenapa app terpisah, bukan bagian dari `dashboard/`:** dashboard customer
-dan dashboard vendor melihat database yang berbeda total (`gopay` vs
-`gopay_license`), punya sesi login yang berbeda (`admin_session` vs
-`vendor_session`), dan tidak boleh pernah tertukar — mencampurnya berarti
-satu bug bisa membocorkan data customer lain ke customer, atau sebaliknya.
+**Kenapa app terpisah, bukan bagian dari `dashboard/`:** meski sama-sama
+memanggil backend yang satu, dashboard customer dan dashboard vendor punya
+sesi login yang berbeda (`admin_session` vs `vendor_session`, kunci
+tanda tangan berbeda) dan tidak boleh pernah tertukar — mencampurnya
+berarti satu bug bisa membocorkan data customer lain ke customer, atau
+sebaliknya.
 
 ## Arsitektur singkat
 
 Sama polanya dengan `dashboard/` — satu domain, satu origin, tanpa CORS:
 
 ```text
-Produksi (di belakang Caddy, di subdomain vendor mis. license.whuzpay.com)
-  /api/*   → License Server (Go)
+Produksi (di belakang Caddy, di subdomain vendor mis. vendor.whuzpay.com)
+  /api/*   → backend utama (Go), sama dengan yang dipakai dashboard/
   /*       → Next.js (halaman ini)
 
 Dev (tanpa Caddy)
-  next.config.ts me-rewrite /api/* → LICENSE_SERVER_URL (default http://localhost:8095)
+  next.config.ts me-rewrite /api/* → BACKEND_URL (default http://localhost:8090)
 ```
 
 Autentikasi lewat cookie sesi HttpOnly `vendor_session`, diterbitkan
-License Server (`POST /api/v1/admin/login`). `src/proxy.ts` hanya memeriksa
-**keberadaan** cookie untuk mencegah kedipan halaman kosong — validitas
-sesi sesungguhnya selalu diputuskan License Server lewat `requireAdmin`
-pada tiap panggilan API.
+backend utama (`POST /api/v1/vendor/login`). `src/proxy.ts` hanya
+memeriksa **keberadaan** cookie untuk mencegah kedipan halaman kosong —
+validitas sesi sesungguhnya selalu diputuskan backend lewat
+`requireVendor` pada tiap panggilan API.
 
 ## Setup
 
 ```bash
 cd vendor-dashboard
 npm install
-cp .env.local.example .env.local   # isi LICENSE_SERVER_URL bila bukan di :8095
+cp .env.local.example .env.local   # isi BACKEND_URL bila backend tidak di :8090
 ```
 
-License Server harus sudah jalan (lihat `backend/deploy/README.md`
-§"Lisensi" bagian A, atau untuk dev lokal: `go run ./cmd/licenseserver`
-dengan `DATABASE_URL` ke `gopay_license` lokal) dan sudah punya akun admin:
+Backend harus sudah jalan (lihat `backend/CLAUDE.md` / root `CLAUDE.md`)
+dan sudah punya akun vendor:
 
 ```bash
 cd ../backend
-go run ./cmd/licenseserver -create-admin akbar
+go run ./cmd/admintool -username akbar   # buat/reset akun vendor, interaktif
 ```
 
 Jalankan dev server (dijalankan sendiri oleh Akbar, bukan oleh Claude —
@@ -76,7 +78,7 @@ npx next build       # build produksi penuh, mem-verifikasi seluruh route
 src/
 ├── proxy.ts                    # Gerbang navigasi (bukan gerbang keamanan)
 ├── lib/
-│   ├── api.ts                  # Klien fetch ke /api/v1/admin/* License Server
+│   ├── api.ts                  # Klien fetch ke /api/v1/vendor/*
 │   ├── format.ts                # Format tanggal/waktu
 │   └── use-api-data.ts          # Hook ambil-data: loading/error/401-redirect
 ├── components/ui/               # shadcn/ui, jangan diedit manual — re-add via CLI
@@ -84,17 +86,16 @@ src/
     ├── login/page.tsx
     └── (dashboard)/              # Route group berbagi layout (nav atas)
         ├── layout.tsx
-        ├── page.tsx              # Customers: daftar + buat baru
-        ├── customers/[id]/page.tsx   # Detail customer: daftar + buat license
-        ├── licenses/[id]/page.tsx    # Detail license: installations, renew/suspend/revoke/reset
+        ├── page.tsx              # Accounts: daftar + buat baru
+        ├── accounts/[id]/page.tsx    # Detail account: renew/suspend/revoke
         └── audit-log/page.tsx
 ```
 
-Aktivasi license customer **tidak lewat form di dashboard ini** — customer
-mengisi `LICENSE_KEY` di `.env` instalasinya sendiri lalu restart backend,
-konsisten dengan pola seluruh kunci lain di proyek ini. Dashboard ini hanya
-menerbitkan/memperpanjang/mencabut license dan melihat status installation,
-tidak pernah memicu aktivasi langsung.
+Pembuatan device untuk account customer **tidak lewat dashboard ini** —
+lewat `cmd/devicetool -account <id> -name "..."` di server (swalayan dari
+Customer Dashboard belum ada, ditunda ke sub-project terpisah, lihat spec
+§7). Dashboard ini cuma menerbitkan/mengelola account, tidak pernah
+memicu pembuatan device.
 
 ## Catatan Next.js 16
 

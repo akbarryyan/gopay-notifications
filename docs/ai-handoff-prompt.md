@@ -18,11 +18,15 @@ sengaja menyimpang dari bawaan, dan semuanya beralasan.
 Payment Notification Bridge — "payment gateway tanpa perlu mendaftar ke
 Midtrans". Aplikasi Android membaca notifikasi pembayaran GoPay Merchant lewat
 NotificationListenerService, mengubahnya jadi event terstruktur, dan
-mengirimkannya ber-HMAC ke backend Go milik merchant sendiri. Backend
-mencocokkannya ke invoice lalu mengirim webhook ke website merchant.
+mengirimkannya ber-HMAC ke backend Go. Backend mencocokkannya ke invoice
+lalu mengirim webhook ke website merchant.
 
-Model bisnis: self-hosted + lisensi tahunan. Merchant menjalankan backend dan
-HP-nya sendiri; uang tidak pernah lewat rekening vendor.
+Model bisnis: hosted SaaS multi-tenant (pivot 2026-09-13 dari self-hosted
++ lisensi tahunan — lihat "Keadaan saat ini" di bawah) seperti Midtrans.
+Satu backend milik vendor melayani semua merchant sekaligus, data dipisah
+per akun (`account_id`). Merchant tetap menjalankan HP-nya sendiri; uang
+tidak pernah lewat rekening vendor (notifikasi GoPay tetap dibaca dari HP
+merchant, hanya bridge-nya yang sekarang terpusat).
 
 ## Urutan membaca, dan kewenangannya
 
@@ -40,11 +44,13 @@ Bila dua dokumen berbeda, yang lebih atas menang:
    TERBUKTI. Jangan percaya klaim di dokumen lain tanpa melihat baris PASS-nya
    di sini beserta buktinya.
 5. docs/qa/qa-rules.md — aturan QA. Mengikat.
-6. docs/license-spec.md — spec bisnis Self-Hosted + Annual License, paling
-   berwenang untuk sistem lisensi.
-   docs/superpowers/specs/2026-09-13-online-license-platform-design.md —
-   subset MVP dari dokumen itu yang benar-benar diimplementasikan (License
-   Server, Vendor Dashboard, licenseclient).
+6. docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md — spec
+   pivot self-hosted → hosted multi-tenant, paling berwenang untuk sistem
+   akun (sub-project 5 fase 1). docs/license-spec.md (Self-Hosted + Annual
+   License) melatarbelakangi keputusan awal tapi SUPERSEDED sebagai model
+   bisnis aktif. docs/superpowers/specs/2026-09-13-online-license-platform-design.md
+   dan 2026-09-13-license-system-design.md (dua platform lisensi
+   sebelumnya) SUPERSEDED juga — sudah dibongkar total.
 7. docs/dashboard-spec.md — rancangan dashboard penuh, draft. MVP yang sudah
    dibangun (dashboard/README.md) hanya subset-nya.
 8. docs/prd.md, docs/detail-project.md — dokumen awal. ARSIP. Jangan disunting;
@@ -186,28 +192,36 @@ penyimpanan Room, pengiriman ber-HMAC, retry, penanganan kegagalan autentikasi,
 idempotency, dan empat layar aplikasi. Backend Go lengkap dengan HMAC,
 idempotency lewat constraint database, heartbeat, registry connector, API
 admin, sub-project 3 penuh (invoice, nominal unik, matching, webhook, API
-key, konsol pengecualian — 4 fase, semuanya selesai), dan platform lisensi
-online (sub-project 5).
+key, konsol pengecualian — 4 fase, semuanya selesai), dan platform akun
+multi-tenant fase 1 (sub-project 5).
 
 Deploy VPS produksi sudah jalan di whuzpay.com (HTTPS lewat Caddy, systemd,
 basic auth) — lihat docs/qa/qa-report.md untuk buktinya.
 
-Sistem lisensi (sub-project 5) SUDAH ONLINE, bukan lagi file .lic offline
-yang ditandatangani manual. Tiga komponen: License Server
-(backend/cmd/licenseserver + backend/internal/licenseserver, milik vendor,
-database gopay_license sendiri), Vendor Dashboard (vendor-dashboard/, app
-Next.js baru cuma dipakai Akbar), dan backend/internal/licenseclient
-(dipakai tiap instalasi customer, validasi berkala + grace period 7 hari).
-Detail lengkap: docs/superpowers/specs/2026-09-13-online-license-platform-design.md
-dan bagian "Sistem lisensi" di CLAUDE.md.
+**PIVOT ARSITEKTUR (2026-09-13):** produk berubah dari self-hosted (tiap
+customer deploy backend+dashboard sendiri) jadi hosted SaaS multi-tenant
+seperti Midtrans — satu backend melayani semua customer, dipisah lewat
+`account_id`. Dipecah jadi 6 sub-project (spec
+docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md §0), baru
+#1 (fondasi: tabel `accounts`, `account_id` di seluruh tabel data,
+endpoint vendor `/api/v1/vendor/*`, Vendor Dashboard) yang selesai. Dua
+platform lisensi sebelumnya (License Server + `internal/licenseclient` +
+`internal/licensecheck`, lalu file `.lic` offline sebelum itu) **dibongkar
+total**, bukan diperluas — jangan bingung dengan dokumen SUPERSEDED yang
+masih menjelaskannya untuk konteks sejarah. Detail lengkap: bagian
+"Sistem akun multi-tenant" di CLAUDE.md.
 
 Dashboard customer Next.js (folder dashboard/) sudah punya delapan halaman
 dengan data sungguhan — Overview, Devices, Events, Transactions, API Keys,
 Webhooks, Exceptions, License — plus login dan gerbang navigasi.
+`vendor-dashboard/` (Next.js terpisah, cuma Akbar) kelola account
+customer + audit log, manggil backend yang sama.
 
-Belum: uji ketahanan semalaman di ColorOS (M6), deploy License Server +
-Vendor Dashboard ke VPS (3 item NEEDS-DEVICE di qa-report.md §15 — sudah
-diimplementasikan dan lulus test lokal, tinggal deploy nyata).
+Belum: uji ketahanan semalaman di ColorOS (M6), deploy pivot akun
+multi-tenant ke VPS produksi (3 item NEEDS-DEVICE di qa-report.md §15 —
+sudah diimplementasikan dan lulus `make test` lokal, tinggal deploy
+nyata), dan sub-project #2-#6 dari pivot (signup publik, penyesuaian
+Customer Dashboard, mobile bridge, landing page whuzpay.com).
 
 Periksa docs/qa/qa-report.md untuk angka pasti, dan git log untuk keputusan
 terbaru beserta alasannya. Pesan commit di repo ini sengaja panjang dan memuat

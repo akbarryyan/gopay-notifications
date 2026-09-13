@@ -1,7 +1,11 @@
 # Platform Lisensi Online — Spec
 
 **Tanggal:** 2026-09-13
-**Status:** Disetujui, siap implementasi
+**Status:** SUPERSEDED — diganti total oleh
+[`2026-09-13-multitenant-accounts-design.md`](2026-09-13-multitenant-accounts-design.md)
+(pivot self-hosted → hosted multi-tenant). License Server,
+`internal/licenseclient`, `internal/licensecheck` yang dibangun dari spec
+ini sudah dibongkar habis. Dibiarkan di sini untuk konteks sejarah.
 **Menggantikan:** [`2026-09-13-license-system-design.md`](2026-09-13-license-system-design.md) (offline) — kode
 verifikasi signature-nya dipakai ulang, lihat §4.
 
