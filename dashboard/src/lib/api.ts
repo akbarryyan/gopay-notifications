@@ -68,6 +68,18 @@ export function logout(): Promise<{ success: true }> {
   return apiFetch("/api/v1/admin/logout", { method: "POST" });
 }
 
+export function signup(input: {
+  business_name: string;
+  email: string;
+  username: string;
+  password: string;
+}): Promise<{ success: true }> {
+  return apiFetch("/api/v1/signup", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 // --- Overview ------------------------------------------------------------
 
 export interface OverviewResponse {
