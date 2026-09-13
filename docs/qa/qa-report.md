@@ -580,68 +580,88 @@ dengan catatan yang sama.
 
 ---
 
-## 15. Sistem lisensi offline — sub-project 5
 
-Spec: [`docs/superpowers/specs/2026-09-13-license-system-design.md`](../superpowers/specs/2026-09-13-license-system-design.md).
-**Ringkasan:** `PASS` 15 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+## 15. Platform lisensi online — sub-project 5 (revisi)
 
-Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`,
-termasuk paket baru `internal/licensecheck`.
+Spec: [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](../superpowers/specs/2026-09-13-online-license-platform-design.md),
+menggantikan versi offline murni yang tercatat sebelumnya di
+[`2026-09-13-license-system-design.md`](../superpowers/specs/2026-09-13-license-system-design.md)
+(SUPERSEDED, `internal/licensecheck`-nya dipakai ulang — lihat spec baru §4).
+**Ringkasan:** `PASS` 6 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 34 (34 test tertulis, menunggu `make test` sungguhan)
 
-### Backend
+Tiga komponen: `internal/licensecheck` (diperluas, sign+verify dipakai
+kedua sisi), `internal/licenseclient` (backend customer memanggil License
+Server), dan `backend/internal/licenseserver` + `backend/cmd/licenseserver`
+(server baru milik vendor) + `vendor-dashboard/` (Next.js baru).
 
-| Butir | Status | Bukti (test yang menguji) |
-|---|---|---|
-| Signature valid + domain cocok + belum lewat expires_at → `active` | `PASS` | `TestLoadSignatureValidDomainCocokMenghasilkanActive` |
-| Lisensi tepat di hari terakhir (`expires_at` itu sendiri) masih `active` | `PASS` | `TestLoadTepatDiHariTerakhirMasihActive` |
-| Sehari setelah `expires_at` → `expired` | `PASS` | `TestLoadSetelahExpiresAtMenghasilkanExpired` |
-| Domain di lisensi tidak cocok domain server → `invalid` | `PASS` | `TestLoadDomainTidakCocokMenghasilkanInvalid` |
-| File ditandatangani kunci privat lain (bukan kunci produksi) ditolak `invalid` | `PASS` | `TestLoadSignatureDitandatanganiKunciLainDitolak` — properti keamanan inti: kunci publik di-hardcode, siapa pun selain Akbar yang menandatangani otomatis ditolak |
-| File tidak ada → `missing` | `PASS` | `TestLoadFileTidakAdaMenghasilkanMissing` |
-| Format/base64 korup → `invalid`, bukan crash | `PASS` | `TestLoadFormatKorupMenghasilkanInvalid`, `TestLoadBarisPayloadBukanBase64` |
-| `DaysRemaining` positif sebelum expires_at, negatif setelahnya | `PASS` | `TestDaysRemainingDihitungDariExpiresAt` |
-| `licensetool -issue` menolak private key bukan base64 / salah ukuran | `PASS` | `TestIssueMenolakPrivateKeyBukanBase64`, `...SalahUkuran` |
-| `GenerateKeyPair` menghasilkan ukuran kunci yang benar | `PASS` | `TestGenerateKeyPairMenghasilkanUkuranYangBenar` |
-| `requireLicense` menolak `402` untuk device, admin, dan API key saat lisensi tidak aktif | `PASS` | `TestRequireLicenseMenolakDeviceSaatTidakAktif`, `...APIKeySaatTidakAktif`, `...AdminSaatTidakAktif` |
-| `requireLicense` meloloskan request saat lisensi aktif | `PASS` | `TestRequireLicenseMengizinkanSaatAktif` |
-| `GET /admin/license` tetap `200` (butuh sesi, bukan lisensi aktif) walau lisensi expired | `PASS` | `TestAdminLicenseEndpointTetapBisaDiaksesSaatTidakAktif` |
-| `GET /admin/license` tetap butuh sesi valid | `PASS` | `TestAdminLicenseEndpointButuhSesi` |
-| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih di seluruh backend | `PASS` | Dijalankan langsung, tanpa output error/diff |
-
-### Frontend (Next.js)
+### Sudah diverifikasi Claude langsung (tidak butuh Docker)
 
 | Butir | Status | Bukti |
 |---|---|---|
-| Type-check, lint, build produksi bersih (route baru: `/license`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
+| `internal/licensecheck` — 16 test (signature valid/expiring/expired/suspended/revoked, grace period lewat/dalam batas, kunci lain ditolak, admin_status tak dikenal, format korup) | `PASS` | `go test ./internal/licensecheck/...` → `16 passed` |
+| `internal/licenseclient` — 7 test (tanpa key diam, activate berhasil tulis file, gagal jaringan tidak tulis apa pun, validate baca installation_id dari file lewat `PeekInstallationID`, validate ditolak 401/404 menghapus file, validate gagal jaringan TIDAK menghapus file) | `PASS` | `go test ./internal/licenseclient/...` → `7 passed` |
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih di seluruh backend (termasuk `internal/licenseserver`, `cmd/licenseserver`) | `PASS` | Dijalankan langsung, tanpa output error/diff |
+| Verifikasi ujung-ke-ujung manual: `licensecheck.Issue` dengan key pair sungguhan → `licensecheck.Load` (public key produksi ter-hardcode) menghasilkan `active` dengan field yang benar | `PASS` | Dijalankan langsung lewat command sekali-pakai, lihat riwayat sesi ini |
+| Dashboard customer: type-check, lint, build produksi bersih (halaman `/license` ditulis ulang read-only, status baru `expiring`/`suspended`/`revoked`/`unreachable`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
+| Vendor Dashboard (`vendor-dashboard/`, baru sepenuhnya): type-check, lint, build produksi bersih, 6 route (`/`, `/login`, `/customers/[id]`, `/licenses/[id]`, `/audit-log`, `/_not-found`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
 
-### Butir `NEEDS-DEVICE` — menunggu verifikasi manual di VPS produksi
+### Butuh Docker — ditulis lengkap, `PENDING` menunggu Akbar menjalankan `make test`
+
+Sebelum `make test`: `docker-compose.yml` menambah container Postgres kedua
+(`postgres-license`, port 5434) dan `Makefile` menambah `migrate-license` +
+`LICENSE_TEST_DATABASE_URL` — sudah otomatis ikut jalan lewat `make test`
+biasa (target `test` sekarang bergantung ke `migrate-license` juga), tidak
+ada langkah manual tambahan.
+
+| Paket | Jumlah test | Mencakup |
+|---|---|---|
+| `backend/internal/licenseserver/store` | 13 | create/get license by key hash, renew, suspend/revoke, `DerivedStatus` matriks (active/expiring/expired/suspended/revoked), generate key format+unik, **Activate row-lock race test** (`-race`, 5 goroutine rebutan kuota 1, harus tepat 1 menang), reset installation membuka kuota lagi, reset dua kali ditolak kedua kalinya |
+| `backend/internal/licenseserver/httpapi` | 15 | `/activate` berhasil (payload teruji cocok), key salah 401, kuota penuh 409, environment tak dikenal 400, `/validate` berhasil, installation direset → 404, key salah 401, installation milik license lain ditolak 404, admin CRUD customer/license (create/renew/suspend/revoke), reset installation via API, audit log mencatat `CUSTOMER_CREATED`, endpoint admin tanpa sesi ditolak |
+| `backend/internal/httpapi` (test lisensi yang sudah ada, diperbarui ke status baru) | 6 | `requireLicense` menolak device/API key/admin saat `expired`/`missing`/`invalid`, `GET /admin/license` tetap 200 saat tidak aktif dan tetap butuh sesi, lolos saat `active` |
+
+Total 34 test di atas + seluruh test lama yang sudah ada sebelumnya di
+`internal/httpapi` dan `internal/store` (tidak diulang di sini, lihat §12-§14)
+— semuanya perlu `make test` sungguhan karena butuh Postgres.
+
+### Butir `NEEDS-DEVICE` — menunggu deploy License Server + Vendor Dashboard ke VPS
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---|---|
-| 1 | Terbitkan lisensi asli untuk `whuzpay.com` lewat `licensetool -issue`, pasang di VPS (`backend/deploy/README.md` §"Lisensi"), restart `gopay-ingestion` | `/license` di dashboard produksi menampilkan status `Aktif` dengan customer/domain/plan/tanggal yang benar |
-| 2 | Terbitkan lisensi lain dengan `-expires` tanggal yang sudah lewat, pasang, restart | `/license` menampilkan `Kedaluwarsa`; endpoint lain (mis. `/api/v1/events`) menjawab `402 license_expired` |
-| 3 | Hapus `license.lic` dari VPS sepenuhnya, restart | `/license` menampilkan `Belum terpasang`; endpoint lain menjawab `402 license_missing` |
+| 1 | Deploy `license-server` (systemd baru) + `vendor-dashboard` (Next.js baru) ke `license.whuzpay.com`, buat akun vendor lewat `licenseserver -create-admin` | Login ke Vendor Dashboard berhasil, halaman Customers kosong tampil tanpa error |
+| 2 | Buat customer + license Business lewat Vendor Dashboard, isi `LICENSE_KEY`/`ENVIRONMENT=production` di `.env` instalasi `whuzpay.com` sungguhan, restart `gopay-ingestion` | `/license` di dashboard `whuzpay.com` menampilkan `Aktif` dengan customer/plan/installation_id yang benar; Vendor Dashboard menampilkan 1 installation "Terikat" |
+| 3 | Suspend license itu dari Vendor Dashboard, tunggu satu siklus validasi (restart `gopay-ingestion` untuk memicu segera, tidak perlu tunggu 24 jam sungguhan) | `/license` berubah `Disuspend`; endpoint lain (mis. `/api/v1/events`) menjawab `402 license_suspended` |
 
-Sengaja `NEEDS-DEVICE`, bukan `PENDING` — kodenya sudah lengkap dan teruji
-lewat unit test, ini murni verifikasi bahwa perilaku yang sama juga terjadi
-saat berjalan sungguhan di VPS produksi (lisensi cuma bisa dites dengan file
-sungguhan, tidak bisa disimulasikan dari `make test`).
+Sengaja `NEEDS-DEVICE` — perilaku ini butuh dua service sungguhan yang
+saling terhubung lewat internet, tidak bisa disimulasikan penuh dari
+`make test` satu repo.
 
 ### Langkah verifikasi manual (dev lokal, tanpa VPS)
 
 ```bash
-cd backend
-go run ./cmd/licensetool -genkey   # sekali saja
-go run ./cmd/licensetool -issue -key ~/.gopay-license/private.key \
-  -customer "Dev" -domain "localhost" -plan "Dev" -expires "2099-12-31" \
-  -out license-dev.lic
-# .env.dev: PUBLIC_DOMAIN=localhost, LICENSE_FILE_PATH=./license-dev.lic
+# 1. Sekali saja: bangkitkan kunci License Server
+go run ./cmd/licenseserver -genkey
+# Tempel Signing Public Key ke internal/licensecheck/license.go
+# (licensePublicKeyBase64), commit. Simpan ADMIN_SESSION_KEY dan
+# LICENSE_SIGNING_PRIVATE_KEY untuk .env License Server.
 
-make run-dev
+# 2. Jalankan License Server (database gopay_license lokal, lihat
+#    docker-compose.yml/Makefile untuk provisioning)
+cd backend
+go run ./cmd/licenseserver -create-admin vendor   # akun Vendor Dashboard
+go run ./cmd/licenseserver                        # perlu .env sendiri, lihat kode
+
+# 3. Jalankan Vendor Dashboard
+cd ../vendor-dashboard && npm run dev
+
+# 4. Login ke Vendor Dashboard, buat customer "Dev", buat license Business
+#    expires_at jauh -- salin key mentah yang muncul sekali.
+
+# 5. Di backend customer (.env.dev): LICENSE_KEY=<key tadi>, ENVIRONMENT=production
+cd ../backend && make run-dev
 ```
 
-Buka dashboard, login, buka `/license` — harus menampilkan `Aktif`,
-Customer "Dev", Domain "localhost", Plan "Dev", sisa ribuan hari. Ganti
-`-expires` ke tanggal kemarin, terbitkan ulang, restart `make run-dev` —
-`/license` harus berubah `Kedaluwarsa` dan halaman lain (mis. Devices)
-gagal memuat dengan error dari `402`.
+Buka dashboard customer, login, buka `/license` — harus `Aktif` dengan
+`installation_id` terisi. Di Vendor Dashboard, buka license itu — satu
+installation "Terikat". Suspend dari Vendor Dashboard, restart
+`make run-dev` (memicu validasi segera) — `/license` customer berubah
+`Disuspend`, halaman lain (mis. Devices) gagal memuat dengan error `402`.

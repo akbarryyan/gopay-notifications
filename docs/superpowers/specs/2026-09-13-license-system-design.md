@@ -1,7 +1,14 @@
-# Sistem Lisensi — Spec
+# Sistem Lisensi (offline) — Spec
 
 **Tanggal:** 2026-09-13
-**Status:** Disetujui, siap implementasi
+**Status:** SUPERSEDED — diganti [`2026-09-13-online-license-platform-design.md`](2026-09-13-online-license-platform-design.md)
+setelah `docs/license-spec.md` (dokumen otoritatif bisnis) mensyaratkan model
+online (License Server + Installation ID + entitlements), bukan file offline
+murni. Kode dari dokumen ini (`internal/licensecheck` untuk verifikasi
+signature Ed25519) **dipakai ulang**, bukan dibuang — lihat spec baru §4.
+Sisanya (`cmd/licensetool` sebagai penandatangan manual, `license.lic`
+statis) digantikan. Dokumen ini dibiarkan sebagai riwayat keputusan, bukan
+dihapus.
 
 ## 1. Latar belakang dan keputusan pokok
 

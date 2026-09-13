@@ -16,10 +16,11 @@ Urutan kewenangan bila terjadi perbedaan:
 2. [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md) — spec invoice, nominal unik, matching, API key untuk sub-project 3 fase 1
 3. [`docs/superpowers/specs/2026-09-13-webhook-delivery-design.md`](docs/superpowers/specs/2026-09-13-webhook-delivery-design.md) — spec webhook delivery untuk sub-project 3 fase 2
 4. [`docs/superpowers/specs/2026-09-13-exception-console-design.md`](docs/superpowers/specs/2026-09-13-exception-console-design.md) — spec konsol pengecualian untuk sub-project 3 fase 4
-5. [`docs/superpowers/specs/2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md) — spec sistem lisensi offline (sub-project 5)
-6. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
-7. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
-8. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
+5. [`docs/license-spec.md`](docs/license-spec.md) — spec bisnis lisensi (Self-Hosted + Annual License), paling berwenang untuk sub-project 5
+6. [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](docs/superpowers/specs/2026-09-13-online-license-platform-design.md) — potongan MVP dari spec #5 di atas, dipilih dan diimplementasikan untuk sub-project 5. [`2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md) (versi offline) SUPERSEDED oleh dokumen ini.
+7. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
+8. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
+9. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
 
 Spec lebih berwenang daripada PRD karena memuat keputusan yang sengaja menyimpang dari PRD dan sudah disetujui. Penyimpangan itu terdaftar di §9 spec — jangan "memperbaiki" implementasi agar kembali sesuai PRD tanpa memeriksa daftar itu lebih dulu.
 
@@ -43,7 +44,7 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
 | 3 | Gateway: invoice, nominal unik, matching, webhook, API key, konsol pengecualian | seluruh 4 fase selesai |
 | 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks, Exceptions, License | sedang dikerjakan |
-| 5 | Sistem lisensi offline (Ed25519 signed file, `licensetool`, `requireLicense`) | selesai |
+| 5 | Platform lisensi online (License Server, Vendor Dashboard, `internal/licenseclient`, `requireLicense`) | implementasi selesai, menunggu deploy + `make test` |
 
 Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2–#4
 di atas. Seluruhnya sudah selesai — kalau ada permintaan fitur baru untuk
@@ -71,29 +72,47 @@ akan menambah komponen lain ke sana), tapi label dan copy yang ditampilkan
 di halaman harus diringkas jadi bahasa yang netral, mis. "Status Layanan" /
 "Aktif", bukan "Backend: operational".
 
-Sistem lisensi (sub-project 5) sepenuhnya offline: `licensetool` (dijalankan
-Akbar sendiri, tidak pernah di server customer) menandatangani file lisensi
-dengan Ed25519, backend memverifikasinya lewat `internal/licensecheck` tanpa
-pernah menghubungi server manapun. Tidak ada portal/dashboard vendor untuk
-melihat status semua instalasi customer sekaligus — itu tetap komponen
-terpisah yang belum ada di scope manapun, baru masuk akal dibangun begitu
-customer lebih dari satu.
+Sistem lisensi (sub-project 5) sekarang online: License Server + Vendor
+Dashboard adalah komponen vendor yang sebelumnya sengaja ditunda ("baru
+masuk akal begitu customer lebih dari satu") — sudah dibangun lebih awal
+dari rencana karena `docs/license-spec.md` mensyaratkan validasi online.
+Detail lengkap di bagian "Sistem lisensi" di bawah.
 
 ## Sistem lisensi
 
-Spec lengkap: [`docs/superpowers/specs/2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md).
-Ringkas: file lisensi offline (`license.lic`), ditandatangani Ed25519 lewat
-`backend/cmd/licensetool` (**hanya dijalankan Akbar sendiri, tidak pernah di
-server customer**), diverifikasi backend lewat `internal/licensecheck` tanpa
-pernah menghubungi jaringan. Tanpa lisensi aktif, `requireLicense` menolak
-`402` seluruh endpoint device/admin/API key — hanya login dan halaman
-dashboard `/license` yang tetap bisa diakses. Cara menerbitkan/memperpanjang
-lisensi customer ada di `backend/deploy/README.md` §"Lisensi".
+Spec lengkap: [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](docs/superpowers/specs/2026-09-13-online-license-platform-design.md)
+(mengikuti [`docs/license-spec.md`](docs/license-spec.md), dokumen bisnis
+otoritatif untuk model Self-Hosted + Annual License). Menggantikan versi
+offline murni yang sempat dibangun sebelumnya
+([`2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md),
+SUPERSEDED) — `internal/licensecheck` dipakai ulang, cuma yang
+menandatangani sekarang License Server, bukan CLI manual.
 
-Untuk dev lokal, `PUBLIC_DOMAIN=localhost` di `.env.dev` butuh
-`license-dev.lic` yang dibuat sekali lewat `licensetool -issue` (lihat
-`.env.dev.example`) — tanpa itu `make run-dev` tetap menyala tapi seluruh
-endpoint menjawab `402`.
+**Tiga komponen, tiga kepemilikan berbeda:**
+
+- `backend/cmd/licenseserver` + `backend/internal/licenseserver` — License
+  Server, **milik vendor (Akbar)**, database sendiri (`gopay_license`),
+  di-deploy terpisah di `license.whuzpay.com`. Satu Go module dengan
+  `backend/` (supaya bisa memakai ulang `internal/licensecheck` untuk
+  menandatangani), tapi database dan proses run-time-nya terpisah total
+  dari instalasi customer manapun — termasuk instalasi Akbar sendiri
+  sebagai customer pertamanya di `whuzpay.com`.
+- `vendor-dashboard/` — Next.js baru, **cuma Akbar yang pakai**, kelola
+  customer/license/installation/audit log. Terpisah total dari
+  `dashboard/` (dashboard customer) — jangan pernah dicampur.
+- `backend/internal/licenseclient` + `backend/internal/licensecheck` (baris
+  verifikasi) — **milik tiap instalasi customer**, memvalidasi ke License
+  Server tiap 24 jam (goroutine terpisah dari ticker webhook di
+  `cmd/server/main.go`), hasil signed di-cache lokal (`license-state.lic`)
+  dengan grace period 7 hari kalau License Server tak terjangkau.
+
+Aktivasi lewat `.env`: `LICENSE_KEY` + `ENVIRONMENT` (`production`/`uat`),
+lalu restart — **bukan** form di dashboard, konsisten dengan pola seluruh
+kunci lain di proyek ini. Tanpa lisensi aktif/akan-berakhir,
+`requireLicense` menolak `402` seluruh endpoint device/admin/API key —
+hanya login dan halaman dashboard `/license` (read-only) yang tetap bisa
+diakses. Cara deploy License Server + Vendor Dashboard dan menerbitkan
+lisensi customer ada di `backend/deploy/README.md` §"Lisensi".
 
 ## Keputusan arsitektur yang tidak boleh dilanggar diam-diam
 
@@ -309,9 +328,9 @@ Tiga kunci di backend, tiga tujuan berbeda, semuanya dihasilkan lewat
 lain**: `DEVICE_SECRET_KEY` (enkripsi secret device), `ADMIN_SESSION_KEY`
 (tanda tangan cookie sesi admin), `WEBHOOK_SECRET_KEY` (enkripsi secret
 webhook — dipakai ulang tiap kirim payload, beda dari dua kunci lain yang
-cuma menandatangani/memverifikasi). Kunci lisensi (Ed25519, `licensetool`)
-adalah pasangan terpisah lagi, bukan bagian dari tiga kunci ini — lihat
-"Sistem lisensi" di atas.
+cuma menandatangani/memverifikasi). Kunci penanda tangan lisensi (Ed25519)
+adalah pasangan terpisah lagi milik **License Server**, bukan bagian dari
+tiga kunci backend customer ini — lihat "Sistem lisensi" di atas.
 
 Backend punya satu goroutine berkala (`time.Ticker`, 1 menit, di
 `cmd/server/main.go`) yang memproses webhook — mendeteksi invoice yang baru
