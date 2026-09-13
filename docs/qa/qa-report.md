@@ -485,7 +485,7 @@ riwayat webhook dalam beberapa detik tanpa refresh manual berkali-kali.
 
 Spec:
 [`docs/superpowers/specs/2026-09-13-exception-console-design.md`](../superpowers/specs/2026-09-13-exception-console-design.md).
-**Ringkasan:** `PASS` 15 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+**Ringkasan:** `PASS` 18 · `FAIL` 0 · `NEEDS-DEVICE` 0 · `PENDING` 0
 
 Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`.
 
@@ -513,9 +513,9 @@ Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`.
 | Butir | Status | Bukti |
 |---|---|---|
 | Type-check, lint, build produksi bersih (route baru: `/exceptions`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 9 route, 0 error/warning |
-| Halaman Exceptions menampilkan event tak cocok yang sesuai dengan query backend | `NEEDS-DEVICE` | Perlu `npm run dev` dan event sungguhan yang nominalnya sengaja tidak cocok invoice manapun |
-| Dialog Cocokkan: pencarian invoice PENDING/EXPIRED bekerja, memilih lalu konfirmasi benar-benar mengubah invoice jadi PAID dan mengirim webhook | `NEEDS-DEVICE` | idem, bandingkan dengan §12/§13 |
-| Dialog Abaikan: catatan tersimpan, event hilang dari daftar setelahnya | `NEEDS-DEVICE` | idem, cek `SELECT * FROM event_reviews` di DBeaver |
+| Halaman Exceptions menampilkan event tak cocok yang sesuai dengan query backend | `PASS` | Akbar, 13 Sep 2026: event dengan `amount_hint` sengaja beda dari `unique_amount` invoice muncul di `/exceptions` |
+| Dialog Cocokkan: pencarian invoice PENDING/EXPIRED bekerja, memilih lalu konfirmasi benar-benar mengubah invoice jadi PAID dan mengirim webhook | `PASS` | Akbar, 13 Sep 2026: invoice ditemukan lewat pencarian, dicocokkan, berubah `PAID` di `/transactions`, webhook `invoice.paid` tercatat di `/webhooks`, event hilang dari `/exceptions` |
+| Dialog Abaikan: catatan tersimpan, event hilang dari daftar setelahnya | `PASS` | Akbar, 13 Sep 2026: dicek lewat `SELECT * FROM event_reviews` — catatan cocok dengan yang diketik, event hilang dari daftar |
 
 ### Langkah verifikasi
 
