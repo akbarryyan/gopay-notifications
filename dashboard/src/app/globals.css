@@ -141,3 +141,69 @@
     @apply font-sans;
   }
 }
+
+/* Dipakai khusus oleh konektor "Architecture" di landing page
+   (components/landing/sections.tsx) -- titik yang mengalir turun di
+   sepanjang garis penghubung antar layer. Diberi nama ber-prefix `lp-`
+   supaya jelas ini scoped ke landing page, bukan token tema bersama. */
+@keyframes lp-flow-dot {
+  0% {
+    top: -10%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: 110%;
+    opacity: 0;
+  }
+}
+
+.lp-flow-dot {
+  animation: lp-flow-dot 2.4s ease-in-out infinite;
+  animation-delay: var(--lp-flow-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-flow-dot {
+    animation: none;
+    top: 50%;
+    opacity: 0.7;
+  }
+}
+
+/* Dipakai oleh konektor "Cara Kerja" (StepConnector di sections.tsx) --
+   garis path-nya sendiri diam total, yang beranimasi cuma warnanya yang
+   "mengisi" sepanjang garis lalu memudar lagi, lewat stroke-dashoffset di
+   atas path ber-pathLength=1. Bukan garis yang bergerak/berpindah bentuk. */
+@keyframes lp-line-fill {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  35% {
+    stroke-dashoffset: 0;
+  }
+  65% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+.lp-line-fill {
+  stroke-dasharray: 1;
+  animation: lp-line-fill 3.2s ease-in-out infinite;
+  animation-delay: var(--lp-flow-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-line-fill {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Check, Zap } from "lucide-react";
+import { SectionGrid } from "./section-grid";
 
 function Eyebrow({ children, invert }: { children: string; invert?: boolean }) {
   return (
@@ -107,8 +108,9 @@ const PLANS = [
 
 export function PricingSection() {
   return (
-    <section id="harga" className="bg-white py-16 sm:py-20">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+    <section id="harga" className="relative bg-white py-16 sm:py-20">
+      <SectionGrid />
+      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <Eyebrow>Harga</Eyebrow>
           <h2 className="font-(--font-lp-heading) mt-3 text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
@@ -252,8 +254,21 @@ export function FaqSection() {
 
 export function FinalCtaSection() {
   return (
-    <section className="bg-slate-900 py-20 text-white sm:py-24">
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-4 text-center sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden bg-slate-900 py-20 text-white sm:py-24">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgb(255_255_255/0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgb(255_255_255/0.04)_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_60%_80%_at_50%_50%,#000_30%,transparent_100%)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 left-1/2 size-144 -translate-x-1/2 -translate-y-1/2 rounded-full bg-teal-500/10 blur-3xl"
+      />
+
+      <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-6 px-4 text-center sm:px-6 lg:px-8">
+        <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-white/70 ring-1 ring-white/10">
+          Aktif dalam hitungan menit, tanpa kartu kredit
+        </span>
+
         <h2 className="font-(--font-lp-heading) text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
           Hubungkan pembayaran ke sistem yang sudah kamu pakai.
         </h2>
@@ -287,8 +302,9 @@ export function FinalCtaSection() {
 
 export function LandingFooter() {
   return (
-    <footer className="bg-white py-12">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <footer className="relative bg-white py-12">
+      <SectionGrid />
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 font-semibold text-slate-900">

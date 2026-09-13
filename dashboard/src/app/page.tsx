@@ -1,6 +1,7 @@
 import { LandingNavbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { Reveal } from "@/components/landing/reveal";
+import { HighlightsSection } from "@/components/landing/highlights";
 import {
   ArchitectureSection,
   FeaturesSection,
@@ -45,6 +46,9 @@ export default function LandingPage() {
         </Reveal>
         <Reveal>
           <FaqSection />
+        </Reveal>
+        <Reveal>
+          <HighlightsSection />
         </Reveal>
         <Reveal>
           <FinalCtaSection />
