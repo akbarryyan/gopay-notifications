@@ -82,34 +82,44 @@ func (s *Store) expireStaleInvoices(ctx context.Context, now time.Time) error {
 	return err
 }
 
+// ExpiredInvoiceRef identifies one invoice yang baru saja berpindah ke
+// EXPIRED, beserta account_id pemiliknya -- worker (lintas akun) butuh
+// account_id ini supaya pemanggilan berikutnya (enqueueWebhooks ->
+// GetInvoiceByID) tetap bisa di-scope per akun tanpa harus membuka jalur
+// lookup invoice yang tidak di-scope sama sekali.
+type ExpiredInvoiceRef struct {
+	ID        string
+	AccountID string
+}
+
 // ExpireInvoicesAndListNewlyExpired menulis transisi PENDING -> EXPIRED dan
-// mengembalikan ID invoice yang baru berpindah PADA PANGGILAN INI — bukan
+// mengembalikan invoice yang baru berpindah PADA PANGGILAN INI — bukan
 // yang sudah EXPIRED dari sebelumnya. Dipakai worker webhook (sub-project 3
 // fase 2) untuk memicu invoice.expired tepat sekali per invoice: memanggil
 // ini dua kali berturut-turut pada invoice yang sama hanya mengembalikan
-// ID-nya di panggilan pertama, karena UPDATE...RETURNING hanya menyentuh
+// baris itu di panggilan pertama, karena UPDATE...RETURNING hanya menyentuh
 // baris yang statusnya MASIH PENDING saat itu.
-func (s *Store) ExpireInvoicesAndListNewlyExpired(ctx context.Context, now time.Time) ([]string, error) {
+func (s *Store) ExpireInvoicesAndListNewlyExpired(ctx context.Context, now time.Time) ([]ExpiredInvoiceRef, error) {
 	rows, err := s.pool.Query(ctx,
-		`UPDATE invoices SET status = $1 WHERE status = $2 AND expires_at <= $3 RETURNING id`,
+		`UPDATE invoices SET status = $1 WHERE status = $2 AND expires_at <= $3 RETURNING id, account_id`,
 		InvoiceStatusExpired, InvoiceStatusPending, now)
 	if err != nil {
 		return nil, fmt.Errorf("store: expire invoices: %w", err)
 	}
 	defer rows.Close()
 
-	var ids []string
+	var refs []ExpiredInvoiceRef
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("store: scan expired invoice id: %w", err)
+		var ref ExpiredInvoiceRef
+		if err := rows.Scan(&ref.ID, &ref.AccountID); err != nil {
+			return nil, fmt.Errorf("store: scan expired invoice ref: %w", err)
 		}
-		ids = append(ids, id)
+		refs = append(refs, ref)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterasi expired invoice ids: %w", err)
+		return nil, fmt.Errorf("store: iterasi expired invoice refs: %w", err)
 	}
-	return ids, nil
+	return refs, nil
 }
 
 func randomOffset(max int64) (int64, error) {

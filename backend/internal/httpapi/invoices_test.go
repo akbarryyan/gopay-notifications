@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,23 +19,10 @@ import (
 func newAPIWithAPIKey(t *testing.T) (http.Handler, string) {
 	t.Helper()
 
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Fatal("TEST_DATABASE_URL belum diset. Jalankan: make db-up migrate")
-	}
-
+	s := newTestStore(t)
 	ctx := context.Background()
-	s, err := store.New(ctx, url)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	t.Cleanup(s.Close)
-
-	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE"); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
@@ -48,11 +34,11 @@ func newAPIWithAPIKey(t *testing.T) (http.Handler, string) {
 	if err != nil {
 		t.Fatalf("GenerateAPIKeySecret: %v", err)
 	}
-	if err := s.CreateAPIKey(ctx, id, "Website utama", hash); err != nil {
+	if err := s.CreateAPIKey(ctx, "acc_1", id, "Website utama", hash); err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	h := httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 	return h, rawKey
 }
 

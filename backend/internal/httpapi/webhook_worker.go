@@ -10,8 +10,8 @@ import (
 
 // enqueueWebhooks membangun payload dari invoice saat ini lalu menyisipkan
 // satu baris webhook_deliveries per endpoint yang berlangganan event itu.
-func (a *API) enqueueWebhooks(ctx context.Context, event, invoiceID string, now time.Time) error {
-	inv, err := a.store.GetInvoiceByID(ctx, invoiceID)
+func (a *API) enqueueWebhooks(ctx context.Context, accountID, event, invoiceID string, now time.Time) error {
+	inv, err := a.store.GetInvoiceByID(ctx, accountID, invoiceID)
 	if err != nil {
 		return err
 	}
@@ -24,15 +24,15 @@ func (a *API) enqueueWebhooks(ctx context.Context, event, invoiceID string, now 
 }
 
 // triggerInvoiceWebhook dipanggil dari handleCallback (invoice.paid) dan
-// dari ProcessDueWebhooks (invoice.expired) lewat goroutine terpisah —
-// context sendiri, bukan context request HTTP yang memicunya, supaya
-// selesainya request itu tidak ikut membatalkan pengiriman webhook.
-func (a *API) triggerInvoiceWebhook(event, invoiceID string) {
+// dari handleAdminMatchException (invoice.paid manual) lewat goroutine
+// terpisah — context sendiri, bukan context request HTTP yang memicunya,
+// supaya selesainya request itu tidak ikut membatalkan pengiriman webhook.
+func (a *API) triggerInvoiceWebhook(accountID, event, invoiceID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	now := a.now()
 
-	if err := a.enqueueWebhooks(ctx, event, invoiceID, now); err != nil {
+	if err := a.enqueueWebhooks(ctx, accountID, event, invoiceID, now); err != nil {
 		slog.Error("enqueue webhook gagal", "event", event, "invoice_id", invoiceID, "err", err)
 		return
 	}
@@ -71,22 +71,20 @@ func (a *API) attemptDelivery(ctx context.Context, d store.WebhookDeliveryDue, n
 // Dipanggil manual dengan now palsu di test, dipanggil oleh time.Ticker di
 // cmd/server untuk yang sungguhan (lihat cmd/server/main.go).
 func (a *API) ProcessDueWebhooks(ctx context.Context, now time.Time) error {
-	// Lisensi tidak aktif: diam-diam tidak memproses apa pun. Rute yang
-	// memicu jalur ini (device ingestion) sudah ditolak requireLicense
-	// lebih dulu, tapi ticker berkala di cmd/server berjalan terus terlepas
-	// dari ada tidaknya request masuk, jadi butuh pengecekannya sendiri di
-	// sini. Tidak di-log tiap tick — statusnya sudah terlihat di dashboard.
-	if !a.loadLicense().Status.Operational() {
-		return nil
-	}
-
-	expiredIDs, err := a.store.ExpireInvoicesAndListNewlyExpired(ctx, now)
+	// Worker ini lintas akun -- tidak ada satu status account untuk dicek
+	// di sini (beda dari requireActiveAccount yang menggerbangi ingestion
+	// per akun). Suspend/revoke sebuah akun mencegah invoice BARU dibuat
+	// (requireActiveAccount di POST /api/v1/invoices), tapi invoice yang
+	// sudah PENDING sebelum disuspend tetap wajar diproses sampai selesai
+	// di sini -- itu bukan aktivitas baru, cuma menyelesaikan yang sudah
+	// terlanjur berjalan.
+	expired, err := a.store.ExpireInvoicesAndListNewlyExpired(ctx, now)
 	if err != nil {
 		return err
 	}
-	for _, id := range expiredIDs {
-		if err := a.enqueueWebhooks(ctx, store.WebhookEventInvoiceExpired, id, now); err != nil {
-			slog.Error("enqueue webhook invoice.expired gagal", "invoice_id", id, "err", err)
+	for _, ref := range expired {
+		if err := a.enqueueWebhooks(ctx, ref.AccountID, store.WebhookEventInvoiceExpired, ref.ID, now); err != nil {
+			slog.Error("enqueue webhook invoice.expired gagal", "invoice_id", ref.ID, "err", err)
 		}
 	}
 

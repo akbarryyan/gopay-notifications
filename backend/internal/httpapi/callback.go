@@ -92,6 +92,7 @@ func (a *API) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// akan dibutuhkan saat sub-project 3 menyusun aturan matching.
 	inserted, err := a.store.InsertEvent(r.Context(), store.Event{
 		EventID:     req.EventID,
+		AccountID:   device.AccountID,
 		DeviceID:    device.DeviceID,
 		Source:      req.Source,
 		PackageName: req.Notification.PackageName,
@@ -117,7 +118,7 @@ func (a *API) handleCallback(w http.ResponseWriter, r *http.Request) {
 		// sudah dicocokkan (atau memang tidak cocok) saat pertama kali
 		// masuk, mengulanginya cuma kerja sia-sia. MatchEvent sendiri yang
 		// melewati amount_hint nil, jadi tidak perlu dicek di sini.
-		matchedInvoiceID, err := a.store.MatchEvent(r.Context(), a.now(), req.EventID, req.AmountHint)
+		matchedInvoiceID, err := a.store.MatchEvent(r.Context(), a.now(), device.AccountID, req.EventID, req.AmountHint)
 		if err != nil {
 			// Event sudah tersimpan — kegagalan matching bukan alasan
 			// membalas gagal ke device, yang tidak tahu-menahu soal invoice.
@@ -127,7 +128,7 @@ func (a *API) handleCallback(w http.ResponseWriter, r *http.Request) {
 			// (bukan r.Context()) — request ini boleh selesai dan koneksinya
 			// ditutup tanpa ikut membatalkan pengiriman webhook yang mungkin
 			// masih berlangsung ke server merchant.
-			go a.triggerInvoiceWebhook(store.WebhookEventInvoicePaid, matchedInvoiceID)
+			go a.triggerInvoiceWebhook(device.AccountID, store.WebhookEventInvoicePaid, matchedInvoiceID)
 		}
 	}
 	slog.Info("event diterima", "event_id", req.EventID, "device_id", device.DeviceID, "status", status)

@@ -45,21 +45,22 @@ const overviewTrendDays = 14
 
 // handleAdminOverview meringkas kondisi sistem untuk halaman Overview.
 func (a *API) handleAdminOverview(w http.ResponseWriter, r *http.Request) {
-	devices, err := a.store.ListDevices(r.Context())
+	accountID, _ := AccountFromContext(r.Context())
+	devices, err := a.store.ListDevices(r.Context(), accountID)
 	if err != nil {
 		slog.Error("ambil devices gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
 
-	stats, err := a.store.EventStats(r.Context(), a.now())
+	stats, err := a.store.EventStats(r.Context(), accountID, a.now())
 	if err != nil {
 		slog.Error("ambil event stats gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
 
-	daily, err := a.store.DailyEventCounts(r.Context(), a.now(), overviewTrendDays)
+	daily, err := a.store.DailyEventCounts(r.Context(), accountID, a.now(), overviewTrendDays)
 	if err != nil {
 		slog.Error("ambil daily event counts gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")

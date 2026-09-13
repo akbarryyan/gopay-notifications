@@ -16,10 +16,18 @@ type eventsResponse struct {
 	} `json:"events"`
 }
 
+// getEvents memanggil GET /api/v1/admin/events (bukan lagi rute publik
+// /api/v1/events yang sudah dihapus -- account_id tidak bisa diturunkan
+// dari basic auth Caddy di model multi-tenant) -- login dulu sebagai
+// account "acc_1" (dibuat newAPIWithDevice lewat seedActiveAccount).
 func getEvents(t *testing.T, h http.Handler, query string) eventsResponse {
 	t.Helper()
+	cookie := loginAsAccount1(t, h)
+
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/events"+query, nil))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/events"+query, nil)
+	req.AddCookie(cookie)
+	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, mau 200 (body=%s)", rec.Code, rec.Body.String())
@@ -29,6 +37,32 @@ func getEvents(t *testing.T, h http.Handler, query string) eventsResponse {
 		t.Fatalf("decode: %v", err)
 	}
 	return out
+}
+
+// loginAsAccount1 login sebagai account "acc_1" yang dibuat seedActiveAccount
+// (username = account_id, password = "rahasia123") dan mengembalikan cookie
+// sesinya.
+func loginAsAccount1(t *testing.T, h http.Handler) *http.Cookie {
+	t.Helper()
+	rec := adminLogin(t, h, "acc_1", "rahasia123")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login acc_1 gagal: status = %d (body=%s)", rec.Code, rec.Body.String())
+	}
+	cookie := sessionCookieFrom(rec)
+	if cookie == nil {
+		t.Fatal("login acc_1 tidak menerbitkan cookie")
+	}
+	return cookie
+}
+
+func eventsRequestWithCookie(t *testing.T, h http.Handler, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	cookie := loginAsAccount1(t, h)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/events"+query, nil)
+	req.AddCookie(cookie)
+	h.ServeHTTP(rec, req)
+	return rec
 }
 
 func TestEventsEmptyReturnsEmptyArray(t *testing.T) {
@@ -70,8 +104,7 @@ func TestEventsRejectsBadLimit(t *testing.T) {
 
 	for _, q := range []string{"?limit=0", "?limit=-1", "?limit=abc", "?limit=1001", "?offset=-1"} {
 		t.Run(q, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/events"+q, nil))
+			rec := eventsRequestWithCookie(t, h, q)
 
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, mau 400", rec.Code)
@@ -93,8 +126,7 @@ func TestEventsFiltersBySource(t *testing.T) {
 func TestEventsRejectsUnknownSource(t *testing.T) {
 	h := newAPIWithDevice(t)
 
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/events?source=dana", nil))
+	rec := eventsRequestWithCookie(t, h, "?source=dana")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, mau 400 (source belum ada di connector registry)", rec.Code)
@@ -147,8 +179,7 @@ func TestEventsRejectsBadDateRange(t *testing.T) {
 
 	for _, q := range []string{"?from=bukan-tanggal", "?to=2026/09/10"} {
 		t.Run(q, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/events"+q, nil))
+			rec := eventsRequestWithCookie(t, h, q)
 
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, mau 400", rec.Code)

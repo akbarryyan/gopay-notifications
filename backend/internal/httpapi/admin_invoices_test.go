@@ -34,7 +34,7 @@ func TestAdminInvoicesMenampilkanYangSungguhanAda(t *testing.T) {
 	}
 	defer s.Close()
 
-	if _, _, err := s.CreateInvoice(context.Background(), time.Now(), "ORDER-1", 50000); err != nil {
+	if _, _, err := s.CreateInvoice(context.Background(), time.Now(), "acc_1", "ORDER-1", 50000); err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 
@@ -61,7 +61,7 @@ func TestAdminInvoicesFilterStatus(t *testing.T) {
 		t.Fatalf("store.New: %v", err)
 	}
 	defer s.Close()
-	if _, _, err := s.CreateInvoice(context.Background(), time.Now(), "ORDER-1", 50000); err != nil {
+	if _, _, err := s.CreateInvoice(context.Background(), time.Now(), "acc_1", "ORDER-1", 50000); err != nil {
 		t.Fatalf("CreateInvoice: %v", err)
 	}
 

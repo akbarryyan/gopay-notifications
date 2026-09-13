@@ -51,7 +51,8 @@ func toAdminDeviceJSON(d store.Device, now time.Time) adminDeviceJSON {
 
 // handleAdminDevices mengembalikan seluruh device untuk halaman Devices.
 func (a *API) handleAdminDevices(w http.ResponseWriter, r *http.Request) {
-	devices, err := a.store.ListDevices(r.Context())
+	accountID, _ := AccountFromContext(r.Context())
+	devices, err := a.store.ListDevices(r.Context(), accountID)
 	if err != nil {
 		slog.Error("ambil devices gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
@@ -73,6 +74,7 @@ type setDeviceEnabledRequest struct {
 //
 // Path: PATCH /api/v1/admin/devices/{deviceID}
 func (a *API) handleAdminSetDeviceEnabled(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	deviceID := r.PathValue("deviceID")
 	if deviceID == "" {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "device id tidak valid")
@@ -85,7 +87,7 @@ func (a *API) handleAdminSetDeviceEnabled(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err := a.store.SetDeviceEnabled(r.Context(), deviceID, req.Enabled)
+	err := a.store.SetDeviceEnabled(r.Context(), accountID, deviceID, req.Enabled)
 	if errors.Is(err, store.ErrDeviceNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "device tidak ditemukan")
 		return

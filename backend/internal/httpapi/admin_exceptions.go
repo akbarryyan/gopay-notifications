@@ -19,6 +19,7 @@ type exceptionsListResponse struct {
 // di-dismiss. Pola filter (limit/offset/q/from/to) sama dengan handleEvents,
 // minus source (exception tidak difilter per sumber di MVP ini).
 func (a *API) handleAdminExceptions(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	limit, err := intParam(r, "limit", 50)
 	if err != nil || limit < 1 || limit > 1000 {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "limit harus bilangan bulat 1..1000")
@@ -49,7 +50,7 @@ func (a *API) handleAdminExceptions(w http.ResponseWriter, r *http.Request) {
 		filter.To = &to
 	}
 
-	exceptions, err := a.store.ListExceptions(r.Context(), limit, offset, filter)
+	exceptions, err := a.store.ListExceptions(r.Context(), accountID, limit, offset, filter)
 	if err != nil {
 		slog.Error("ambil exceptions gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
@@ -71,6 +72,7 @@ type matchExceptionRequest struct {
 // Berhasil → webhook invoice.paid ikut terpicu, persis seperti matching
 // otomatis (helper triggerInvoiceWebhook yang sama, dua pemicu).
 func (a *API) handleAdminMatchException(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	eventID := r.PathValue("eventID")
 
 	var req matchExceptionRequest
@@ -83,7 +85,7 @@ func (a *API) handleAdminMatchException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := a.store.ManualMatchEvent(r.Context(), a.now(), req.InvoiceID, eventID)
+	err := a.store.ManualMatchEvent(r.Context(), a.now(), accountID, req.InvoiceID, eventID)
 	if errors.Is(err, store.ErrInvoiceNotEligibleForMatch) {
 		a.writeError(w, http.StatusConflict, "invoice_not_eligible",
 			"invoice tidak ditemukan atau sudah PAID")
@@ -100,7 +102,7 @@ func (a *API) handleAdminMatchException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	go a.triggerInvoiceWebhook(store.WebhookEventInvoicePaid, req.InvoiceID)
+	go a.triggerInvoiceWebhook(accountID, store.WebhookEventInvoicePaid, req.InvoiceID)
 
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
@@ -113,6 +115,7 @@ type dismissExceptionRequest struct {
 // Tidak ada "undo" — konsisten dengan pola tidak-ada-un-revoke di seluruh
 // sistem ini (API key, webhook).
 func (a *API) handleAdminDismissException(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	eventID := r.PathValue("eventID")
 
 	var req dismissExceptionRequest
@@ -126,7 +129,7 @@ func (a *API) handleAdminDismissException(w http.ResponseWriter, r *http.Request
 		note = &req.Note
 	}
 
-	err := a.store.DismissEvent(r.Context(), eventID, note)
+	err := a.store.DismissEvent(r.Context(), accountID, eventID, note)
 	if errors.Is(err, store.ErrEventNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "event tidak ditemukan")
 		return

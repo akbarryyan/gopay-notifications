@@ -19,6 +19,7 @@ import (
 
 func main() {
 	name := flag.String("name", "", "nama device, contoh: \"HP GoPay Utama\"")
+	accountID := flag.String("account", "", "account_id pemilik device ini (lihat Vendor Dashboard)")
 	genKey := flag.Bool("genkey", false, "cetak DEVICE_SECRET_KEY baru lalu keluar")
 	flag.Parse()
 
@@ -33,6 +34,9 @@ func main() {
 
 	if *name == "" {
 		fail("-name wajib diisi")
+	}
+	if *accountID == "" {
+		fail("-account wajib diisi -- satu-satunya cara membuat device sampai Customer Dashboard swalayan tersedia")
 	}
 
 	cfg, err := config.Load()
@@ -59,7 +63,7 @@ func main() {
 	}
 	secretB64 := base64.StdEncoding.EncodeToString(secret)
 
-	if err := s.CreateDevice(ctx, cfg.DeviceSecretKey, deviceID, *name, []byte(secretB64)); err != nil {
+	if err := s.CreateDevice(ctx, cfg.DeviceSecretKey, *accountID, deviceID, *name, []byte(secretB64)); err != nil {
 		fail("%v", err)
 	}
 

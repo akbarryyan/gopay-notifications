@@ -58,6 +58,7 @@ type createWebhookResponse struct {
 
 // handleAdminCreateWebhook membuat endpoint webhook baru.
 func (a *API) handleAdminCreateWebhook(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	var req createWebhookRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
@@ -95,7 +96,7 @@ func (a *API) handleAdminCreateWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.store.CreateWebhookEndpoint(r.Context(), a.webhookSecretKey, id, req.Name, req.URL, req.Events, secretBytes); err != nil {
+	if err := a.store.CreateWebhookEndpoint(r.Context(), a.webhookSecretKey, accountID, id, req.Name, req.URL, req.Events, secretBytes); err != nil {
 		slog.Error("simpan webhook endpoint gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
@@ -121,7 +122,8 @@ type webhooksListResponse struct {
 // handleAdminListWebhooks tidak pernah menyertakan secret — hanya metadata
 // yang aman ditampilkan berulang kali.
 func (a *API) handleAdminListWebhooks(w http.ResponseWriter, r *http.Request) {
-	endpoints, err := a.store.ListWebhookEndpoints(r.Context())
+	accountID, _ := AccountFromContext(r.Context())
+	endpoints, err := a.store.ListWebhookEndpoints(r.Context(), accountID)
 	if err != nil {
 		slog.Error("ambil webhook endpoints gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
@@ -142,6 +144,7 @@ type setWebhookEnabledRequest struct {
 // ada endpoint "edit" URL/events/nama — hapus lalu buat baru, konsisten
 // dengan API key (tidak ada un-revoke).
 func (a *API) handleAdminSetWebhookEnabled(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	id := r.PathValue("webhookID")
 	var req setWebhookEnabledRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
@@ -149,7 +152,7 @@ func (a *API) handleAdminSetWebhookEnabled(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err := a.store.SetWebhookEndpointEnabled(r.Context(), id, req.Enabled)
+	err := a.store.SetWebhookEndpointEnabled(r.Context(), accountID, id, req.Enabled)
 	if errors.Is(err, store.ErrWebhookNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "webhook tidak ditemukan")
 		return
@@ -165,8 +168,9 @@ func (a *API) handleAdminSetWebhookEnabled(w http.ResponseWriter, r *http.Reques
 // handleAdminDeleteWebhook menghapus endpoint. ON DELETE CASCADE di migrasi
 // ikut menghapus riwayat deliveries-nya.
 func (a *API) handleAdminDeleteWebhook(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	id := r.PathValue("webhookID")
-	err := a.store.DeleteWebhookEndpoint(r.Context(), id)
+	err := a.store.DeleteWebhookEndpoint(r.Context(), accountID, id)
 	if errors.Is(err, store.ErrWebhookNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "webhook tidak ditemukan")
 		return
@@ -192,8 +196,9 @@ type testWebhookResponse struct {
 //
 // Payload test tidak pernah menyentuh tabel invoices (invoice_id NULL).
 func (a *API) handleAdminTestWebhook(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	id := r.PathValue("webhookID")
-	endpoint, secret, err := a.store.GetWebhookEndpoint(r.Context(), a.webhookSecretKey, id)
+	endpoint, secret, err := a.store.GetWebhookEndpoint(r.Context(), a.webhookSecretKey, accountID, id)
 	if errors.Is(err, store.ErrWebhookNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "webhook tidak ditemukan")
 		return
@@ -214,7 +219,7 @@ func (a *API) handleAdminTestWebhook(w http.ResponseWriter, r *http.Request) {
 
 	outcome := a.sendWebhook(r.Context(), endpoint.URL, secret, store.WebhookEventTest, payload)
 
-	deliveryID, derr := a.store.EnqueueTestDelivery(r.Context(), now, id, payload)
+	deliveryID, derr := a.store.EnqueueTestDelivery(r.Context(), now, accountID, id, payload)
 	if derr != nil {
 		slog.Error("enqueue test delivery gagal", "err", derr)
 	} else if rerr := a.store.RecordTestDeliveryResult(r.Context(), deliveryID, now, outcome.Success, outcome.HTTPStatus, outcome.DurationMs); rerr != nil {
@@ -265,6 +270,7 @@ type webhookDeliveriesResponse struct {
 // handleAdminWebhookDeliveries mengembalikan riwayat pengiriman satu
 // endpoint untuk baris yang diperluas di dashboard.
 func (a *API) handleAdminWebhookDeliveries(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	id := r.PathValue("webhookID")
 	limit, err := intParam(r, "limit", 50)
 	if err != nil || limit < 1 || limit > 1000 {
@@ -277,7 +283,7 @@ func (a *API) handleAdminWebhookDeliveries(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	deliveries, err := a.store.ListWebhookDeliveries(r.Context(), id, limit, offset)
+	deliveries, err := a.store.ListWebhookDeliveries(r.Context(), accountID, id, limit, offset)
 	if err != nil {
 		slog.Error("ambil webhook deliveries gagal", "id", id, "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")

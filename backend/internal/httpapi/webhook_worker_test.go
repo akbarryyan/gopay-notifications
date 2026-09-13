@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,23 +20,10 @@ import (
 func newAPIForWebhookWorker(t *testing.T) (*httpapi.API, string) {
 	t.Helper()
 
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Fatal("TEST_DATABASE_URL belum diset. Jalankan: make db-up migrate")
-	}
-
+	s := newTestStore(t)
 	ctx := context.Background()
-	s, err := store.New(ctx, url)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	t.Cleanup(s.Close)
-
-	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE"); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
@@ -49,11 +35,11 @@ func newAPIForWebhookWorker(t *testing.T) (*httpapi.API, string) {
 	if err != nil {
 		t.Fatalf("GenerateAPIKeySecret: %v", err)
 	}
-	if err := s.CreateAPIKey(ctx, keyID, "Website utama", hash); err != nil {
+	if err := s.CreateAPIKey(ctx, "acc_1", keyID, "Website utama", hash); err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	api := httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow })
+	api := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow })
 	return api, rawKey
 }
 
@@ -128,7 +114,7 @@ func TestWebhookInvoicePaidTerpicuOtomatisLewatCallback(t *testing.T) {
 
 	api, apiKey := newAPIForWebhookWorker(t)
 	h := api.Handler()
-	cookie := loginAsAdmin(t, h)
+	cookie := loginAsAccount1(t, h)
 	webhookID := registerWebhook(t, h, cookie, fake.URL, []string{"invoice.paid"})
 
 	inv := decodeInvoice(t, createInvoiceReq(t, h, apiKey, "ORDER-webhook-1", 40000))
@@ -165,7 +151,7 @@ func TestProcessDueWebhooksMengirimInvoiceExpiredTepatSekali(t *testing.T) {
 
 	api, apiKey := newAPIForWebhookWorker(t)
 	h := api.Handler()
-	cookie := loginAsAdmin(t, h)
+	cookie := loginAsAccount1(t, h)
 	registerWebhook(t, h, cookie, fake.URL, []string{"invoice.expired"})
 
 	createInvoiceReq(t, h, apiKey, "ORDER-expired-1", 40000)
@@ -211,7 +197,7 @@ func TestProcessDueWebhooksRetrySampaiBerhasil(t *testing.T) {
 
 	api, apiKey := newAPIForWebhookWorker(t)
 	h := api.Handler()
-	cookie := loginAsAdmin(t, h)
+	cookie := loginAsAccount1(t, h)
 	webhookID := registerWebhook(t, h, cookie, fake.URL, []string{"invoice.paid"})
 
 	inv := decodeInvoice(t, createInvoiceReq(t, h, apiKey, "ORDER-retry-1", 40000))

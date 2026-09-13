@@ -20,7 +20,7 @@ func seedRawDevice(t *testing.T, deviceID, name string) {
 		t.Fatalf("store.New: %v", err)
 	}
 	defer s.Close()
-	if err := s.CreateDevice(context.Background(), encKey(), deviceID, name, []byte("s")); err != nil {
+	if err := s.CreateDevice(context.Background(), encKey(), "acc_1", deviceID, name, []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 }

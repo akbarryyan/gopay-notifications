@@ -21,27 +21,17 @@ import (
 func newAPIWithAdminAndAPIKey(t *testing.T) (http.Handler, string) {
 	t.Helper()
 
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Fatal("TEST_DATABASE_URL belum diset. Jalankan: make db-up migrate")
-	}
-
+	s := newTestStore(t)
 	ctx := context.Background()
-	s, err := store.New(ctx, url)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
+	if err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_1", BusinessName: "Toko Uji", Email: "acc_1@uji.test",
+		Username: "admin", PlaintextPassword: testAdminPassword,
+		Plan: "Business", MaxDevices: 10, ExpiresAt: fixedNow.Add(365 * 24 * time.Hour),
+	}); err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-	t.Cleanup(s.Close)
-
-	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, admin_users RESTART IDENTITY CASCADE"); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
-	}
-	if err := s.UpsertAdmin(ctx, "admin", testAdminPassword); err != nil {
-		t.Fatalf("UpsertAdmin: %v", err)
 	}
 
 	keyID, err := store.NewAPIKeyID()
@@ -52,11 +42,11 @@ func newAPIWithAdminAndAPIKey(t *testing.T) (http.Handler, string) {
 	if err != nil {
 		t.Fatalf("GenerateAPIKeySecret: %v", err)
 	}
-	if err := s.CreateAPIKey(ctx, keyID, "Website utama", hash); err != nil {
+	if err := s.CreateAPIKey(ctx, "acc_1", keyID, "Website utama", hash); err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	h := httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 	return h, rawKey
 }
 
@@ -97,13 +87,14 @@ func TestAdminExceptionsMenampilkanEventTakCocok(t *testing.T) {
 		t.Fatalf("store.New: %v", err)
 	}
 	defer s.Close()
-	if err := s.CreateDevice(context.Background(), encKey(), "dev_seed", "HP Seed", []byte("s")); err != nil {
+	if err := s.CreateDevice(context.Background(), encKey(), "acc_1", "dev_seed", "HP Seed", []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 	amount := int64(41414)
 	title := "Pembayaran QRIS statis diterima"
 	if _, err := s.InsertEvent(context.Background(), store.Event{
 		EventID:     "evt_00000000000000000000000000000099",
+		AccountID:   "acc_1",
 		DeviceID:    "dev_seed",
 		Source:      "gopay",
 		PackageName: "com.gojek.gopaymerchant",

@@ -304,8 +304,8 @@ func TestExpireInvoicesAndListNewlyExpiredHanyaSekaliPerInvoice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExpireInvoicesAndListNewlyExpired pertama: %v", err)
 	}
-	if len(first) != 1 || first[0] != inv.ID {
-		t.Fatalf("panggilan pertama = %v, mau [%s]", first, inv.ID)
+	if len(first) != 1 || first[0].ID != inv.ID || first[0].AccountID != "acc_1" {
+		t.Fatalf("panggilan pertama = %v, mau [{%s acc_1}]", first, inv.ID)
 	}
 
 	second, err := s.ExpireInvoicesAndListNewlyExpired(ctx, now)

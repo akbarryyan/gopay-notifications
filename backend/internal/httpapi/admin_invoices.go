@@ -22,6 +22,7 @@ var validInvoiceStatuses = map[string]bool{
 // handleAdminInvoices melayani halaman Transactions di dashboard — pola
 // filter (limit/offset/status/q/from/to) sama persis dengan handleEvents.
 func (a *API) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	limit, err := intParam(r, "limit", 50)
 	if err != nil || limit < 1 || limit > 1000 {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "limit harus bilangan bulat 1..1000")
@@ -68,7 +69,7 @@ func (a *API) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
 		filter.To = &to
 	}
 
-	invoices, err := a.store.ListInvoices(r.Context(), limit, offset, filter)
+	invoices, err := a.store.ListInvoices(r.Context(), accountID, limit, offset, filter)
 	if err != nil {
 		slog.Error("ambil invoices gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")

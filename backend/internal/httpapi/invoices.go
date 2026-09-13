@@ -48,6 +48,7 @@ func toInvoiceJSON(inv store.Invoice) invoiceJSON {
 // handleCreateInvoice dipanggil dari server website merchant (bukan
 // browser), diautentikasi lewat requireAPIKey.
 func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	var req createInvoiceRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
@@ -62,7 +63,7 @@ func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inv, created, err := a.store.CreateInvoice(r.Context(), a.now(), req.ExternalRef, req.Amount)
+	inv, created, err := a.store.CreateInvoice(r.Context(), a.now(), accountID, req.ExternalRef, req.Amount)
 	switch {
 	case errors.Is(err, store.ErrInvoiceRefConflict):
 		a.writeError(w, http.StatusConflict, "external_ref_conflict",
@@ -88,8 +89,9 @@ func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 // handleGetInvoice dipakai merchant untuk polling status sebelum webhook
 // (fase 2) ada.
 func (a *API) handleGetInvoice(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	id := r.PathValue("invoiceID")
-	inv, err := a.store.GetInvoiceByID(r.Context(), id)
+	inv, err := a.store.GetInvoiceByID(r.Context(), accountID, id)
 	if errors.Is(err, store.ErrInvoiceNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "invoice tidak ditemukan")
 		return

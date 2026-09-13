@@ -88,4 +88,3 @@ func (a *API) handleAdminLicense(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: acc.ExpiresAt.Format(dateOnlyLayout), DaysRemaining: daysRemaining, Status: status,
 	}})
 }
-

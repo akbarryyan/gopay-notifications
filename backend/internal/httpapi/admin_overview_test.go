@@ -73,12 +73,13 @@ func TestAdminOverviewMenghitungDeviceDanEventSungguhan(t *testing.T) {
 	}
 	defer s.Close()
 
-	if err := s.CreateDevice(context.Background(), encKey(), "dev_seed", "HP Seed", []byte("s")); err != nil {
+	if err := s.CreateDevice(context.Background(), encKey(), "acc_1", "dev_seed", "HP Seed", []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 	title := "Transfer masuk"
 	if _, err := s.InsertEvent(context.Background(), store.Event{
 		EventID:     "evt_00000000000000000000000000000001",
+		AccountID:   "acc_1",
 		DeviceID:    "dev_seed",
 		Source:      "gopay",
 		PackageName: "com.gojek.gopaymerchant",

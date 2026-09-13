@@ -11,19 +11,12 @@ backend/bin/
 tmp/
 .DS_Store
 
-# File lisensi (customer maupun dev) dan private key Ed25519 milik
-# licensetool — tidak satu pun boleh masuk repo. Lihat
-# docs/superpowers/specs/2026-09-13-license-system-design.md §3.
-*.lic
-.gopay-license/
-
-# Binary hasil `go build` di root backend/ (server, devicetool, admintool,
-# licensetool) — dibangun ulang tiap rilis lewat deploy/README.md, tidak
-# pernah bagian dari source.
+# Binary hasil `go build` di root backend/ (server, devicetool, admintool)
+# — dibangun ulang tiap rilis lewat deploy/README.md, tidak pernah bagian
+# dari source.
 /backend/server
 /backend/devicetool
 /backend/admintool
-/backend/licensetool
 
 # Hanya folder hasil prebuild yang diabaikan. Jangan pakai pola "android/"
 # telanjang — itu cocok dengan direktori bernama android di level mana pun,

@@ -19,7 +19,7 @@ type EventStats struct {
 // "Today" dihitung memakai batas waktu UTC hari ini, bukan window bergulir
 // 24 jam — supaya definisinya konsisten dengan yang terlihat orang di
 // dashboard ("hari ini" berarti sejak tengah malam, bukan "24 jam terakhir").
-func (s *Store) EventStats(ctx context.Context, now time.Time) (EventStats, error) {
+func (s *Store) EventStats(ctx context.Context, accountID string, now time.Time) (EventStats, error) {
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	sevenDaysAgo := now.AddDate(0, 0, -7)
 
@@ -30,8 +30,9 @@ func (s *Store) EventStats(ctx context.Context, now time.Time) (EventStats, erro
 		   count(*) FILTER (WHERE ingested_at >= $2),
 		   count(*),
 		   max(ingested_at)
-		 FROM notification_events`,
-		startOfDay, sevenDaysAgo).
+		 FROM notification_events
+		 WHERE account_id = $3`,
+		startOfDay, sevenDaysAgo, accountID).
 		Scan(&st.Today, &st.Last7Days, &st.Total, &st.LatestEventAt)
 	if err != nil {
 		return EventStats{}, fmt.Errorf("store: event stats: %w", err)
@@ -53,7 +54,7 @@ type DailyEventCount struct {
 // Dikelompokkan lewat ingested_at (bukan received_at yang berasal dari
 // perangkat), selaras dengan EventStats — kejadian dihitung menurut kapan ia
 // benar-benar sampai di server, bukan jam HP pengirim yang bisa meleset.
-func (s *Store) DailyEventCounts(ctx context.Context, now time.Time, days int) ([]DailyEventCount, error) {
+func (s *Store) DailyEventCounts(ctx context.Context, accountID string, now time.Time, days int) ([]DailyEventCount, error) {
 	now = now.UTC()
 	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	since := startOfToday.AddDate(0, 0, -(days - 1))
@@ -61,8 +62,8 @@ func (s *Store) DailyEventCounts(ctx context.Context, now time.Time, days int) (
 	rows, err := s.pool.Query(ctx,
 		`SELECT date_trunc('day', ingested_at AT TIME ZONE 'UTC') AS day, count(*)
 		 FROM notification_events
-		 WHERE ingested_at >= $1
-		 GROUP BY day`, since)
+		 WHERE ingested_at >= $1 AND account_id = $2
+		 GROUP BY day`, since, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("store: daily event counts: %w", err)
 	}

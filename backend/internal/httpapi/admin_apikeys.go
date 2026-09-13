@@ -40,6 +40,7 @@ type createAPIKeyResponse struct {
 // handleAdminCreateAPIKey membuat API key baru untuk dipakai website
 // merchant memanggil POST/GET /invoices.
 func (a *API) handleAdminCreateAPIKey(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	var req createAPIKeyRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
@@ -62,7 +63,7 @@ func (a *API) handleAdminCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
-	if err := a.store.CreateAPIKey(r.Context(), id, req.Name, hash); err != nil {
+	if err := a.store.CreateAPIKey(r.Context(), accountID, id, req.Name, hash); err != nil {
 		slog.Error("simpan api key gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
@@ -81,7 +82,8 @@ type apiKeysListResponse struct {
 // handleAdminListAPIKeys tidak pernah menyertakan key mentah atau hash-nya —
 // hanya metadata yang aman ditampilkan berulang kali.
 func (a *API) handleAdminListAPIKeys(w http.ResponseWriter, r *http.Request) {
-	keys, err := a.store.ListAPIKeys(r.Context())
+	accountID, _ := AccountFromContext(r.Context())
+	keys, err := a.store.ListAPIKeys(r.Context(), accountID)
 	if err != nil {
 		slog.Error("ambil api keys gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
@@ -98,8 +100,9 @@ func (a *API) handleAdminListAPIKeys(w http.ResponseWriter, r *http.Request) {
 // kembali key yang sudah dicabut lewat endpoint ini (bikin key baru kalau
 // perlu). Idempotent: mencabut yang sudah dicabut tetap 200.
 func (a *API) handleAdminRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	id := r.PathValue("keyID")
-	err := a.store.RevokeAPIKey(r.Context(), id)
+	err := a.store.RevokeAPIKey(r.Context(), accountID, id)
 	if errors.Is(err, store.ErrAPIKeyNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "api key tidak ditemukan")
 		return

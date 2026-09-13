@@ -29,9 +29,10 @@ type eventsListResponse struct {
 	Events []eventJSON `json:"events"`
 }
 
-// handleEvents dipakai untuk verifikasi manual: dibuka di browser lewat Caddy
-// yang melindunginya dengan basic auth. Bukan halaman admin.
+// handleEvents melayani halaman Events di Customer Dashboard
+// (GET /api/v1/admin/events, requireAdmin+requireActiveAccount).
 func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
 	limit, err := intParam(r, "limit", 50)
 	if err != nil || limit < 1 || limit > 1000 {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "limit harus bilangan bulat 1..1000")
@@ -74,7 +75,7 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := a.store.ListEvents(r.Context(), limit, offset, filter)
+	events, err := a.store.ListEvents(r.Context(), accountID, limit, offset, filter)
 	if err != nil {
 		slog.Error("ambil events gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
