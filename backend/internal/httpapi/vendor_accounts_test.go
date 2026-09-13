@@ -231,3 +231,32 @@ func TestVendorAccountsButuhSesiVendor(t *testing.T) {
 		t.Fatalf("status = %d, mau 401", rec.Code)
 	}
 }
+
+func TestVendorCreateAccountEmailBentrokMengembalikan409(t *testing.T) {
+	h := newAPIWithVendor(t)
+	cookie := loginAsVendor(t, h)
+
+	body1 := `{"business_name":"Toko A","email":"bentrok@uji.test","username":"toko_a","plan":"Starter","expires_at":"2027-01-01"}`
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/vendor/accounts", strings.NewReader(body1))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.AddCookie(cookie)
+	h.ServeHTTP(httptest.NewRecorder(), req1)
+
+	body2 := `{"business_name":"Toko B","email":"bentrok@uji.test","username":"toko_b","plan":"Starter","expires_at":"2027-01-01"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/vendor/accounts", strings.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.AddCookie(cookie)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusConflict {
+		t.Fatalf("status = %d, mau 409 (body=%s)", rec2.Code, rec2.Body.String())
+	}
+	var out struct {
+		Error string `json:"error"`
+	}
+	json.Unmarshal(rec2.Body.Bytes(), &out)
+	if out.Error != "email_taken" {
+		t.Fatalf("error = %q, mau email_taken", out.Error)
+	}
+}

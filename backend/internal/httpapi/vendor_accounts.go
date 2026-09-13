@@ -119,6 +119,14 @@ func (a *API) handleVendorCreateAccount(w http.ResponseWriter, r *http.Request) 
 		ID: id, BusinessName: req.BusinessName, Email: req.Email, Username: req.Username,
 		PlaintextPassword: password, Plan: req.Plan, MaxDevices: maxDevices, ExpiresAt: expiresAt,
 	})
+	if errors.Is(err, store.ErrAccountEmailTaken) {
+		a.writeError(w, http.StatusConflict, "email_taken", "email sudah dipakai akun lain")
+		return
+	}
+	if errors.Is(err, store.ErrAccountUsernameTaken) {
+		a.writeError(w, http.StatusConflict, "username_taken", "username sudah dipakai akun lain")
+		return
+	}
 	if err != nil {
 		slog.Error("create account gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
