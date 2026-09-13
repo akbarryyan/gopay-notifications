@@ -1,101 +1,79 @@
 import Link from "next/link";
-import { ArrowRight, Check, Smartphone, Webhook, Zap } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
-
-const TRUST_POINTS = ["Hosted, tanpa server sendiri", "Webhook siap pakai", "Multi-device"];
+import { ArrowUpRight, Bell, CreditCard, Wifi } from "lucide-react";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-border/60">
-      <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:items-center lg:gap-8 lg:px-8 lg:py-28">
-        {/* Kolom kiri: copy */}
+    <section className="relative overflow-hidden bg-white">
+      <div className="mx-auto grid max-w-6xl gap-14 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:gap-10 lg:px-8 lg:py-24">
+        {/* Kolom kiri: copy + form ringkas */}
         <div className="flex flex-col gap-6">
-          <h1 className="font-(--font-lp-heading) text-4xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-5xl lg:text-[3.25rem]">
-            Notifikasi pembayaran, terhubung ke sistem kamu.
+          <h1 className="font-(--font-lp-heading) text-4xl leading-[1.08] font-semibold tracking-tight text-slate-900 text-balance sm:text-5xl lg:text-[3.1rem]">
+            Terima notifikasi pembayaran, otomatis masuk ke sistem kamu.
           </h1>
-          <p className="max-w-lg text-lg text-muted-foreground">
-            Ubah notifikasi pembayaran GoPay jadi event terstruktur dan webhook
-            otomatis — dengan infrastruktur yang sudah kami operasikan, bukan
-            yang harus kamu kelola sendiri.
+          <p className="max-w-md text-base text-slate-500 sm:text-lg">
+            Mendukung usaha kecil sampai besar dengan pencocokan invoice
+            otomatis, webhook siap pakai, dan dashboard yang selalu realtime.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link href="/register" className={buttonVariants({ size: "lg" })}>
-              Mulai Gratis 3 Hari
-              <ArrowRight className="ml-1.5 size-4" />
+
+          <form
+            action="/register"
+            className="flex max-w-md flex-col gap-2 sm:flex-row sm:items-center"
+          >
+            <input
+              type="email"
+              placeholder="Email bisnis kamu"
+              className="h-11 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+            />
+            <Link
+              href="/register"
+              className="flex h-11 items-center justify-center gap-1 rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+            >
+              Mulai Gratis
+              <ArrowUpRight className="size-4" />
             </Link>
-            <a href="#cara-kerja" className={buttonVariants({ variant: "outline", size: "lg" })}>
-              Lihat Cara Kerja
-            </a>
+          </form>
+
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 text-sm font-medium text-slate-400">
+            <span>Hosted, tanpa server sendiri</span>
+            <span className="hidden sm:inline">·</span>
+            <span>Webhook siap pakai</span>
+            <span className="hidden sm:inline">·</span>
+            <span>Multi-device</span>
           </div>
-          <ul className="flex flex-wrap gap-x-6 gap-y-2 pt-2">
-            {TRUST_POINTS.map((point) => (
-              <li key={point} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Check className="size-4 text-primary" />
-                {point}
-              </li>
-            ))}
-          </ul>
         </div>
 
-        {/* Kolom kanan: visual produk -- diagram alur, bukan ilustrasi generik */}
-        <div className="relative">
-          <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:p-6">
-            <FlowNode icon={Smartphone} label="Aplikasi Pembayaran" sublabel="Notifikasi GoPay masuk" />
-            <FlowArrow />
-            <FlowNode icon={Zap} label="Payment Bridge" sublabel="Event diproses & dicocokkan" active />
-            <FlowArrow />
-            <FlowNode icon={Webhook} label="Webhook" sublabel="Terkirim ke sistem kamu" />
-
-            <div className="mt-5 flex items-center justify-between rounded-lg border border-border/60 bg-secondary/40 px-3 py-2 text-xs">
-              <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
-                <span className="size-1.5 rounded-full bg-emerald-500" />
-                invoice.paid terkirim
+        {/* Kolom kanan: komposisi kartu produk */}
+        <div className="relative mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto">
+          <div className="relative rounded-2xl border border-slate-100 bg-white p-4 shadow-xl shadow-slate-900/5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <p className="text-xs text-slate-400">Invoice masuk</p>
+                <p className="text-sm font-semibold text-slate-900">ORDER-48213</p>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+                Lunas
               </span>
-              <span className="font-mono text-muted-foreground">200 OK · 142ms</span>
             </div>
+            <p className="pt-3 text-2xl font-semibold text-slate-900">Rp 1.876.580</p>
+            <p className="text-xs text-slate-400">Dibayar lewat GoPay Merchant</p>
+
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              <Bell className="size-3.5 text-slate-400" />
+              Notifikasi tercatat 12:04:02
+            </div>
+          </div>
+
+          {/* Kartu mengambang -- device terhubung, meniru komposisi kartu kredit di referensi */}
+          <div className="absolute -right-4 -bottom-8 w-52 rounded-2xl bg-linear-to-br from-slate-900 to-teal-900 p-4 text-white shadow-xl shadow-slate-900/20 sm:-right-8">
+            <div className="flex items-center justify-between">
+              <Wifi className="size-4 rotate-90 text-teal-300" />
+              <CreditCard className="size-5 text-white/70" />
+            </div>
+            <p className="mt-4 text-xs text-white/60">Device terhubung</p>
+            <p className="text-sm font-semibold">HP Toko · Online</p>
           </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function FlowNode({
-  icon: Icon,
-  label,
-  sublabel,
-  active,
-}: {
-  icon: typeof Smartphone;
-  label: string;
-  sublabel: string;
-  active?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-        active ? "border-primary/40 bg-primary/5" : "border-border/60 bg-background"
-      }`}
-    >
-      <span
-        className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-          active ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"
-        }`}
-      >
-        <Icon className="size-4.5" />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{label}</p>
-        <p className="truncate text-xs text-muted-foreground">{sublabel}</p>
-      </div>
-    </div>
-  );
-}
-
-function FlowArrow() {
-  return (
-    <div className="flex justify-start pl-[1.15rem]">
-      <div className="h-4 w-px bg-border" />
-    </div>
   );
 }

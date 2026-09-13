@@ -14,85 +14,68 @@ import {
   Webhook,
   Zap,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description?: string;
-}) {
+function Eyebrow({ children }: { children: string }) {
   return (
-    <div className="mx-auto max-w-2xl text-center">
-      <Badge variant="secondary" className="mb-4">
-        {eyebrow}
-      </Badge>
-      <h2 className="font-(--font-lp-heading) text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {title}
-      </h2>
-      {description && <p className="mt-4 text-muted-foreground">{description}</p>}
-    </div>
+    <span className="text-xs font-semibold tracking-widest text-teal-600 uppercase">
+      {children}
+    </span>
   );
 }
 
 /* ---------------------------------------------------------------------- */
-/* Problem / Value proposition                                            */
+/* Experience -- satu kartu besar, eyebrow + heading + 3 kolom ikon        */
+/* (mengikuti pola referensi: bukan grid kartu terpisah-pisah)             */
 /* ---------------------------------------------------------------------- */
+
+const EXPERIENCE_POINTS = [
+  {
+    icon: Repeat,
+    title: "Nominal unik",
+    desc: "Tiap invoice dapat nominal berbeda, jadi pembayaran otomatis cocok tanpa tebak-tebak.",
+  },
+  {
+    icon: Webhook,
+    title: "Webhook siap pakai",
+    desc: "invoice.paid dan invoice.expired terkirim otomatis ke sistem kamu, lengkap dengan retry.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Konsol pengecualian",
+    desc: "Transaksi yang tidak cocok otomatis tetap kelihatan, bisa dicocokkan manual kapan saja.",
+  },
+];
 
 export function ProblemSection() {
   return (
-    <section className="border-b border-border/60 bg-secondary/20 py-20 sm:py-28">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          eyebrow="Kenapa Payment Bridge"
-          title="Notifikasi pembayaran kamu berhenti di HP saja"
-        />
-        <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          <Card className="border-none shadow-sm ring-1 ring-border/60">
-            <CardHeader>
-              <CardTitle className="text-base text-muted-foreground">Tanpa Payment Bridge</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ol className="flex flex-col gap-4">
-                {["Aplikasi pembayaran", "Notifikasi masuk", "Dicek manual satu per satu"].map(
-                  (step, i) => (
-                    <li key={step} className="flex items-center gap-3 text-sm">
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                        {i + 1}
-                      </span>
-                      {step}
-                    </li>
-                  ),
-                )}
-              </ol>
-            </CardContent>
-          </Card>
-          <Card className="border-primary/30 shadow-sm ring-1 ring-primary/20">
-            <CardHeader>
-              <CardTitle className="text-base text-primary">Dengan Payment Bridge</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ol className="flex flex-col gap-4">
-                {[
-                  "Aplikasi pembayaran",
-                  "Notifikasi masuk",
-                  "Event terstruktur otomatis",
-                  "Webhook ke sistem kamu",
-                ].map((step, i) => (
-                  <li key={step} className="flex items-center gap-3 text-sm">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                      {i + 1}
-                    </span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </CardContent>
-          </Card>
+    <section className="bg-white py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl bg-slate-50 p-8 sm:p-12">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-sm">
+              <Eyebrow>Kenapa Payment Bridge</Eyebrow>
+              <h2 className="font-(--font-lp-heading) mt-3 text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                Sistem yang tumbuh bersama bisnismu.
+              </h2>
+            </div>
+            <p className="max-w-sm text-sm text-slate-500 lg:pt-2">
+              Notifikasi pembayaran bukan cuma informasi di layar HP — ubah jadi
+              alur kerja otomatis yang langsung terhubung ke sistem bisnismu
+              sendiri.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-8 border-t border-slate-200 pt-8 sm:grid-cols-3">
+            {EXPERIENCE_POINTS.map((point) => (
+              <div key={point.title} className="flex flex-col gap-2">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-white text-teal-600 shadow-sm">
+                  <point.icon className="size-4.5" />
+                </span>
+                <p className="text-sm font-semibold text-slate-900">{point.title}</p>
+                <p className="text-sm text-slate-500">{point.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -100,34 +83,48 @@ export function ProblemSection() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* How it works                                                           */
+/* How it works -- band navy penuh, 3 langkah bernomor besar              */
 /* ---------------------------------------------------------------------- */
 
 const STEPS = [
-  { icon: Smartphone, title: "Aplikasi pembayaran", desc: "Notifikasi GoPay Merchant masuk di HP kamu." },
-  { icon: Bell, title: "Android Bridge", desc: "Aplikasi pendamping membaca notifikasi itu secara otomatis." },
-  { icon: Zap, title: "Pemrosesan event", desc: "Nominal dicocokkan ke invoice yang sedang menunggu." },
-  { icon: Webhook, title: "Webhook", desc: "invoice.paid dikirim ke endpoint yang kamu daftarkan." },
-  { icon: Receipt, title: "Sistem kamu", desc: "Order otomatis diproses tanpa pengecekan manual." },
+  {
+    icon: Smartphone,
+    title: "Pasang aplikasi",
+    desc: "Aplikasi Android membaca notifikasi GoPay Merchant di HP kamu.",
+  },
+  {
+    icon: Zap,
+    title: "Event diproses",
+    desc: "Nominal dicocokkan otomatis ke invoice yang sedang menunggu.",
+  },
+  {
+    icon: Webhook,
+    title: "Webhook terkirim",
+    desc: "Sistem kamu langsung tahu begitu pembayaran diterima.",
+  },
 ];
 
 export function HowItWorksSection() {
   return (
-    <section id="cara-kerja" className="border-b border-border/60 py-20 sm:py-28">
+    <section id="cara-kerja" className="bg-slate-900 py-20 text-white sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Cara kerja" title="Dari notifikasi sampai ke sistem kamu" />
-        <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
+        <Eyebrow>Cara kerja</Eyebrow>
+        <h2 className="font-(--font-lp-heading) mt-3 max-w-md text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+          Dari notifikasi sampai ke sistem kamu.
+        </h2>
+
+        <div className="mt-12 grid gap-4 sm:grid-cols-3">
           {STEPS.map((step, i) => (
-            <div key={step.title} className="relative flex flex-col items-center gap-3 text-center">
-              {i < STEPS.length - 1 && (
-                <div className="absolute top-6 left-1/2 hidden h-px w-full bg-border lg:block" />
-              )}
-              <span className="relative z-10 flex size-12 items-center justify-center rounded-full border border-border/60 bg-background text-sm font-semibold">
+            <div
+              key={step.title}
+              className="rounded-2xl border border-white/10 bg-white/5 p-6"
+            >
+              <span className="text-4xl font-semibold text-white/15">
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <step.icon className="size-5 text-primary" />
-              <p className="text-sm font-semibold">{step.title}</p>
-              <p className="text-sm text-muted-foreground">{step.desc}</p>
+              <step.icon className="mt-4 size-5 text-teal-400" />
+              <p className="mt-3 text-sm font-semibold">{step.title}</p>
+              <p className="mt-1 text-sm text-white/60">{step.desc}</p>
             </div>
           ))}
         </div>
@@ -142,13 +139,13 @@ export function HowItWorksSection() {
 
 export function FeaturesSection() {
   return (
-    <section id="fitur" className="border-b border-border/60 bg-secondary/20 py-20 sm:py-28">
+    <section id="fitur" className="bg-white py-16 sm:py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          eyebrow="Fitur"
-          title="Semua yang dibutuhkan untuk otomasi pembayaran"
-        />
-        <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Eyebrow>Fitur</Eyebrow>
+        <h2 className="font-(--font-lp-heading) mt-3 max-w-md text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          Semua yang dibutuhkan untuk otomasi pembayaran.
+        </h2>
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
             icon={Repeat}
             title="Nominal unik"
@@ -199,15 +196,15 @@ function FeatureCard({
   className?: string;
 }) {
   return (
-    <Card className={`border-none shadow-sm ring-1 ring-border/60 ${className ?? ""}`}>
-      <CardHeader>
-        <span className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-5" />
-        </span>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">{desc}</CardContent>
-    </Card>
+    <div
+      className={`rounded-2xl border border-slate-100 bg-white p-6 shadow-sm ${className ?? ""}`}
+    >
+      <span className="mb-4 flex size-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+        <Icon className="size-5" />
+      </span>
+      <p className="text-sm font-semibold text-slate-900">{title}</p>
+      <p className="mt-1 text-sm text-slate-500">{desc}</p>
+    </div>
   );
 }
 
@@ -224,24 +221,28 @@ export function ArchitectureSection() {
     { icon: Receipt, label: "Sistem Bisnis Kamu" },
   ];
   return (
-    <section className="border-b border-border/60 py-20 sm:py-28">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          eyebrow="Arsitektur"
-          title="Dibangun sebagai lapisan integrasi"
-          description="Payment Bridge menjadi penghubung antara notifikasi pembayaran dan sistem yang butuh mengonsumsinya — kamu tidak perlu menyiapkan server sendiri."
-        />
-        <div className="mx-auto mt-12 flex max-w-sm flex-col items-center">
+    <section className="bg-slate-50 py-16 sm:py-20">
+      <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+        <Eyebrow>Arsitektur</Eyebrow>
+        <h2 className="font-(--font-lp-heading) mt-3 text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          Dibangun sebagai lapisan integrasi.
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-sm text-slate-500">
+          Payment Bridge menjadi penghubung antara notifikasi pembayaran dan
+          sistem yang butuh mengonsumsinya — kamu tidak perlu menyiapkan
+          server sendiri.
+        </p>
+        <div className="mx-auto mt-10 flex max-w-sm flex-col items-center">
           {layers.map((layer, i) => (
             <div key={layer.label} className="flex w-full flex-col items-center">
-              <div className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-sm">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-secondary">
+              <div className="flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
                   <layer.icon className="size-4.5" />
                 </span>
-                <span className="text-sm font-semibold">{layer.label}</span>
+                <span className="text-sm font-semibold text-slate-900">{layer.label}</span>
               </div>
               {i < layers.length - 1 && (
-                <ArrowRight className="my-2 size-4 rotate-90 text-muted-foreground" />
+                <ArrowRight className="my-2 size-4 rotate-90 text-slate-300" />
               )}
             </div>
           ))}
@@ -290,15 +291,18 @@ const USE_CASES = [
 
 export function UseCasesSection() {
   return (
-    <section className="border-b border-border/60 bg-secondary/20 py-20 sm:py-28">
+    <section className="bg-white py-16 sm:py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Use case" title="Dipakai untuk apa saja" />
-        <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Eyebrow>Use case</Eyebrow>
+        <h2 className="font-(--font-lp-heading) mt-3 max-w-md text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          Dipakai untuk apa saja.
+        </h2>
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {USE_CASES.map((uc) => (
-            <div key={uc.title} className="rounded-xl border border-border/60 bg-card p-5">
-              <uc.icon className="mb-3 size-5 text-primary" />
-              <p className="text-sm font-semibold">{uc.title}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{uc.desc}</p>
+            <div key={uc.title} className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+              <uc.icon className="mb-3 size-5 text-teal-600" />
+              <p className="text-sm font-semibold text-slate-900">{uc.title}</p>
+              <p className="mt-1 text-sm text-slate-500">{uc.desc}</p>
             </div>
           ))}
         </div>

@@ -1,19 +1,11 @@
 import Link from "next/link";
 import { ArrowRight, Check, Zap } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
+function Eyebrow({ children }: { children: string }) {
   return (
-    <div className="mx-auto max-w-2xl text-center">
-      <Badge variant="secondary" className="mb-4">
-        {eyebrow}
-      </Badge>
-      <h2 className="font-(--font-lp-heading) text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {title}
-      </h2>
-    </div>
+    <span className="text-xs font-semibold tracking-widest text-teal-600 uppercase">
+      {children}
+    </span>
   );
 }
 
@@ -36,37 +28,42 @@ export function DashboardPreviewSection() {
   ];
 
   return (
-    <section className="border-b border-border/60 py-20 sm:py-28">
+    <section className="bg-slate-50 py-16 sm:py-20">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Dashboard" title="Semua transaksi, satu layar" />
-        <div className="mt-14 overflow-hidden rounded-2xl border border-border/60 bg-card shadow-lg">
-          <div className="flex items-center gap-1.5 border-b border-border/60 px-4 py-3">
-            <span className="size-2.5 rounded-full bg-red-400" />
-            <span className="size-2.5 rounded-full bg-amber-400" />
-            <span className="size-2.5 rounded-full bg-emerald-400" />
-            <span className="ml-3 text-xs text-muted-foreground">Overview</span>
+        <div className="text-center">
+          <Eyebrow>Dashboard</Eyebrow>
+          <h2 className="font-(--font-lp-heading) mt-3 text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            Semua transaksi, satu layar.
+          </h2>
+        </div>
+        <div className="mt-12 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl shadow-slate-900/5">
+          <div className="flex items-center gap-1.5 border-b border-slate-100 px-4 py-3">
+            <span className="size-2.5 rounded-full bg-red-300" />
+            <span className="size-2.5 rounded-full bg-amber-300" />
+            <span className="size-2.5 rounded-full bg-teal-400" />
+            <span className="ml-3 text-xs text-slate-400">Overview</span>
           </div>
-          <div className="grid grid-cols-2 gap-px bg-border/60 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px bg-slate-100 sm:grid-cols-4">
             {stats.map((s) => (
-              <div key={s.label} className="bg-card p-4">
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className="mt-1 text-lg font-semibold">{s.value}</p>
+              <div key={s.label} className="bg-white p-4">
+                <p className="text-xs text-slate-400">{s.label}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{s.value}</p>
               </div>
             ))}
           </div>
-          <div className="border-t border-border/60 p-4">
-            <p className="mb-3 text-xs font-medium text-muted-foreground">Event terbaru</p>
+          <div className="border-t border-slate-100 p-4">
+            <p className="mb-3 text-xs font-medium text-slate-400">Event terbaru</p>
             <div className="flex flex-col gap-2">
               {recent.map((r, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between rounded-lg bg-secondary/40 px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
                 >
-                  <span className="flex items-center gap-2">
-                    <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="flex items-center gap-2 text-slate-700">
+                    <Check className="size-3.5 text-teal-600" />
                     Pembayaran diterima
                   </span>
-                  <span className="font-mono text-xs text-muted-foreground">{r.amount}</span>
+                  <span className="font-mono text-xs text-slate-400">{r.amount}</span>
                 </div>
               ))}
             </div>
@@ -104,54 +101,68 @@ const PLANS = [
 
 export function PricingSection() {
   return (
-    <section id="harga" className="border-b border-border/60 bg-secondary/20 py-20 sm:py-28">
+    <section id="harga" className="bg-white py-16 sm:py-20">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Harga" title="Satu paket untuk tiap skala usaha" />
-        <div className="mt-14 grid gap-6 sm:grid-cols-3">
+        <div className="text-center">
+          <Eyebrow>Harga</Eyebrow>
+          <h2 className="font-(--font-lp-heading) mt-3 text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            Satu paket untuk tiap skala usaha.
+          </h2>
+        </div>
+        <div className="mt-12 grid gap-6 sm:grid-cols-3">
           {PLANS.map((plan) => (
-            <Card
+            <div
               key={plan.name}
               className={
                 plan.highlight
-                  ? "border-primary/40 shadow-md ring-2 ring-primary/30"
-                  : "border-none shadow-sm ring-1 ring-border/60"
+                  ? "flex flex-col rounded-2xl bg-teal-600 p-6 text-white shadow-xl shadow-teal-600/20 sm:-translate-y-3"
+                  : "flex flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
               }
             >
-              <CardHeader>
-                {plan.highlight && (
-                  <Badge className="mb-2 w-fit border-transparent bg-primary text-primary-foreground">
-                    Direkomendasikan
-                  </Badge>
-                )}
-                <CardTitle className="text-lg">{plan.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{plan.desc}</p>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <p className="text-sm font-medium">{plan.devices}</p>
-                <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-primary" /> Webhook & retry
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-primary" /> Dashboard realtime
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-primary" /> Konsol pengecualian
-                  </li>
-                </ul>
-                <Link
-                  href="/register"
-                  className={buttonVariants({ variant: plan.highlight ? "default" : "outline" })}
-                >
-                  Mulai Gratis 3 Hari
-                </Link>
-              </CardContent>
-            </Card>
+              {plan.highlight && (
+                <span className="mb-2 w-fit rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">
+                  Direkomendasikan
+                </span>
+              )}
+              <p className={`text-lg font-semibold ${plan.highlight ? "text-white" : "text-slate-900"}`}>
+                {plan.name}
+              </p>
+              <p className={`text-sm ${plan.highlight ? "text-white/70" : "text-slate-500"}`}>
+                {plan.desc}
+              </p>
+              <p className={`mt-4 text-sm font-medium ${plan.highlight ? "text-white" : "text-slate-900"}`}>
+                {plan.devices}
+              </p>
+              <ul className={`mt-4 flex flex-col gap-2 text-sm ${plan.highlight ? "text-white/80" : "text-slate-500"}`}>
+                <li className="flex items-center gap-2">
+                  <Check className={`size-4 ${plan.highlight ? "text-white" : "text-teal-600"}`} />
+                  Webhook & retry
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className={`size-4 ${plan.highlight ? "text-white" : "text-teal-600"}`} />
+                  Dashboard realtime
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className={`size-4 ${plan.highlight ? "text-white" : "text-teal-600"}`} />
+                  Konsol pengecualian
+                </li>
+              </ul>
+              <Link
+                href="/register"
+                className={
+                  plan.highlight
+                    ? "mt-6 flex h-10 items-center justify-center rounded-full bg-white text-sm font-semibold text-teal-700 transition-colors hover:bg-slate-50"
+                    : "mt-6 flex h-10 items-center justify-center rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                }
+              >
+                Mulai Gratis 3 Hari
+              </Link>
+            </div>
           ))}
         </div>
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="mt-8 text-center text-sm text-slate-500">
           Butuh paket khusus?{" "}
-          <a href="#" className="font-medium text-foreground hover:underline">
+          <a href="#" className="font-medium text-slate-900 hover:underline">
             Hubungi kami
           </a>
           .
@@ -198,19 +209,24 @@ const FAQS = [
 
 export function FaqSection() {
   return (
-    <section id="faq" className="border-b border-border/60 py-20 sm:py-28">
+    <section id="faq" className="bg-slate-50 py-16 sm:py-20">
       <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="FAQ" title="Pertanyaan yang sering ditanyakan" />
-        <div className="mt-12 flex flex-col divide-y divide-border/60 rounded-2xl border border-border/60">
+        <div className="text-center">
+          <Eyebrow>FAQ</Eyebrow>
+          <h2 className="font-(--font-lp-heading) mt-3 text-3xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            Pertanyaan yang sering ditanyakan.
+          </h2>
+        </div>
+        <div className="mt-10 flex flex-col divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white">
           {FAQS.map((faq) => (
             <details key={faq.q} className="group px-5 py-4 open:pb-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium marker:content-none">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-slate-900 marker:content-none">
                 {faq.q}
-                <span className="shrink-0 text-muted-foreground transition-transform group-open:rotate-45">
+                <span className="shrink-0 text-slate-400 transition-transform group-open:rotate-45">
                   +
                 </span>
               </summary>
-              <p className="mt-3 text-sm text-muted-foreground">{faq.a}</p>
+              <p className="mt-3 text-sm text-slate-500">{faq.a}</p>
             </details>
           ))}
         </div>
@@ -220,26 +236,32 @@ export function FaqSection() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Final CTA                                                              */
+/* Final CTA -- band navy penuh                                          */
 /* ---------------------------------------------------------------------- */
 
 export function FinalCtaSection() {
   return (
-    <section className="border-b border-border/60 py-20 sm:py-28">
+    <section className="bg-slate-900 py-20 text-white sm:py-24">
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-4 text-center sm:px-6 lg:px-8">
-        <h2 className="font-(--font-lp-heading) text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          Hubungkan pembayaran ke sistem yang sudah kamu pakai
+        <h2 className="font-(--font-lp-heading) text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+          Hubungkan pembayaran ke sistem yang sudah kamu pakai.
         </h2>
-        <p className="text-muted-foreground">
+        <p className="text-white/60">
           Mulai bangun alur kerja pembayaran yang lebih otomatis, dengan
           infrastruktur yang sudah kami siapkan.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link href="/register" className={buttonVariants({ size: "lg" })}>
+          <Link
+            href="/register"
+            className="flex h-11 items-center gap-1.5 rounded-full bg-teal-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-teal-400"
+          >
             Mulai Gratis 3 Hari
-            <ArrowRight className="ml-1.5 size-4" />
+            <ArrowRight className="size-4" />
           </Link>
-          <a href="#fitur" className={buttonVariants({ variant: "outline", size: "lg" })}>
+          <a
+            href="#fitur"
+            className="flex h-11 items-center rounded-full border border-white/20 px-5 text-sm font-medium text-white/80 transition-colors hover:bg-white/5"
+          >
             Lihat Fitur
           </a>
         </div>
@@ -249,37 +271,60 @@ export function FinalCtaSection() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Footer                                                                 */
+/* Footer -- layout kolom                                                */
 /* ---------------------------------------------------------------------- */
 
 export function LandingFooter() {
   return (
-    <footer className="py-10">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 text-center sm:px-6 lg:flex-row lg:justify-between lg:text-left lg:px-8">
-        <div className="flex items-center gap-2 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Zap className="size-3.5" fill="currentColor" strokeWidth={0} />
-          </span>
-          Payment Bridge
+    <footer className="bg-white py-12">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 font-semibold text-slate-900">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-slate-900 text-white">
+                <Zap className="size-3.5" fill="currentColor" strokeWidth={0} />
+              </span>
+              Payment Bridge
+            </div>
+            <p className="max-w-xs text-sm text-slate-500">
+              Notifikasi pembayaran GoPay, otomatis jadi event dan webhook ke
+              sistem bisnismu.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
+                Produk
+              </p>
+              <a href="#fitur" className="text-sm text-slate-500 hover:text-slate-900">
+                Fitur
+              </a>
+              <a href="#cara-kerja" className="text-sm text-slate-500 hover:text-slate-900">
+                Cara Kerja
+              </a>
+              <a href="#harga" className="text-sm text-slate-500 hover:text-slate-900">
+                Harga
+              </a>
+              <a href="#faq" className="text-sm text-slate-500 hover:text-slate-900">
+                FAQ
+              </a>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
+                Akun
+              </p>
+              <Link href="/login" className="text-sm text-slate-500 hover:text-slate-900">
+                Masuk
+              </Link>
+              <Link href="/register" className="text-sm text-slate-500 hover:text-slate-900">
+                Daftar
+              </Link>
+            </div>
+          </div>
         </div>
-        <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-          <a href="#fitur" className="hover:text-foreground">
-            Fitur
-          </a>
-          <a href="#cara-kerja" className="hover:text-foreground">
-            Cara Kerja
-          </a>
-          <a href="#harga" className="hover:text-foreground">
-            Harga
-          </a>
-          <a href="#faq" className="hover:text-foreground">
-            FAQ
-          </a>
-          <Link href="/login" className="hover:text-foreground">
-            Masuk
-          </Link>
-        </nav>
-        <p className="text-xs text-muted-foreground">
+
+        <p className="mt-10 border-t border-slate-100 pt-6 text-xs text-slate-400">
           © {new Date().getFullYear()} Payment Bridge
         </p>
       </div>

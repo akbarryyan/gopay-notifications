@@ -3,9 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Menu, Zap } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { label: "Fitur", href: "#fitur" },
@@ -18,10 +17,10 @@ export function LandingNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-slate-900">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-slate-900 text-white">
             <Zap className="size-4" fill="currentColor" strokeWidth={0} />
           </span>
           Payment Bridge
@@ -32,10 +31,7 @@ export function LandingNavbar() {
             <a
               key={link.href}
               href={link.href}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "text-muted-foreground",
-              )}
+              className="rounded-full px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
             >
               {link.label}
             </a>
@@ -43,11 +39,17 @@ export function LandingNavbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <Link
+            href="/login"
+            className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
             Masuk
           </Link>
-          <Link href="/register" className={buttonVariants({ size: "sm" })}>
-            Mulai Gratis
+          <Link
+            href="/register"
+            className="rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-teal-500/30 transition-colors hover:bg-teal-600"
+          >
+            Daftar
           </Link>
         </div>
 
@@ -58,8 +60,8 @@ export function LandingNavbar() {
           </SheetTrigger>
           <SheetContent side="right" className="w-72 p-0">
             <SheetTitle className="sr-only">Navigasi</SheetTitle>
-            <div className="flex h-16 items-center gap-2 border-b border-border/60 px-4 font-semibold">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <div className="flex h-16 items-center gap-2 border-b border-slate-100 px-4 font-semibold text-slate-900">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-slate-900 text-white">
                 <Zap className="size-4" fill="currentColor" strokeWidth={0} />
               </span>
               Payment Bridge
@@ -70,25 +72,25 @@ export function LandingNavbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 >
                   {link.label}
                 </a>
               ))}
-              <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4">
+              <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4">
                 <Link
                   href="/login"
                   onClick={() => setMobileOpen(false)}
-                  className={buttonVariants({ variant: "outline" })}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-center text-sm font-medium text-slate-700"
                 >
                   Masuk
                 </Link>
                 <Link
                   href="/register"
                   onClick={() => setMobileOpen(false)}
-                  className={buttonVariants()}
+                  className="rounded-full bg-teal-500 px-4 py-2 text-center text-sm font-semibold text-white"
                 >
-                  Mulai Gratis
+                  Daftar
                 </Link>
               </div>
             </nav>
