@@ -54,7 +54,8 @@ func TestRecordHeartbeatMenyimpanKondisi(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP", []byte("s")); err != nil {
+	seedAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP", []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
@@ -106,7 +107,8 @@ func TestRecordHeartbeatJugaMemperbaruiLastSeen(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP", []byte("s")); err != nil {
+	seedAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP", []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 	if err := s.RecordHeartbeat(ctx, "dev_01ABC", store.Heartbeat{ListenerConnected: true}); err != nil {
@@ -126,7 +128,8 @@ func TestHeartbeatVersiAndroidKosongTidakMenimpa(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP", []byte("s")); err != nil {
+	seedAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP", []byte("s")); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 	if err := s.RecordHeartbeat(ctx, "dev_01ABC", store.Heartbeat{AndroidVersion: "13"}); err != nil {

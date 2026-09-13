@@ -11,7 +11,8 @@ import (
 
 func seedDevice(t *testing.T, s *store.Store) {
 	t.Helper()
-	err := s.CreateDevice(context.Background(), encKey(), "dev_01ABC", "HP", []byte("secret"))
+	seedAccount(t, s, "acc_1")
+	err := s.CreateDevice(context.Background(), encKey(), "acc_1", "dev_01ABC", "HP", []byte("secret"))
 	if err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
