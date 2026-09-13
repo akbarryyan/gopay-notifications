@@ -19,6 +19,7 @@ type API struct {
 	now                 func() time.Time
 	loginThrottle       *loginThrottle
 	vendorLoginThrottle *loginThrottle
+	signupThrottle      *loginThrottle
 	webhookHTTPClient   *http.Client
 }
 
@@ -37,6 +38,7 @@ func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey
 		now:                 now,
 		loginThrottle:       newLoginThrottle(),
 		vendorLoginThrottle: newLoginThrottle(),
+		signupThrottle:      newLoginThrottle(),
 		// Timeout 10 detik sesuai spec §3.1 — server merchant yang lambat
 		// tidak boleh menahan worker webhook lebih lama dari itu.
 		webhookHTTPClient: &http.Client{Timeout: 10 * time.Second},
@@ -69,6 +71,10 @@ func (a *API) Handler() http.Handler {
 	// walau akun sedang tidak aktif.
 	mux.HandleFunc("POST /api/v1/admin/login", a.handleAdminLogin)
 	mux.HandleFunc("POST /api/v1/admin/logout", a.handleAdminLogout)
+	// Signup: SATU-SATUNYA endpoint di seluruh backend tanpa auth apa pun
+	// (bukan sesi, API key, atau HMAC) -- calon customer belum punya
+	// kredensial sampai titik ini. Lihat signup.go.
+	mux.HandleFunc("POST /api/v1/signup", a.handleSignup)
 	mux.Handle("GET /api/v1/admin/license", a.requireAdmin(http.HandlerFunc(a.handleAdminLicense)))
 	mux.Handle("GET /api/v1/admin/overview",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminOverview))))
