@@ -20,6 +20,7 @@ var ErrAPIKeyNotFound = errors.New("store: api key tidak ditemukan atau sudah di
 
 type APIKey struct {
 	ID        string
+	AccountID string
 	Name      string
 	CreatedAt time.Time
 	RevokedAt *time.Time
@@ -56,21 +57,23 @@ func GenerateAPIKeySecret() (raw string, hash []byte, err error) {
 // CreateAPIKey menyimpan API key baru. Key mentahnya sendiri tidak pernah
 // disimpan, hanya hash-nya — dikembalikan lewat tipe hasil hanya oleh
 // pemanggil di lapisan HTTP yang baru saja men-generate-nya.
-func (s *Store) CreateAPIKey(ctx context.Context, id, name string, keyHash []byte) error {
+func (s *Store) CreateAPIKey(ctx context.Context, accountID, id, name string, keyHash []byte) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO api_keys (id, name, key_hash) VALUES ($1, $2, $3)`,
-		id, name, keyHash)
+		`INSERT INTO api_keys (id, account_id, name, key_hash) VALUES ($1, $2, $3, $4)`,
+		id, accountID, name, keyHash)
 	if err != nil {
 		return fmt.Errorf("store: create api key: %w", err)
 	}
 	return nil
 }
 
-// ListAPIKeys mengembalikan seluruh key, terbaru lebih dulu. Tidak pernah
-// menyertakan key_hash — dashboard tidak boleh punya cara membocorkannya.
-func (s *Store) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
+// ListAPIKeys mengembalikan seluruh key milik satu account, terbaru lebih
+// dulu. Tidak pernah menyertakan key_hash — dashboard tidak boleh punya cara
+// membocorkannya.
+func (s *Store) ListAPIKeys(ctx context.Context, accountID string) ([]APIKey, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, created_at, revoked_at FROM api_keys ORDER BY created_at DESC`)
+		`SELECT id, account_id, name, created_at, revoked_at FROM api_keys
+		 WHERE account_id = $1 ORDER BY created_at DESC`, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list api keys: %w", err)
 	}
@@ -79,7 +82,7 @@ func (s *Store) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
 	out := make([]APIKey, 0)
 	for rows.Next() {
 		var k APIKey
-		if err := rows.Scan(&k.ID, &k.Name, &k.CreatedAt, &k.RevokedAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.AccountID, &k.Name, &k.CreatedAt, &k.RevokedAt); err != nil {
 			return nil, fmt.Errorf("store: scan api key: %w", err)
 		}
 		out = append(out, k)
@@ -90,20 +93,24 @@ func (s *Store) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
 	return out, nil
 }
 
-// RevokeAPIKey mencabut key. Idempotent: mencabut yang sudah dicabut tetap
-// sukses tanpa mengubah revoked_at semula.
-func (s *Store) RevokeAPIKey(ctx context.Context, id string) error {
+// RevokeAPIKey mencabut key milik account ini. Idempotent: mencabut yang
+// sudah dicabut tetap sukses tanpa mengubah revoked_at semula. Key milik
+// account lain diperlakukan sama seperti tidak ada (ErrAPIKeyNotFound).
+func (s *Store) RevokeAPIKey(ctx context.Context, accountID, id string) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`, id)
+		`UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL`,
+		id, accountID)
 	if err != nil {
 		return fmt.Errorf("store: revoke api key: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		// Bisa jadi sudah dicabut (idempotent, bukan error) atau memang
-		// tidak ada — bedakan lewat existence check supaya 404 tetap benar.
+		// tidak ada/bukan milik account ini — bedakan lewat existence check
+		// supaya 404 tetap benar.
 		var exists bool
 		if err := s.pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM api_keys WHERE id = $1)`, id).Scan(&exists); err != nil {
+			`SELECT EXISTS(SELECT 1 FROM api_keys WHERE id = $1 AND account_id = $2)`, id, accountID).
+			Scan(&exists); err != nil {
 			return fmt.Errorf("store: cek api key: %w", err)
 		}
 		if !exists {
@@ -114,14 +121,16 @@ func (s *Store) RevokeAPIKey(ctx context.Context, id string) error {
 }
 
 // VerifyAPIKey mencari key aktif (belum dicabut) berdasarkan hash key
-// mentah. Dipakai middleware auth endpoint invoice.
+// mentah. Dipakai middleware auth endpoint invoice. key_hash tetap unik
+// global (bukan di-scope per account) -- pemanggil (requireAPIKey) yang
+// membaca AccountID dari hasilnya buat tahu pemiliknya.
 func (s *Store) VerifyAPIKey(ctx context.Context, rawKey string) (APIKey, error) {
 	sum := sha256.Sum256([]byte(rawKey))
 	var k APIKey
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, created_at, revoked_at FROM api_keys
+		`SELECT id, account_id, name, created_at, revoked_at FROM api_keys
 		 WHERE key_hash = $1 AND revoked_at IS NULL`, sum[:]).
-		Scan(&k.ID, &k.Name, &k.CreatedAt, &k.RevokedAt)
+		Scan(&k.ID, &k.AccountID, &k.Name, &k.CreatedAt, &k.RevokedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return APIKey{}, ErrAPIKeyNotFound
 	}
