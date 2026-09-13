@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { logout } from "@/lib/api";
 
 const NAV = [
-  { label: "Customers", href: "/", icon: Users },
+  { label: "Accounts", href: "/", icon: Users },
   { label: "Audit Log", href: "/audit-log", icon: ShieldCheck },
 ];
 

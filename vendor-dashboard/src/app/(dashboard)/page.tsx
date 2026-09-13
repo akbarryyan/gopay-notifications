@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, RotateCw, Users } from "lucide-react";
+import { Plus, RotateCw, Users, Check, Copy } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -27,50 +28,88 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { createCustomer, getCustomers } from "@/lib/api";
+import { createAccount, getAccounts, type Account, type AccountPlan } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
-import { formatDateTime } from "@/lib/format";
+import { formatDateOnly } from "@/lib/format";
 
-export default function CustomersPage() {
-  const { data, loading, error, reload } = useApiData(getCustomers);
+const STATUS_BADGE: Record<Account["status"], string> = {
+  active: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  expiring: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  expired: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
+  suspended: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
+  revoked: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
+};
+
+const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
+
+export default function AccountsPage() {
+  const { data, loading, error, reload } = useApiData(getAccounts);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [plan, setPlan] = useState<AccountPlan>("Business");
+  const [expiresAt, setExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reveal, setReveal] = useState<{ username: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function resetForm() {
+    setBusinessName("");
+    setEmail("");
+    setUsername("");
+    setPlan("Business");
+    setExpiresAt("");
+  }
 
   async function onCreate() {
-    if (!name.trim()) return;
+    if (!businessName.trim() || !email.trim() || !username.trim() || !expiresAt) return;
     setBusy(true);
     try {
-      await createCustomer(name.trim());
-      toast.success(`Customer "${name.trim()}" dibuat.`);
+      const res = await createAccount({
+        business_name: businessName.trim(),
+        email: email.trim(),
+        username: username.trim(),
+        plan,
+        expires_at: expiresAt,
+      });
+      toast.success(`Akun "${businessName.trim()}" dibuat.`);
       setCreating(false);
-      setName("");
+      setReveal({ username: res.account.username, password: res.initial_password });
+      resetForm();
       reload();
     } catch {
-      toast.error("Gagal membuat customer.");
+      toast.error("Gagal membuat akun.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function copyPassword() {
+    if (!reveal) return;
+    await navigator.clipboard.writeText(reveal.password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Customers</h1>
+          <h1 className="text-2xl font-semibold">Accounts</h1>
           <p className="text-sm text-muted-foreground">
-            Seluruh customer self-hosted Payment Bridge.
+            Seluruh customer Payment Bridge (hosted).
           </p>
         </div>
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="mr-1.5 size-4" />
-          Buat customer
+          Buat akun
         </Button>
       </div>
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Tidak dapat memuat customer</AlertTitle>
+          <AlertTitle>Tidak dapat memuat akun</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-4">
             <span>{error}</span>
             <Button size="sm" variant="outline" onClick={reload}>
@@ -92,22 +131,30 @@ export default function CustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nama</TableHead>
-                <TableHead>Dibuat</TableHead>
+                <TableHead>Nama Bisnis</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Kedaluwarsa</TableHead>
                 <TableHead className="text-right">Detail</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{formatDateTime(c.created_at)}</TableCell>
+              {data.map((acc) => (
+                <TableRow key={acc.id}>
+                  <TableCell className="font-medium">{acc.business_name}</TableCell>
+                  <TableCell className="font-mono text-xs">{acc.username}</TableCell>
+                  <TableCell>{acc.plan}</TableCell>
+                  <TableCell>
+                    <Badge className={STATUS_BADGE[acc.status]}>{acc.status}</Badge>
+                  </TableCell>
+                  <TableCell>{formatDateOnly(acc.expires_at)}</TableCell>
                   <TableCell className="text-right">
                     <Link
-                      href={`/customers/${c.id}`}
+                      href={`/accounts/${acc.id}`}
                       className={buttonVariants({ size: "sm", variant: "outline" })}
                     >
-                      Lihat lisensi
+                      Kelola
                     </Link>
                   </TableCell>
                 </TableRow>
@@ -118,30 +165,111 @@ export default function CustomersPage() {
       ) : (
         <div className="rounded-2xl border border-dashed p-8 text-center">
           <Users className="mx-auto mb-2 size-8 text-muted-foreground" />
-          <p className="font-medium">Belum ada customer</p>
+          <p className="font-medium">Belum ada akun</p>
         </div>
       )}
 
       <AlertDialog open={creating} onOpenChange={(open) => !open && setCreating(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Buat customer baru</AlertDialogTitle>
-            <AlertDialogDescription>Nama customer, mis. &ldquo;Toko Contoh&rdquo;.</AlertDialogDescription>
+            <AlertDialogTitle>Buat akun baru</AlertDialogTitle>
+            <AlertDialogDescription>
+              Password awal akan ditampilkan sekali setelah dibuat — catat sebelum
+              menutup dialog itu.
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex flex-col gap-2 py-2">
-            <Label htmlFor="customer-name">Nama</Label>
-            <Input
-              id="customer-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="business-name">Nama bisnis</Label>
+              <Input
+                id="business-name"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="Toko Contoh"
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="toko@contoh.test"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="toko_contoh"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="plan">Plan</Label>
+              <select
+                id="plan"
+                value={plan}
+                onChange={(e) => setPlan(e.target.value as AccountPlan)}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                {PLANS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="expires-at">Kedaluwarsa</Label>
+              <Input
+                id="expires-at"
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+            </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={onCreate} disabled={busy || !name.trim()}>
+            <AlertDialogAction
+              onClick={onCreate}
+              disabled={busy || !businessName.trim() || !email.trim() || !username.trim() || !expiresAt}
+            >
               Buat
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={reveal !== null} onOpenChange={(open) => !open && setReveal(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Akun berhasil dibuat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Password ini cuma tampil sekarang — kirim ke customer lewat kanal
+              vendor sendiri, tidak bisa dilihat lagi setelah dialog ini ditutup.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {reveal && (
+            <div className="flex flex-col gap-2 py-2">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Username: </span>
+                <span className="font-mono">{reveal.username}</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm">
+                <span className="flex-1 select-all break-all">{reveal.password}</span>
+                <Button size="sm" variant="ghost" onClick={copyPassword}>
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setReveal(null)}>Selesai</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

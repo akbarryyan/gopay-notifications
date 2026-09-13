@@ -1,11 +1,12 @@
 /**
- * Klien API Vendor Console — memanggil License Server
- * (backend/internal/licenseserver), bukan backend customer manapun.
+ * Klien API Vendor Dashboard -- memanggil endpoint vendor
+ * (/api/v1/vendor/*) di backend utama. License Server yang dulu terpisah
+ * sudah dibongkar total; backend utama sekarang satu-satunya service.
  *
- * Path relatif (/api/v1/admin/...), sama pola dengan dashboard customer:
- * next.config.ts me-rewrite /api/* ke LICENSE_SERVER_URL saat dev, Caddy
- * yang merutekan saat produksi. Autentikasi lewat cookie sesi HttpOnly
- * ("vendor_session").
+ * Path relatif, sama pola dengan dashboard customer: next.config.ts
+ * me-rewrite /api/* ke BACKEND_URL saat dev, Caddy yang merutekan saat
+ * produksi. Autentikasi lewat cookie sesi HttpOnly ("vendor_session") --
+ * terpisah total dari sesi customer (admin_session).
  */
 
 export class ApiError extends Error {
@@ -46,108 +47,70 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 // --- Auth ----------------------------------------------------------------
 
 export function login(username: string, password: string): Promise<{ success: true }> {
-  return apiFetch("/api/v1/admin/login", {
+  return apiFetch("/api/v1/vendor/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
 }
 
 export function logout(): Promise<{ success: true }> {
-  return apiFetch("/api/v1/admin/logout", { method: "POST" });
+  return apiFetch("/api/v1/vendor/logout", { method: "POST" });
 }
 
-// --- Customers -------------------------------------------------------------
+// --- Accounts --------------------------------------------------------------
 
-export interface Customer {
+export type AccountPlan = "Starter" | "Business" | "Enterprise";
+export type AccountStatus = "active" | "expiring" | "expired" | "suspended" | "revoked";
+
+export interface Account {
   id: string;
-  name: string;
+  business_name: string;
+  email: string;
+  username: string;
+  plan: AccountPlan;
+  max_devices: number;
+  status: AccountStatus;
+  expires_at: string;
+  days_remaining: number;
   created_at: string;
 }
 
-export async function getCustomers(): Promise<Customer[]> {
-  const res = await apiFetch<{ customers: Customer[] }>("/api/v1/admin/customers");
-  return res.customers;
+export async function getAccounts(): Promise<Account[]> {
+  const res = await apiFetch<{ accounts: Account[] }>("/api/v1/vendor/accounts");
+  return res.accounts;
 }
 
-export function createCustomer(name: string): Promise<{ success: true; customer: Customer }> {
-  return apiFetch("/api/v1/admin/customers", {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
-}
-
-// --- Licenses --------------------------------------------------------------
-
-export type LicensePlan = "Starter" | "Business" | "Enterprise";
-export type LicenseStatus = "active" | "expiring" | "expired" | "suspended" | "revoked";
-
-export interface License {
-  id: string;
-  customer_id: string;
-  plan: string;
-  status: LicenseStatus;
-  max_devices: number;
-  production_installations: number;
-  uat_installations: number;
-  issued_at: string;
+export function createAccount(input: {
+  business_name: string;
+  email: string;
+  username: string;
+  plan: AccountPlan;
   expires_at: string;
-  days_remaining: number;
-}
-
-export interface Installation {
-  id: string;
-  environment: "production" | "uat";
-  product_version: string;
-  activated_at: string;
-  released_at: string | null;
-}
-
-export async function getCustomerDetail(
-  customerId: string,
-): Promise<{ customer: Customer; licenses: License[] }> {
-  return apiFetch(`/api/v1/admin/customers/${encodeURIComponent(customerId)}`);
-}
-
-export async function createLicense(
-  customerId: string,
-  plan: LicensePlan,
-  expiresAt: string,
-): Promise<{ success: true; license: License & { key: string } }> {
-  return apiFetch(`/api/v1/admin/customers/${encodeURIComponent(customerId)}/licenses`, {
+}): Promise<{ success: true; account: Account; initial_password: string }> {
+  return apiFetch("/api/v1/vendor/accounts", {
     method: "POST",
-    body: JSON.stringify({ plan, expires_at: expiresAt }),
+    body: JSON.stringify(input),
   });
 }
 
-export async function getLicenseDetail(
-  licenseId: string,
-): Promise<{ license: License; installations: Installation[] }> {
-  return apiFetch(`/api/v1/admin/licenses/${encodeURIComponent(licenseId)}`);
+export async function getAccount(id: string): Promise<Account> {
+  const res = await apiFetch<{ account: Account }>(`/api/v1/vendor/accounts/${encodeURIComponent(id)}`);
+  return res.account;
 }
 
-export function renewLicense(licenseId: string, expiresAt: string): Promise<{ success: true }> {
-  return apiFetch(`/api/v1/admin/licenses/${encodeURIComponent(licenseId)}/renew`, {
+export function renewAccount(id: string, expiresAt: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/renew`, {
     method: "POST",
     body: JSON.stringify({ expires_at: expiresAt }),
   });
 }
 
-export function suspendLicense(licenseId: string): Promise<{ success: true }> {
-  return apiFetch(`/api/v1/admin/licenses/${encodeURIComponent(licenseId)}/suspend`, {
-    method: "POST",
-  });
+export function suspendAccount(id: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/suspend`, { method: "POST" });
 }
 
-export function revokeLicense(licenseId: string): Promise<{ success: true }> {
-  return apiFetch(`/api/v1/admin/licenses/${encodeURIComponent(licenseId)}/revoke`, {
-    method: "POST",
-  });
-}
-
-export function resetInstallation(installationId: string): Promise<{ success: true }> {
-  return apiFetch(`/api/v1/admin/installations/${encodeURIComponent(installationId)}/reset`, {
-    method: "POST",
-  });
+export function revokeAccount(id: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/revoke`, { method: "POST" });
 }
 
 // --- Audit log ---------------------------------------------------------------
@@ -157,11 +120,10 @@ export interface AuditEntry {
   actor: string;
   action: string;
   resource: string;
-  metadata: unknown;
   created_at: string;
 }
 
 export async function getAuditLog(): Promise<AuditEntry[]> {
-  const res = await apiFetch<{ entries: AuditEntry[] }>("/api/v1/admin/audit-log");
+  const res = await apiFetch<{ entries: AuditEntry[] }>("/api/v1/vendor/audit-log");
   return res.entries;
 }
