@@ -36,6 +36,25 @@ tabel di atas dan pakai `.env.uat.example` serta
    node -v   # pastikan v20.x atau lebih baru
    ```
 
+   **Jangan pakai Caddy dari repo Ubuntu/Debian bawaan (`apt install caddy`
+   polos).** Versinya sering tertinggal jauh — `2.6.2` dari repo distro
+   tidak mengenali directive `basic_auth` di Caddyfile ini sama sekali
+   (gagal `unrecognized directive: basic_auth`). Pasang dari repo resmi:
+
+   ```bash
+   sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+   sudo apt update
+   sudo apt install -y caddy
+   ```
+
+   Kalau domain sudah dikelola Cloudflare, matikan proxy ("awan oranye" →
+   abu-abu / "DNS only") pada record `A`-nya sebelum lanjut. Dengan proxy
+   aktif, `dig` domain akan menunjuk ke IP Cloudflare, bukan IP VPS ini, dan
+   Caddy gagal menerbitkan sertifikat HTTPS otomatis karena tantangan ACME
+   (HTTP-01) mendarat di edge Cloudflare, bukan di origin.
+
 2. Buat user sistem dan direktori:
 
    ```bash

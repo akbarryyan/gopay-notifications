@@ -1,8 +1,8 @@
 # QA Report
 
-**Milestone terakhir diperiksa:** M1, M2, M3 selesai · **M4 selesai lewat backend lokal** — pengiriman, retry, kegagalan autentikasi, duplikat, dan error server semuanya terbukti di perangkat. Sisa M4 hanya HTTPS, yang menunggu VPS
-**Tanggal:** 2026-09-10
-**Ringkasan:** `PASS` 61 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 2 · `PENDING` 5
+**Milestone terakhir diperiksa:** M1–M4 selesai — pengiriman, retry, kegagalan autentikasi, duplikat, error server, dan sekarang HTTPS produksi lewat VPS sungguhan, seluruhnya terbukti di perangkat/produksi.
+**Tanggal:** 2026-09-13
+**Ringkasan:** `PASS` 65 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 0 · `PENDING` 4
 
 ---
 
@@ -10,7 +10,7 @@
 
 Seluruh sisi backend selesai dan terbukti bekerja di mesin development: 4 paket, seluruh test lulus termasuk dengan race detector, ditambah uji end-to-end lewat HTTP sungguhan yang menembus rantai lengkap HMAC → validasi → Postgres.
 
-Yang **belum** terbukti adalah apa pun yang menuntut VPS: sertifikat HTTPS sungguhan, basic auth Caddy, dan systemd. Berkas konfigurasinya sudah ditulis dan build silang `linux/amd64` berhasil, tetapi tidak satu pun dapat diverifikasi dari mesin development. Empat butir itu ditandai `NEEDS-DEVICE`.
+**Deploy ke VPS produksi (`whuzpay.com`, `94.237.69.93`) selesai 2026-09-13.** Backend, dashboard, Caddy (HTTPS otomatis + basic auth), dan systemd seluruhnya terbukti berjalan di server sungguhan lewat internet, bukan lagi cuma berkas konfigurasi. Detail di §2b.
 
 **M2 sebagian selesai.** Aplikasi terpasang dan berjalan di OPPO CPH2365, `NotificationListenerService` terdaftar di APK yang benar-benar terpasang, dan Notification Access sudah diberikan sehingga status ikatan menunjukkan `ya`. Yang belum: konfirmasi setelan anti-ColorOS, dan penangkapan notifikasi GoPay sungguhan yang baru ada setelah Task 8.
 
@@ -48,16 +48,7 @@ ok  .../internal/secretbox 1.018s   ok .../internal/store 1.443s
 
 ## 2. Butir `NEEDS-DEVICE` yang menunggu
 
-Empat butir menunggu akses VPS. Langkahnya ada di [`backend/deploy/README.md`](../../backend/deploy/README.md).
-
-| # | Langkah | Hasil yang diharapkan | Laporkan |
-|---|---|---|---|
-| 1 | `curl -s https://<domain>/api/v1/health` | `{"status":"ok","server_time":...}` lewat sertifikat sah | Keluaran lengkap |
-| 2 | `curl -s -o /dev/null -w '%{http_code}' https://<domain>/api/v1/events` | `401` | Kode HTTP |
-| 3 | `curl -s -o /dev/null -w '%{http_code}' -u admin:<pw> https://<domain>/api/v1/events` | `200` | Kode HTTP |
-| 4 | `curl -s -o /dev/null -w '%{http_code}' http://<domain>/api/v1/health` | `308` — Caddy mengalihkan, tidak ada layanan di HTTP polos | Kode HTTP |
-
-Selain itu, `devicetool -name "HP GoPay Utama"` perlu dijalankan di VPS untuk menghasilkan `Device ID` dan `Device Secret` sungguhan yang dipakai M4.
+Selesai — lihat §2b untuk bukti lengkap. `devicetool -name "HP GoPay Utama"` masih perlu dijalankan di VPS untuk menghasilkan `Device ID`/`Device Secret` produksi yang sesungguhnya dipakai HP (deploy VPS ini memverifikasi infrastrukturnya, bukan menggantikan pembuatan device produksi).
 
 Dua butir sisi Android yang sempat menunggu sudah selesai 2026-09-10: setelan anti-ColorOS dan unit test Kotlin. Keduanya kini tercatat sebagai `PASS` di bawah.
 
@@ -77,6 +68,41 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 
 ---
 
+## 2b. Deploy VPS produksi — selesai 2026-09-13
+
+Domain `whuzpay.com`, VPS `94.237.69.93`. Langkah lengkap di [`backend/deploy/README.md`](../../backend/deploy/README.md).
+
+**Bukti — HTTPS otomatis, basic auth, dan redirect HTTP→HTTPS lewat internet sungguhan:**
+
+```
+$ curl -s https://whuzpay.com/api/v1/health
+{"status":"ok","server_time":1789273446}
+
+$ curl -s -o /dev/null -w '%{http_code}' https://whuzpay.com/api/v1/events
+401
+
+$ curl -s -o /dev/null -w '%{http_code}' http://whuzpay.com/api/v1/health
+308
+
+$ curl -s -o /dev/null -w '%{http_code}' https://whuzpay.com/
+307
+
+$ curl -s -o /dev/null -w '%{http_code}' https://whuzpay.com/login
+200
+```
+
+`307` di `/` benar — belum ada cookie sesi, `proxy.ts` mengalihkan ke `/login`.
+
+**`PENDING`:** `curl -u admin:<pw> https://whuzpay.com/api/v1/events` → mau `200`, membuktikan basic auth Caddy pada `/api/v1/events` menerima kredensial yang benar (`401` di atas baru membuktikan penolakan tanpa kredensial). Menunggu Akbar menjalankannya dengan password sungguhan.
+
+**Login sungguhan berhasil** di `https://whuzpay.com` lewat browser dengan akun yang dibuat via `admintool` — rantai penuh Caddy → dashboard Next.js (systemd `gopay-dashboard`) → backend Go (systemd `gopay-ingestion`) → Postgres terbukti jalan end-to-end di produksi.
+
+Jebakan yang ditemukan dan diperbaiki selama deploy ini (dicatat di §10):
+- DNS sempat mengarah ke Cloudflare (proxy aktif), bukan langsung ke VPS — diperbaiki dengan mode "DNS only".
+- Caddy versi lama (2.6.2, dari repo distro) tidak mengenali directive `basic_auth` — diperbaiki dengan upgrade ke Caddy stabil terbaru dari repo resmi.
+
+---
+
 ## 3. Functional Requirements — [prd.md §11](../prd.md)
 
 | # | Requirement | Milestone | Status | Bukti |
@@ -87,7 +113,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | FR-04 | Parsing nominal dan `event_id` (unit) | M3 | `PASS` | `./gradlew :gopay-listener:testDebugUnitTest` → BUILD SUCCESSFUL; `build/test-results/testDebugUnitTest/*.xml` mencatat `tests=20 failures=0 errors=0 skipped=0` (AmountParserTest 8, EventIdBuilderTest 5, SignerTest 7) |
 | FR-04 | Notifikasi jadi event terstruktur (pipeline) | M3 | `PASS` | Pembayaran QRIS sungguhan muncul di Riwayat dengan nominal dan status `PENDING`. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | FR-05 | Kirim event ke backend (jalur HTTP) | M4 | `PASS` | Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
-| FR-05 | Kirim event via **HTTPS** | M4 | `PENDING` | Jalur pengiriman terbukti, tetapi lewat HTTP ke backend lokal. HTTPS menuntut VPS dengan sertifikat |
+| FR-05 | Kirim event via **HTTPS** | M4 | `PASS` | `https://whuzpay.com/api/v1/health` menjawab lewat sertifikat sah (Caddy, Let's Encrypt otomatis); `http://` dialihkan `308`. Lihat §2b, 2026-09-13 |
 | FR-06 | Autentikasi request — sisi backend | M1 | `PASS` | `TestVerifyRejectsModifiedBody`, `TestVerifyRejectsWrongSecret`, `TestAuthRejectsWrongSecret`, `TestAuthRejectsUnknownDevice`, `TestAuthRejectsDisabledDevice`, `TestAuthRejectsMissingHeaders` (3 subtest), e2e no. 3 |
 | FR-06 | Autentikasi request — sisi Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
 | FR-07 | Retry untuk error yang dapat dipulihkan | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
@@ -106,7 +132,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Aplikasi mendeteksi notifikasi baru | M2 | `PASS` | Pembayaran QRIS sungguhan tertangkap dan muncul di Riwayat. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Membedakan GoPay Merchant dari aplikasi lain | M3 | `PASS` | WhatsApp dikirim ke HP; tab Riwayat tetap kosong — notifikasi non-merchant tidak tercatat sebagai event. Diperkuat 12 test `CapturePolicyTest`, termasuk `aplikasi GoPay pribadi dilewati selama tidak dipantau`. OPPO CPH2365, 2026-09-11 |
 | Notifikasi jadi event terstruktur | M3 | `PASS` | Event memuat nominal hasil parsing dan status; Dashboard menampilkan "Event terakhir". Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
-| Event terkirim via HTTPS | M4 | `PENDING` | Pengiriman terbukti lewat HTTP lokal; HTTPS menunggu VPS |
+| Event terkirim via HTTPS | M4 | `PASS` | HTTPS produksi terbukti di `whuzpay.com`, sertifikat otomatis Let's Encrypt lewat Caddy. Lihat §2b, 2026-09-13 |
 | Backend mengidentifikasi perangkat pengirim | M1 | `PASS` | `TestAuthAcceptsValidSignature`, `TestTouchDeviceSetsLastSeenAt`, e2e no. 6 (`last_seen_at` = `t`) |
 | Event sama tidak diproses dua kali | M1 | `PASS` | `TestInsertEventConcurrentSameIDInsertsOnce`, e2e no. 5 (tepat 1 baris setelah 2 kiriman identik) |
 | Event terkirim setelah koneksi normal kembali | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
@@ -134,7 +160,7 @@ Butir 9 (penyaringan notifikasi non-merchant) **selesai 2026-09-11**. Seluruh si
 | Event tersimpan lokal dari notifikasi sungguhan | M3 | `PASS` | Event bertahan di Riwayat setelah pembayaran sungguhan. Diverifikasi Akbar di OPPO CPH2365, 2026-09-11 |
 | Event tersimpan di backend | M1 | `PASS` | `TestCallbackStoresRawPayloadVerbatim`, e2e no. 7 (`GET /events` mengembalikan event) |
 | Event dapat dikirim ke backend | M4 | `PASS` | Pembayaran QRIS Rp3 sungguhan: HP menandai `SENT`, dan baris tersimpan di `gopay_dev` dengan `amount_hint=3`, `title=Pembayaran QRIS statis diterima`, `package_name=com.gojek.gopaymerchant`, serta `raw_payload` utuh. Backend lokal, 2026-09-11 |
-| HTTPS untuk production | M1 | `NEEDS-DEVICE` | `Caddyfile` ditulis, build silang OK; sertifikat belum diverifikasi — lihat §2 no. 1 |
+| HTTPS untuk production | M1 | `PASS` | Sertifikat sah diterbitkan otomatis oleh Caddy di `whuzpay.com`, diverifikasi lewat `curl`. Lihat §2b, 2026-09-13 |
 | Authentication ditegakkan backend | M1 | `PASS` | Sama dengan FR-06 sisi backend |
 | Authentication dikirim Android | M4 | `PASS` | Tombol Test Connection di HP menjawab "Terhubung sebagai HP GoPay Dev", dan `last_seen_at` device di `gopay_dev` terisi — itu hanya dijalankan setelah `auth.Verify` lolos di middleware, jadi tanda tangan Kotlin terbukti cocok dengan verifikasi Go pada request sungguhan. Backend lokal, 2026-09-11 |
 | Retry mechanism berjalan | M4 | `PASS` | Backend lokal dimatikan, pembayaran sungguhan diterima → event bertahan `PENDING` dengan `lastError=network` dan `attemptCount` bertambah. Backend dinyalakan lagi → status berpindah sendiri ke `SENT` tanpa campur tangan. OPPO CPH2365, 2026-09-11 |
@@ -181,7 +207,7 @@ Baris `429`, `5xx`, dan `timeout` menggambarkan perilaku **HP**, bukan backend, 
 | Body diverifikasi mentah sebelum decode | `PASS` | `auth_middleware.go:71` `io.ReadAll` → `:90` `auth.Verify(...)`; `json.Unmarshal` baru di `callback.go:50`, setelah middleware |
 | Toleransi timestamp ditegakkan di kedua batas | `PASS` | `TestCheckSkewBoundaries` — 7 subtest, termasuk ±299/±300/±301 detik |
 | Idempotency memakai constraint database | `PASS` | `migrations/00001_init.sql:13` `event_id TEXT NOT NULL UNIQUE`; `event.go:35` `ON CONFLICT (event_id) DO NOTHING`; `event.go:42` `RowsAffected() == 1` |
-| Build production menolak HTTP polos | `NEEDS-DEVICE` | Perlu Caddy di VPS — lihat §2 no. 4 |
+| Build production menolak HTTP polos | `PASS` | `curl http://whuzpay.com/api/v1/health` → `308`, dialihkan ke HTTPS oleh Caddy. Lihat §2b, 2026-09-13 |
 | Aturan arah berupa allowlist, bukan blocklist | `PENDING` | Ditegakkan backend di sub-project 3. Entri awal `Pembayaran QRIS statis diterima` sudah tercatat di kontrak API |
 | Mode Discovery default mati dan mati sendiri | `PASS` | `SettingsTest.discovery mati secara default` dan `discovery aktif hanya sampai batas waktunya`; `startDiscovery` membatasi 1–10 menit |
 | Mode Discovery tidak mengirim apa pun keluar HP | `PASS` | Setelah mode Discovery aktif dan WhatsApp tertangkap, `SELECT count(*) FILTER (WHERE package_name <> 'com.gojek.gopaymerchant')` di `gopay_dev` → **0**. Hanya pembayaran yang pernah terkirim |
@@ -246,6 +272,13 @@ Yang tetap berlaku dari pengamatan kemarin adalah bentuknya, bukan nilainya: not
 **Risiko yang justru hilang:** akun merchant hampir hanya menerima, sehingga notifikasi pembayaran **keluar** dengan nominal sama — bahaya utama yang diuraikan di §2.3 spec — praktis tidak ada lagi.
 
 **Langkah berikutnya:** Task 6 (Room) dan Task 7 (konfigurasi terenkripsi). Keduanya tidak bergantung pada VPS maupun pada sampel notifikasi merchant, jadi dikerjakan sementara §2 butir 5–7 dikumpulkan.
+
+**Dua temuan operasional selama deploy VPS produksi, 2026-09-13.** Keduanya bukan bug kode, tapi jebakan infrastruktur yang layak dicatat karena akan terulang di deploy customer lain yang memakai `backend/deploy/README.md`:
+
+1. Domain yang sudah dikelola Cloudflare (proxy/"awan oranye" aktif) membuat `dig` menunjuk IP Cloudflare, bukan IP VPS — Caddy tidak bisa menerbitkan sertifikat HTTPS otomatis karena tantangan ACME (HTTP-01) mendarat di edge Cloudflare, bukan di origin. Perbaikan: set record ke "DNS only" (abu-abu) supaya domain menunjuk langsung ke VPS.
+2. Caddy versi lama dari repo distro Ubuntu (`2.6.2`, rilis 2022) tidak mengenali directive `basic_auth` di `Caddyfile` — gagal dengan `unrecognized directive: basic_auth`. Perbaikan: upgrade ke Caddy stabil terbaru dari repo resmi (`https://dl.cloudsmith.io/public/caddy/stable/...`), bukan mengandalkan paket bawaan distro.
+
+Kedua langkah ini akan ditambahkan ke `backend/deploy/README.md` sebagai catatan prasyarat untuk deploy berikutnya.
 
 ---
 
