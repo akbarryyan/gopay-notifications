@@ -26,7 +26,7 @@ export default function LoginPage() {
       // Cookie sesi sudah diterapkan browser sebelum baris ini jalan (respons
       // fetch sudah selesai), jadi navigasi client-side biasa sudah cukup —
       // proxy.ts akan melihat cookie yang benar pada request berikutnya.
-      router.push("/");
+      router.push("/overview");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === "too_many_attempts") {

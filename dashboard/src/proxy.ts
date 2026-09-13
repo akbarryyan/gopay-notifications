@@ -9,15 +9,24 @@ import type { NextRequest } from "next/server";
  * navigasi. Backend tetap satu-satunya pihak yang memutuskan sah tidaknya
  * sesi lewat requireAdmin pada setiap panggilan API; ini murni mencegah
  * kedipan halaman kosong sebelum redirect ke /login.
+ *
+ * "/" dan "/register" SENGAJA publik (landing page + form signup) --
+ * berbeda dari seluruh path lain di sini yang wajib sesi.
  */
+const PUBLIC_PATHS = new Set(["/", "/register", "/login"]);
+
 export function proxy(request: NextRequest) {
   const hasSession = request.cookies.has("admin_session");
   const { pathname } = request.nextUrl;
 
   if (pathname === "/login") {
     if (hasSession) {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL("/overview", request.url));
     }
+    return NextResponse.next();
+  }
+
+  if (PUBLIC_PATHS.has(pathname)) {
     return NextResponse.next();
   }
 

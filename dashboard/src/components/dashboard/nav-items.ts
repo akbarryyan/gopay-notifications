@@ -31,7 +31,7 @@ export interface NavItem {
  * untuk data yang bentuknya belum pasti.
  */
 export const MONITORING_ITEMS: NavItem[] = [
-  { label: "Overview", href: "/", icon: LayoutDashboard },
+  { label: "Overview", href: "/overview", icon: LayoutDashboard },
   { label: "Events", href: "/events", icon: Bell },
 ];
 
