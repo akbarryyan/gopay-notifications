@@ -16,9 +16,10 @@ Urutan kewenangan bila terjadi perbedaan:
 2. [`docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md`](docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md) — spec invoice, nominal unik, matching, API key untuk sub-project 3 fase 1
 3. [`docs/superpowers/specs/2026-09-13-webhook-delivery-design.md`](docs/superpowers/specs/2026-09-13-webhook-delivery-design.md) — spec webhook delivery untuk sub-project 3 fase 2
 4. [`docs/superpowers/specs/2026-09-13-exception-console-design.md`](docs/superpowers/specs/2026-09-13-exception-console-design.md) — spec konsol pengecualian untuk sub-project 3 fase 4
-5. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
-6. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
-7. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
+5. [`docs/superpowers/specs/2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md) — spec sistem lisensi offline (sub-project 5)
+6. [`docs/api-contract.md`](docs/api-contract.md) — kontrak antara backend dan Android
+7. [`docs/dashboard-spec.md`](docs/dashboard-spec.md) — rancangan dashboard penuh. MVP yang sudah dibangun ([`dashboard/README.md`](dashboard/README.md)) hanya subset-nya; jangan menganggap seluruh isi dokumen ini sudah ada.
+8. [`docs/prd.md`](docs/prd.md), [`docs/detail-project.md`](docs/detail-project.md) — dokumen awal
 
 Spec lebih berwenang daripada PRD karena memuat keputusan yang sengaja menyimpang dari PRD dan sudah disetujui. Penyimpangan itu terdaftar di §9 spec — jangan "memperbaiki" implementasi agar kembali sesuai PRD tanpa memeriksa daftar itu lebih dulu.
 
@@ -41,7 +42,8 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 | 1 | Event ingestion (Go) | sedang dikerjakan |
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
 | 3 | Gateway: invoice, nominal unik, matching, webhook, API key, konsol pengecualian | seluruh 4 fase selesai |
-| 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks, Exceptions | sedang dikerjakan |
+| 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks, Exceptions, License | sedang dikerjakan |
+| 5 | Sistem lisensi offline (Ed25519 signed file, `licensetool`, `requireLicense`) | selesai |
 
 Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2–#4
 di atas. Seluruhnya sudah selesai — kalau ada permintaan fitur baru untuk
@@ -49,9 +51,8 @@ gateway ini, itu perluasan di luar keempat fase itu, bukan bagian dari
 salah satunya.
 
 Dashboard mencakup halaman yang datanya sungguhan ada: Overview, Devices,
-Events, Transactions, API Keys, Webhooks, Exceptions. License, Settings,
-Logs ditampilkan di sidebar sebagai "Segera" (non-aktif) — menunggu sistem
-lisensi, bukan bagian dari sub-project 3.
+Events, Transactions, API Keys, Webhooks, Exceptions, License. Settings dan
+Logs ditampilkan di sidebar sebagai "Segera" (non-aktif).
 
 **Dashboard ini untuk customer (pemilik instalasi), bukan untuk vendor.**
 Model self-hosted + annual license berarti tiap customer men-deploy backend
@@ -70,11 +71,29 @@ akan menambah komponen lain ke sana), tapi label dan copy yang ditampilkan
 di halaman harus diringkas jadi bahasa yang netral, mis. "Status Layanan" /
 "Aktif", bukan "Backend: operational".
 
-Kalau vendor (Akbar) suatu saat butuh melihat status semua instalasi
-customer sekaligus — misalnya untuk support atau memantau lisensi yang
-akan habis — itu komponen terpisah (vendor console/license portal) yang
-belum ada di scope manapun sekarang, dan baru masuk akal dibangun bareng
-sistem lisensi.
+Sistem lisensi (sub-project 5) sepenuhnya offline: `licensetool` (dijalankan
+Akbar sendiri, tidak pernah di server customer) menandatangani file lisensi
+dengan Ed25519, backend memverifikasinya lewat `internal/licensecheck` tanpa
+pernah menghubungi server manapun. Tidak ada portal/dashboard vendor untuk
+melihat status semua instalasi customer sekaligus — itu tetap komponen
+terpisah yang belum ada di scope manapun, baru masuk akal dibangun begitu
+customer lebih dari satu.
+
+## Sistem lisensi
+
+Spec lengkap: [`docs/superpowers/specs/2026-09-13-license-system-design.md`](docs/superpowers/specs/2026-09-13-license-system-design.md).
+Ringkas: file lisensi offline (`license.lic`), ditandatangani Ed25519 lewat
+`backend/cmd/licensetool` (**hanya dijalankan Akbar sendiri, tidak pernah di
+server customer**), diverifikasi backend lewat `internal/licensecheck` tanpa
+pernah menghubungi jaringan. Tanpa lisensi aktif, `requireLicense` menolak
+`402` seluruh endpoint device/admin/API key — hanya login dan halaman
+dashboard `/license` yang tetap bisa diakses. Cara menerbitkan/memperpanjang
+lisensi customer ada di `backend/deploy/README.md` §"Lisensi".
+
+Untuk dev lokal, `PUBLIC_DOMAIN=localhost` di `.env.dev` butuh
+`license-dev.lic` yang dibuat sekali lewat `licensetool -issue` (lihat
+`.env.dev.example`) — tanpa itu `make run-dev` tetap menyala tapi seluruh
+endpoint menjawab `402`.
 
 ## Keputusan arsitektur yang tidak boleh dilanggar diam-diam
 
@@ -280,10 +299,8 @@ hanya memeriksa keberadaan cookie untuk mencegah kedipan halaman kosong —
 validitas sesi sesungguhnya selalu diputuskan backend lewat `requireAdmin`.
 
 Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
-API Keys, Webhooks, Exceptions. Sisanya (License, Settings, Logs)
-ditampilkan di sidebar sebagai "Segera", non-aktif — menunggu sistem
-lisensi, bukan bagian dari sub-project 3 (yang sudah selesai seluruh
-fasenya).
+API Keys, Webhooks, Exceptions, License. Sisanya (Settings, Logs)
+ditampilkan di sidebar sebagai "Segera", non-aktif.
 
 Perlu akun admin dulu sebelum bisa login: `cd backend && make dev-admin`.
 
@@ -292,11 +309,14 @@ Tiga kunci di backend, tiga tujuan berbeda, semuanya dihasilkan lewat
 lain**: `DEVICE_SECRET_KEY` (enkripsi secret device), `ADMIN_SESSION_KEY`
 (tanda tangan cookie sesi admin), `WEBHOOK_SECRET_KEY` (enkripsi secret
 webhook — dipakai ulang tiap kirim payload, beda dari dua kunci lain yang
-cuma menandatangani/memverifikasi).
+cuma menandatangani/memverifikasi). Kunci lisensi (Ed25519, `licensetool`)
+adalah pasangan terpisah lagi, bukan bagian dari tiga kunci ini — lihat
+"Sistem lisensi" di atas.
 
 Backend punya satu goroutine berkala (`time.Ticker`, 1 menit, di
 `cmd/server/main.go`) yang memproses webhook — mendeteksi invoice yang baru
 kedaluwarsa dan mengeksekusi retry pengiriman yang jatuh tempo. Ini
 satu-satunya proses latar belakang di backend saat ini; kalau menambah yang
 serupa nanti, pertimbangkan apakah masih masuk akal digabung ke ticker yang
-sama atau butuh ticker terpisah.
+sama atau butuh ticker terpisah. Lisensi tidak ikut ticker ini — dimuat
+sekali saat start (lihat "Sistem lisensi"), bukan diperiksa berkala.

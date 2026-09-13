@@ -577,3 +577,71 @@ bertambah satu di `/webhooks`. Buat event lain (nominal apa saja yang tidak
 cocok invoice manapun), coba **Abaikan** dengan catatan — event itu harus
 hilang dari daftar, dan baris di `event_reviews` harus muncul di DBeaver
 dengan catatan yang sama.
+
+---
+
+## 15. Sistem lisensi offline — sub-project 5
+
+Spec: [`docs/superpowers/specs/2026-09-13-license-system-design.md`](../superpowers/specs/2026-09-13-license-system-design.md).
+**Ringkasan:** `PASS` 15 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+
+Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`,
+termasuk paket baru `internal/licensecheck`.
+
+### Backend
+
+| Butir | Status | Bukti (test yang menguji) |
+|---|---|---|
+| Signature valid + domain cocok + belum lewat expires_at → `active` | `PASS` | `TestLoadSignatureValidDomainCocokMenghasilkanActive` |
+| Lisensi tepat di hari terakhir (`expires_at` itu sendiri) masih `active` | `PASS` | `TestLoadTepatDiHariTerakhirMasihActive` |
+| Sehari setelah `expires_at` → `expired` | `PASS` | `TestLoadSetelahExpiresAtMenghasilkanExpired` |
+| Domain di lisensi tidak cocok domain server → `invalid` | `PASS` | `TestLoadDomainTidakCocokMenghasilkanInvalid` |
+| File ditandatangani kunci privat lain (bukan kunci produksi) ditolak `invalid` | `PASS` | `TestLoadSignatureDitandatanganiKunciLainDitolak` — properti keamanan inti: kunci publik di-hardcode, siapa pun selain Akbar yang menandatangani otomatis ditolak |
+| File tidak ada → `missing` | `PASS` | `TestLoadFileTidakAdaMenghasilkanMissing` |
+| Format/base64 korup → `invalid`, bukan crash | `PASS` | `TestLoadFormatKorupMenghasilkanInvalid`, `TestLoadBarisPayloadBukanBase64` |
+| `DaysRemaining` positif sebelum expires_at, negatif setelahnya | `PASS` | `TestDaysRemainingDihitungDariExpiresAt` |
+| `licensetool -issue` menolak private key bukan base64 / salah ukuran | `PASS` | `TestIssueMenolakPrivateKeyBukanBase64`, `...SalahUkuran` |
+| `GenerateKeyPair` menghasilkan ukuran kunci yang benar | `PASS` | `TestGenerateKeyPairMenghasilkanUkuranYangBenar` |
+| `requireLicense` menolak `402` untuk device, admin, dan API key saat lisensi tidak aktif | `PASS` | `TestRequireLicenseMenolakDeviceSaatTidakAktif`, `...APIKeySaatTidakAktif`, `...AdminSaatTidakAktif` |
+| `requireLicense` meloloskan request saat lisensi aktif | `PASS` | `TestRequireLicenseMengizinkanSaatAktif` |
+| `GET /admin/license` tetap `200` (butuh sesi, bukan lisensi aktif) walau lisensi expired | `PASS` | `TestAdminLicenseEndpointTetapBisaDiaksesSaatTidakAktif` |
+| `GET /admin/license` tetap butuh sesi valid | `PASS` | `TestAdminLicenseEndpointButuhSesi` |
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih di seluruh backend | `PASS` | Dijalankan langsung, tanpa output error/diff |
+
+### Frontend (Next.js)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Type-check, lint, build produksi bersih (route baru: `/license`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
+
+### Butir `NEEDS-DEVICE` — menunggu verifikasi manual di VPS produksi
+
+| # | Langkah | Hasil yang diharapkan |
+|---|---|---|
+| 1 | Terbitkan lisensi asli untuk `whuzpay.com` lewat `licensetool -issue`, pasang di VPS (`backend/deploy/README.md` §"Lisensi"), restart `gopay-ingestion` | `/license` di dashboard produksi menampilkan status `Aktif` dengan customer/domain/plan/tanggal yang benar |
+| 2 | Terbitkan lisensi lain dengan `-expires` tanggal yang sudah lewat, pasang, restart | `/license` menampilkan `Kedaluwarsa`; endpoint lain (mis. `/api/v1/events`) menjawab `402 license_expired` |
+| 3 | Hapus `license.lic` dari VPS sepenuhnya, restart | `/license` menampilkan `Belum terpasang`; endpoint lain menjawab `402 license_missing` |
+
+Sengaja `NEEDS-DEVICE`, bukan `PENDING` — kodenya sudah lengkap dan teruji
+lewat unit test, ini murni verifikasi bahwa perilaku yang sama juga terjadi
+saat berjalan sungguhan di VPS produksi (lisensi cuma bisa dites dengan file
+sungguhan, tidak bisa disimulasikan dari `make test`).
+
+### Langkah verifikasi manual (dev lokal, tanpa VPS)
+
+```bash
+cd backend
+go run ./cmd/licensetool -genkey   # sekali saja
+go run ./cmd/licensetool -issue -key ~/.gopay-license/private.key \
+  -customer "Dev" -domain "localhost" -plan "Dev" -expires "2099-12-31" \
+  -out license-dev.lic
+# .env.dev: PUBLIC_DOMAIN=localhost, LICENSE_FILE_PATH=./license-dev.lic
+
+make run-dev
+```
+
+Buka dashboard, login, buka `/license` — harus menampilkan `Aktif`,
+Customer "Dev", Domain "localhost", Plan "Dev", sisa ribuan hari. Ganti
+`-expires` ke tanggal kemarin, terbitkan ulang, restart `make run-dev` —
+`/license` harus berubah `Kedaluwarsa` dan halaman lain (mis. Devices)
+gagal memuat dengan error dari `402`.
