@@ -116,6 +116,7 @@ func (a *API) requireDevice(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), ctxKeyDevice, device)
+		ctx = context.WithValue(ctx, ctxKeyAccountID, device.AccountID)
 		ctx = context.WithValue(ctx, ctxKeyRawBody, raw)
 		r = r.WithContext(ctx)
 		r.Body = io.NopCloser(bytes.NewReader(raw))

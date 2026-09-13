@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,31 +15,22 @@ import (
 
 const testAdminPassword = "password-admin-test"
 
-// newAPIWithAdmin menyiapkan API dengan satu akun admin terdaftar.
+// newAPIWithAdmin menyiapkan API dengan satu account (username "admin")
+// yang aktif.
 func newAPIWithAdmin(t *testing.T) http.Handler {
 	t.Helper()
 
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Fatal("TEST_DATABASE_URL belum diset. Jalankan: make db-up migrate")
-	}
-
+	s := newTestStore(t)
 	ctx := context.Background()
-	s, err := store.New(ctx, url)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	t.Cleanup(s.Close)
-
-	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, admin_users RESTART IDENTITY CASCADE"); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
-	if err := s.UpsertAdmin(ctx, "admin", testAdminPassword); err != nil {
-		t.Fatalf("UpsertAdmin: %v", err)
+	if err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_1", BusinessName: "Toko Uji", Email: "acc_1@uji.test",
+		Username: "admin", PlaintextPassword: testAdminPassword,
+		Plan: "Business", MaxDevices: 10, ExpiresAt: fixedNow.Add(365 * 24 * time.Hour),
+	}); err != nil {
+		t.Fatalf("create account: %v", err)
 	}
 
-	return httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 }
 
 func adminLogin(t *testing.T, h http.Handler, username, password string) *httptest.ResponseRecorder {

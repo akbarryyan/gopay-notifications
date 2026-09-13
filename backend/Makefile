@@ -1,10 +1,8 @@
 TEST_DATABASE_URL ?= postgres://gopay:gopay@localhost:5433/gopay_test?sslmode=disable
 DEV_DATABASE_URL  ?= postgres://gopay:gopay@localhost:5433/gopay_dev?sslmode=disable
-# Database TERPISAH untuk internal/licenseserver -- lihat docker-compose.yml.
-LICENSE_TEST_DATABASE_URL ?= postgres://gopay:gopay@localhost:5434/gopay_license_test?sslmode=disable
 GOOSE ?= $(shell go env GOPATH)/bin/goose
 
-.PHONY: db-up db-down migrate migrate-license test db-dev run-dev dev-device dev-key dev-url dev-admin
+.PHONY: db-up db-down migrate test db-dev run-dev dev-device dev-key dev-url dev-admin
 
 db-up:
 	docker compose up -d --wait
@@ -16,17 +14,11 @@ db-down:
 migrate:
 	$(GOOSE) -dir migrations postgres "$(TEST_DATABASE_URL)" up
 
-migrate-license:
-	$(GOOSE) -dir migrations-license postgres "$(LICENSE_TEST_DATABASE_URL)" up
-
 # -p 1 wajib: paket store dan httpapi sama-sama TRUNCATE database test yang
 # sama. Tanpa ini Go menjalankan keduanya paralel dan mereka saling menghapus
 # data di tengah jalan — gagal secara acak, bukan karena kodenya salah.
-# internal/licenseserver/... memakai database TERPISAH (LICENSE_TEST_DATABASE_URL)
-# jadi aman ikut jalan di run -p 1 yang sama tanpa saling mengganggu.
-test: db-up migrate migrate-license
+test: db-up migrate
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" \
-	LICENSE_TEST_DATABASE_URL="$(LICENSE_TEST_DATABASE_URL)" \
 	go test ./... -count=1 -p 1
 
 # --- Development ------------------------------------------------------------

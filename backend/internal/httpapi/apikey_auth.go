@@ -45,6 +45,7 @@ func (a *API) requireAPIKey(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), ctxKeyAPIKey, key)
+		ctx = context.WithValue(ctx, ctxKeyAccountID, key.AccountID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

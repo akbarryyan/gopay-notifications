@@ -21,24 +21,12 @@ type Config struct {
 	// Kunci enkripsi secret webhook (secretbox). Terpisah lagi dari dua
 	// kunci di atas — tiga kunci, tiga tujuan, jangan dipakai ulang.
 	WebhookSecretKey []byte
-	// LicenseKey: key mentah "PB-BUSINESS-XXXX-XXXX-XXXX" dari vendor.
-	// OPSIONAL saat Load — instalasi baru sebelum lisensi dikirim belum
-	// punya nilai ini sama sekali, dan itu bukan error konfigurasi (beda
-	// dari tiga kunci di atas yang wajib). internal/licenseclient yang
-	// memutuskan apa artinya kosong (belum aktivasi).
-	LicenseKey string
-	// Environment: "production" atau "uat", dikirim ke License Server saat
-	// activate/validate. Wajib diisi begitu LicenseKey diisi.
-	Environment string
-	// LicenseServerURL: alamat License Server, mis. https://license.whuzpay.com.
-	LicenseServerURL string
-	// LicenseFilePath: path local license state (ditulis OTOMATIS oleh
-	// internal/licenseclient, bukan file yang dikirim manual). Opsional,
-	// default sesuai struktur direktori deploy yang sudah ada.
-	LicenseFilePath string
+	// VendorSessionKey menandatangani cookie sesi Vendor Dashboard
+	// (vendor_session) -- terpisah total dari AdminSessionKey (sesi
+	// customer, admin_session), supaya dua jenis sesi ini tidak mungkin
+	// tertukar walau tersimpan di browser yang sama.
+	VendorSessionKey []byte
 }
-
-const defaultLicenseFilePath = "/opt/gopay-ingestion/license-state.lic"
 
 // Load membaca dan memvalidasi seluruh konfigurasi. Konfigurasi yang salah
 // harus menghentikan proses saat start, bukan saat request pertama masuk.
@@ -96,23 +84,19 @@ func Load() (Config, error) {
 	}
 	c.WebhookSecretKey = webhookKey
 
-	c.LicenseKey = os.Getenv("LICENSE_KEY")
-	c.Environment = os.Getenv("ENVIRONMENT")
-	if c.LicenseKey != "" {
-		if c.Environment != "production" && c.Environment != "uat" {
-			return Config{}, errors.New("config: ENVIRONMENT wajib \"production\" atau \"uat\" bila LICENSE_KEY diisi")
-		}
+	rawVendor := os.Getenv("VENDOR_SESSION_KEY")
+	if rawVendor == "" {
+		return Config{}, errors.New("config: VENDOR_SESSION_KEY wajib diisi")
 	}
-
-	c.LicenseServerURL = os.Getenv("LICENSE_SERVER_URL")
-	if c.LicenseServerURL == "" {
-		c.LicenseServerURL = "https://license.whuzpay.com"
+	vendorKey, err := base64.StdEncoding.DecodeString(rawVendor)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: VENDOR_SESSION_KEY bukan base64 yang sah: %w", err)
 	}
-
-	c.LicenseFilePath = os.Getenv("LICENSE_FILE_PATH")
-	if c.LicenseFilePath == "" {
-		c.LicenseFilePath = defaultLicenseFilePath
+	if len(vendorKey) != secretbox.KeySize {
+		return Config{}, fmt.Errorf("config: VENDOR_SESSION_KEY harus %d byte setelah decode, dapat %d",
+			secretbox.KeySize, len(vendorKey))
 	}
+	c.VendorSessionKey = vendorKey
 
 	return c, nil
 }

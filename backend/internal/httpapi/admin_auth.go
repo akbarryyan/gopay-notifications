@@ -14,14 +14,19 @@ import (
 
 const adminSessionCookie = "admin_session"
 
-type adminCtxKey int
+type accountCtxKey int
 
-const ctxKeyAdmin adminCtxKey = iota
+const ctxKeyAccountID accountCtxKey = iota
 
-// AdminFromContext melaporkan apakah request sudah lolos requireAdmin.
-func AdminFromContext(ctx context.Context) bool {
-	ok, _ := ctx.Value(ctxKeyAdmin).(bool)
-	return ok
+// AccountFromContext melaporkan account_id pemilik request ini -- sudah
+// lolos requireAdmin (sesi dashboard) ATAU requireAPIKey/requireDevice
+// (lewat context yang sama, lihat apikey_auth.go/auth_middleware.go).
+// Menggantikan AdminFromContext(ctx) bool yang cuma melaporkan "sudah
+// login atau belum" -- di model multi-tenant, sekadar tahu "ada sesi
+// valid" tidak cukup, setiap query wajib tahu AKUN MANA.
+func AccountFromContext(ctx context.Context) (accountID string, ok bool) {
+	v, ok := ctx.Value(ctxKeyAccountID).(string)
+	return v, ok
 }
 
 type adminLoginRequest struct {
@@ -51,8 +56,8 @@ func (a *API) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	admin, err := a.store.GetAdminByUsername(r.Context(), req.Username)
-	if errors.Is(err, store.ErrAdminNotFound) {
+	acc, err := a.store.GetAccountByUsername(r.Context(), req.Username)
+	if errors.Is(err, store.ErrAccountNotFound) {
 		// Sengaja disamakan dengan password salah: username yang tidak
 		// terdaftar tidak boleh dapat dibedakan lewat pesan error.
 		a.loginThrottle.RecordFailure(ip, a.now())
@@ -60,19 +65,19 @@ func (a *API) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		slog.Error("ambil admin gagal", "err", err)
+		slog.Error("ambil account gagal", "err", err)
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
 
-	if !admin.VerifyPassword(req.Password) {
+	if !acc.VerifyPassword(req.Password) {
 		a.loginThrottle.RecordFailure(ip, a.now())
 		a.writeError(w, http.StatusUnauthorized, "invalid_credentials", "username atau password salah")
 		return
 	}
 	a.loginThrottle.RecordSuccess(ip)
 
-	token := auth.NewSessionToken(a.adminSessionKey, a.now())
+	token := auth.NewSessionToken(a.adminSessionKey, a.now(), acc.ID)
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    token,
@@ -108,12 +113,13 @@ func (a *API) requireAdmin(next http.Handler) http.Handler {
 			a.writeError(w, http.StatusUnauthorized, "unauthenticated", "sesi tidak ditemukan")
 			return
 		}
-		if !auth.VerifySessionToken(a.adminSessionKey, cookie.Value, a.now()) {
+		accountID, ok := auth.VerifySessionToken(a.adminSessionKey, cookie.Value, a.now())
+		if !ok {
 			a.writeError(w, http.StatusUnauthorized, "unauthenticated", "sesi tidak valid atau kedaluwarsa")
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), ctxKeyAdmin, true)
+		ctx := context.WithValue(r.Context(), ctxKeyAccountID, accountID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

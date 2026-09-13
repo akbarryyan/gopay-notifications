@@ -13,7 +13,6 @@ import (
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbarryyan/gopay-notifications/backend/internal/licenseclient"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -37,17 +36,7 @@ func main() {
 	}
 	defer s.Close()
 
-	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey,
-		cfg.LicenseFilePath, time.Now)
-
-	licClient := licenseclient.New(cfg.LicenseServerURL, cfg.LicenseKey, cfg.Environment,
-		cfg.LicenseFilePath, time.Now)
-	if err := licClient.Refresh(ctx); err != nil {
-		// Tidak fatal -- server tetap start dan menampilkan status apa
-		// adanya lewat GET /admin/license (requireLicense yang menegakkan
-		// konsekuensinya, bukan startup ini).
-		slog.Warn("aktivasi/validasi lisensi awal gagal", "err", err)
-	}
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, time.Now)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -66,9 +55,11 @@ func main() {
 	}()
 
 	// Worker webhook: mendeteksi invoice yang baru kedaluwarsa dan
-	// mengeksekusi retry pengiriman yang jatuh tempo. Goroutine di proses
-	// yang sama, bukan proses terpisah — sepadan dengan skala instalasi
-	// self-hosted satu-merchant (lihat spec fase 2, §1).
+	// mengeksekusi retry pengiriman yang jatuh tempo. Satu-satunya
+	// goroutine berkala di backend ini sejak platform lisensi online
+	// (License Server + licenseclient) dibongkar -- status akun sekarang
+	// dicek langsung ke database tiap request (requireActiveAccount),
+	// tidak ada lagi validasi berkala terpisah.
 	webhookTicker := time.NewTicker(1 * time.Minute)
 	defer webhookTicker.Stop()
 	go func() {
@@ -79,24 +70,6 @@ func main() {
 			case <-webhookTicker.C:
 				if err := api.ProcessDueWebhooks(ctx, time.Now()); err != nil {
 					slog.Error("process due webhooks gagal", "err", err)
-				}
-			}
-		}
-	}()
-
-	// Validasi lisensi berkala: TERPISAH dari ticker webhook di atas —
-	// interval beda jauh (1 menit vs 24 jam), menyatukannya cuma bikin
-	// bingung. Lihat internal/licenseclient dan spec §6.
-	licenseTicker := time.NewTicker(24 * time.Hour)
-	defer licenseTicker.Stop()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-licenseTicker.C:
-				if err := licClient.Refresh(ctx); err != nil {
-					slog.Warn("validasi lisensi berkala gagal", "err", err)
 				}
 			}
 		}

@@ -13,7 +13,6 @@ import (
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
-	"github.com/akbarryyan/gopay-notifications/backend/internal/licensecheck"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -43,16 +42,9 @@ func webhookSecretKey() []byte {
 	return k
 }
 
-// activeLicense adalah lisensi default dipakai seluruh test yang tidak
-// secara spesifik menguji perilaku requireLicense — supaya test lain tidak
-// perlu tahu apa-apa soal lisensi untuk tetap bisa memanggil endpoint yang
-// sekarang dibungkus requireLicense.
-func activeLicense() licensecheck.License {
-	return licensecheck.License{Status: licensecheck.StatusActive}
-}
-
-// newAPIWithDevice menyiapkan API lengkap dengan satu device terdaftar.
-func newAPIWithDevice(t *testing.T) http.Handler {
+// newTestStore membuka koneksi ke database test dan mengosongkan seluruh
+// tabel -- dipakai ulang oleh seluruh test di paket ini.
+func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
 
 	url := os.Getenv("TEST_DATABASE_URL")
@@ -68,14 +60,40 @@ func newAPIWithDevice(t *testing.T) http.Handler {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
-	if err := s.CreateDevice(ctx, encKey(), "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+	return s
+}
+
+// seedActiveAccount membuat account berstatus active, jauh dari kedaluwarsa
+// — dipakai seluruh test yang tidak secara spesifik menguji perilaku
+// requireActiveAccount, supaya test lain tidak perlu tahu apa-apa soal
+// status akun untuk tetap bisa memanggil endpoint yang dibungkusnya.
+func seedActiveAccount(t *testing.T, s *store.Store, accountID string) {
+	t.Helper()
+	err := s.CreateAccount(context.Background(), store.CreateAccountInput{
+		ID: accountID, BusinessName: accountID, Email: accountID + "@uji.test",
+		Username: accountID, PlaintextPassword: "rahasia123",
+		Plan: "Business", MaxDevices: 10, ExpiresAt: fixedNow.Add(365 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("seed account %s: %v", accountID, err)
+	}
+}
+
+// newAPIWithDevice menyiapkan API lengkap dengan satu device terdaftar,
+// milik account "acc_1" yang aktif.
+func newAPIWithDevice(t *testing.T) http.Handler {
+	t.Helper()
+
+	s := newTestStore(t)
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(context.Background(), encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
-	return httpapi.NewWithLicense(s, encKey(), adminSessionKey(), webhookSecretKey(), activeLicense(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), func() time.Time { return fixedNow }).Handler()
 }
 
 // signedRequest membuat request yang sudah ditandatangani dengan benar.
