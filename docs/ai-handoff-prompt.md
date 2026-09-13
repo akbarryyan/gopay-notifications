@@ -40,10 +40,14 @@ Bila dua dokumen berbeda, yang lebih atas menang:
    TERBUKTI. Jangan percaya klaim di dokumen lain tanpa melihat baris PASS-nya
    di sini beserta buktinya.
 5. docs/qa/qa-rules.md — aturan QA. Mengikat.
-6. docs/self-hosted-annual-license.md, docs/dashboard-spec.md — arah produk.
-   Keduanya draft dan memuat beberapa hal yang bertabrakan dengan arsitektur;
-   catatan tabrakannya ada di riwayat commit.
-7. docs/prd.md, docs/detail-project.md — dokumen awal. ARSIP. Jangan disunting;
+6. docs/license-spec.md — spec bisnis Self-Hosted + Annual License, paling
+   berwenang untuk sistem lisensi.
+   docs/superpowers/specs/2026-09-13-online-license-platform-design.md —
+   subset MVP dari dokumen itu yang benar-benar diimplementasikan (License
+   Server, Vendor Dashboard, licenseclient).
+7. docs/dashboard-spec.md — rancangan dashboard penuh, draft. MVP yang sudah
+   dibangun (dashboard/README.md) hanya subset-nya.
+8. docs/prd.md, docs/detail-project.md — dokumen awal. ARSIP. Jangan disunting;
    ia jejak asal keputusan.
 
 ## Aturan kerja yang wajib dipatuhi
@@ -180,23 +184,30 @@ Suspense/React Compiler yang di luar cakupan MVP ini.
 Selesai dan terbukti di perangkat: penangkapan notifikasi, penyaringan,
 penyimpanan Room, pengiriman ber-HMAC, retry, penanganan kegagalan autentikasi,
 idempotency, dan empat layar aplikasi. Backend Go lengkap dengan HMAC,
-idempotency lewat constraint database, heartbeat, registry connector, dan API
-admin (login, overview, devices, events) untuk dashboard.
+idempotency lewat constraint database, heartbeat, registry connector, API
+admin, sub-project 3 penuh (invoice, nominal unik, matching, webhook, API
+key, konsol pengecualian — 4 fase, semuanya selesai), dan platform lisensi
+online (sub-project 5).
 
-Dashboard Next.js (folder dashboard/) sudah punya tiga halaman dengan data
-sungguhan — Overview, Devices, Events — plus login dan gerbang navigasi.
-Backend-nya teruji penuh (Go, termasuk -race); sisi Next.js baru lolos
-type-check/lint/build, BELUM pernah dibuka di browser sungguhan — lihat
-docs/qa/qa-report.md §11 untuk daftar NEEDS-DEVICE-nya.
+Deploy VPS produksi sudah jalan di whuzpay.com (HTTPS lewat Caddy, systemd,
+basic auth) — lihat docs/qa/qa-report.md untuk buktinya.
 
-Belum: HTTPS sungguhan (menunggu VPS), uji ketahanan semalaman di ColorOS,
-sub-project 3 (invoice, nominal unik, matching, webhook, konsol pengecualian),
-pemasangan satu perintah, sistem lisensi, dan verifikasi dashboard di browser.
+Sistem lisensi (sub-project 5) SUDAH ONLINE, bukan lagi file .lic offline
+yang ditandatangani manual. Tiga komponen: License Server
+(backend/cmd/licenseserver + backend/internal/licenseserver, milik vendor,
+database gopay_license sendiri), Vendor Dashboard (vendor-dashboard/, app
+Next.js baru cuma dipakai Akbar), dan backend/internal/licenseclient
+(dipakai tiap instalasi customer, validasi berkala + grace period 7 hari).
+Detail lengkap: docs/superpowers/specs/2026-09-13-online-license-platform-design.md
+dan bagian "Sistem lisensi" di CLAUDE.md.
 
-Urutan pekerjaan yang disepakati: selesaikan pondasi dan uji ketahanan dulu,
-lalu sub-project 3, lalu pemasangan satu perintah, terakhir lisensi. Lisensi
-sengaja paling akhir — tidak ada yang membeli produk karena sistem lisensinya
-bagus.
+Dashboard customer Next.js (folder dashboard/) sudah punya delapan halaman
+dengan data sungguhan — Overview, Devices, Events, Transactions, API Keys,
+Webhooks, Exceptions, License — plus login dan gerbang navigasi.
+
+Belum: uji ketahanan semalaman di ColorOS (M6), deploy License Server +
+Vendor Dashboard ke VPS (3 item NEEDS-DEVICE di qa-report.md §15 — sudah
+diimplementasikan dan lulus test lokal, tinggal deploy nyata).
 
 Periksa docs/qa/qa-report.md untuk angka pasti, dan git log untuk keputusan
 terbaru beserta alasannya. Pesan commit di repo ini sengaja panjang dan memuat

@@ -397,12 +397,12 @@ curl -s -o /dev/null -w '%{http_code}\n' "https://GANTI-DOMAIN.com/login"   # ma
 `307` untuk `/` berarti `proxy.ts` benar mengalihkan karena belum ada cookie
 sesi — itu tanda dashboard-nya sendiri sudah jalan, bukan error.
 
-Satu pemeriksaan lagi khusus lisensi, setelah `license.lic` terpasang (lihat
-§"Lisensi" di atas): buka halaman `/license` di dashboard (login dulu) dan
-pastikan statusnya `Aktif` dengan detail customer/domain/plan yang benar.
-Kalau belum ada `license.lic` sama sekali di tahap ini, itu diharapkan —
-halaman akan menunjukkan `Belum terpasang` dan endpoint lain menjawab `402`
-sampai file lisensinya dikirim.
+Satu pemeriksaan lagi khusus lisensi, setelah `LICENSE_KEY` diisi dan
+diaktivasi (lihat §"Lisensi" di atas): buka halaman `/license` di dashboard
+(login dulu) dan pastikan statusnya `Aktif` dengan detail customer/plan yang
+benar. Kalau `LICENSE_KEY` masih kosong di tahap ini, itu diharapkan —
+halaman akan menunjukkan status `Belum Aktif` dan endpoint lain menjawab
+`402` sampai lisensinya diaktivasi.
 
 Buka `https://GANTI-DOMAIN.com/login` di browser sungguhan dan coba login dengan
 akun yang dibuat lewat `admintool` (§"Membuat akun admin dashboard" di

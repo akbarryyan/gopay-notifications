@@ -587,7 +587,7 @@ Spec: [`docs/superpowers/specs/2026-09-13-online-license-platform-design.md`](..
 menggantikan versi offline murni yang tercatat sebelumnya di
 [`2026-09-13-license-system-design.md`](../superpowers/specs/2026-09-13-license-system-design.md)
 (SUPERSEDED, `internal/licensecheck`-nya dipakai ulang — lihat spec baru §4).
-**Ringkasan:** `PASS` 6 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 34 (34 test tertulis, menunggu `make test` sungguhan)
+**Ringkasan:** `PASS` 9 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
 
 Tiga komponen: `internal/licensecheck` (diperluas, sign+verify dipakai
 kedua sisi), `internal/licenseclient` (backend customer memanggil License
@@ -605,23 +605,22 @@ Server), dan `backend/internal/licenseserver` + `backend/cmd/licenseserver`
 | Dashboard customer: type-check, lint, build produksi bersih (halaman `/license` ditulis ulang read-only, status baru `expiring`/`suspended`/`revoked`/`unreachable`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
 | Vendor Dashboard (`vendor-dashboard/`, baru sepenuhnya): type-check, lint, build produksi bersih, 6 route (`/`, `/login`, `/customers/[id]`, `/licenses/[id]`, `/audit-log`, `/_not-found`) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` → 0 error/warning |
 
-### Butuh Docker — ditulis lengkap, `PENDING` menunggu Akbar menjalankan `make test`
+### `make test` sungguhan (Postgres via Docker) — dijalankan Akbar
 
-Sebelum `make test`: `docker-compose.yml` menambah container Postgres kedua
-(`postgres-license`, port 5434) dan `Makefile` menambah `migrate-license` +
-`LICENSE_TEST_DATABASE_URL` — sudah otomatis ikut jalan lewat `make test`
-biasa (target `test` sekarang bergantung ke `migrate-license` juga), tidak
-ada langkah manual tambahan.
+`docker-compose.yml` menambah container Postgres kedua (`postgres-license`,
+port 5434) dan `Makefile` menambah `migrate-license` + `LICENSE_TEST_DATABASE_URL`
+— otomatis ikut jalan lewat `make test` biasa (target `test` bergantung ke
+`migrate-license` juga), tidak ada langkah manual tambahan.
 
-| Paket | Jumlah test | Mencakup |
+| Butir | Status | Bukti |
 |---|---|---|
-| `backend/internal/licenseserver/store` | 13 | create/get license by key hash, renew, suspend/revoke, `DerivedStatus` matriks (active/expiring/expired/suspended/revoked), generate key format+unik, **Activate row-lock race test** (`-race`, 5 goroutine rebutan kuota 1, harus tepat 1 menang), reset installation membuka kuota lagi, reset dua kali ditolak kedua kalinya |
-| `backend/internal/licenseserver/httpapi` | 15 | `/activate` berhasil (payload teruji cocok), key salah 401, kuota penuh 409, environment tak dikenal 400, `/validate` berhasil, installation direset → 404, key salah 401, installation milik license lain ditolak 404, admin CRUD customer/license (create/renew/suspend/revoke), reset installation via API, audit log mencatat `CUSTOMER_CREATED`, endpoint admin tanpa sesi ditolak |
-| `backend/internal/httpapi` (test lisensi yang sudah ada, diperbarui ke status baru) | 6 | `requireLicense` menolak device/API key/admin saat `expired`/`missing`/`invalid`, `GET /admin/license` tetap 200 saat tidak aktif dan tetap butuh sesi, lolos saat `active` |
+| `make test` — seluruh `go test ./... -count=1 -p 1` (termasuk `internal/licenseserver/store`, `internal/licenseserver/httpapi`, dan `internal/httpapi` yang diperbarui ke status lisensi baru), dua database Postgres (`gopay_test` + `gopay_license_test`) | `PASS` | Ditempel Akbar 2026-09-13: `ok internal/httpapi 14.369s`, `ok internal/licensecheck 0.014s`, `ok internal/licenseclient 0.011s`, `ok internal/licenseserver/httpapi 1.881s`, `ok internal/licenseserver/store 0.580s`, `ok internal/store 4.666s`, `ok internal/auth`, `ok internal/connector`, `ok internal/secretbox` — semua `ok`, nol `FAIL` |
 
-Total 34 test di atas + seluruh test lama yang sudah ada sebelumnya di
-`internal/httpapi` dan `internal/store` (tidak diulang di sini, lihat §12-§14)
-— semuanya perlu `make test` sungguhan karena butuh Postgres.
+Cakupan `internal/licenseserver/store` (13 test, termasuk **Activate
+row-lock race test** dengan `-race`, 5 goroutine rebutan kuota 1, harus
+tepat 1 menang) dan `internal/licenseserver/httpapi` (15 test: activate/
+validate berhasil & gagal, kuota penuh 409, admin CRUD customer/license,
+reset installation, audit log) sudah lulus lewat run di atas.
 
 ### Butir `NEEDS-DEVICE` — menunggu deploy License Server + Vendor Dashboard ke VPS
 
