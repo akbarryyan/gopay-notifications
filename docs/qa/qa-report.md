@@ -485,29 +485,27 @@ riwayat webhook dalam beberapa detik tanpa refresh manual berkali-kali.
 
 Spec:
 [`docs/superpowers/specs/2026-09-13-exception-console-design.md`](../superpowers/specs/2026-09-13-exception-console-design.md).
-**Ringkasan:** `PASS` 2 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 13
+**Ringkasan:** `PASS` 15 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
 
-Seluruh test Go di bawah ini **ditulis, belum dijalankan** — butuh Postgres
-via `docker compose`, di luar batas kerja Claude. Ditandai `PENDING`, bukan
-`PASS`, sampai Akbar menjalankan `make test` dan menempelkan hasilnya.
+Diverifikasi lewat `make test` Akbar, 13 Sep 2026 — seluruh paket `ok`.
 
 ### Backend
 
 | Butir | Status | Bukti (test yang menguji) |
 |---|---|---|
-| Daftar exception mengecualikan event yang sudah cocok invoice manapun | `PENDING` | `TestListExceptionsMengecualikanYangSudahCocok` |
-| Daftar exception mengecualikan event yang sudah di-dismiss | `PENDING` | `TestListExceptionsMengecualikanYangSudahDismiss` |
-| Daftar exception menampilkan event yang belum cocok | `PENDING` | `TestListExceptionsMenampilkanYangBelumCocok` |
-| Daftar exception tidak pernah menampilkan event dengan amount_hint nil | `PENDING` | `TestListExceptionsMengecualikanAmountHintNil` |
-| Cocok manual berhasil ke invoice PENDING maupun EXPIRED (bayar telat) | `PENDING` | `TestManualMatchEventBerhasilKeInvoicePending`, `...KeInvoiceExpired` |
-| Cocok manual ditolak ke invoice yang sudah PAID | `PENDING` | `TestManualMatchEventGagalKeInvoicePaid` |
-| Cocok manual ditolak kalau event sudah dipakai invoice lain (constraint `invoices_matched_event_id_idx` baru) | `PENDING` | `TestManualMatchEventGagalEventSudahDipakaiInvoiceLain` |
-| Race dua admin mencocokkan event yang sama ke invoice berbeda, hanya satu menang | `PENDING` | `TestManualMatchEventRaceHanyaSatuYangMenang` (dengan `-race`) |
-| Dismiss berhasil; dismiss dua kali untuk event yang sama ditolak; event yang tidak ada ditolak | `PENDING` | `TestDismissEventBerhasil`, `TestDismissEventDuaKaliDitolak`, `TestDismissEventTidakDitemukan` |
-| `GET /admin/exceptions` menampilkan event tak cocok; perlu sesi | `PENDING` | `TestAdminExceptionsMenampilkanEventTakCocok`, `TestAdminExceptionsMemerlukanSesi` |
-| Integrasi ujung-ke-ujung: event masuk tak cocok → muncul di exceptions → dicocokkan manual → invoice PAID + webhook invoice.paid terkirim → event hilang dari exceptions | `PENDING` | `TestAdminMatchExceptionUjungKeUjung` |
-| `POST .../match` ditolak (409) kalau invoice sudah PAID | `PENDING` | `TestAdminMatchExceptionInvoiceSudahPaid` |
-| `POST .../dismiss` berhasil sekali, ditolak (409) kalau diulang; event tidak ada → 404 | `PENDING` | `TestAdminDismissExceptionBerhasilDanTidakBisaDuaKali`, `TestAdminDismissExceptionTidakDitemukan` |
+| Daftar exception mengecualikan event yang sudah cocok invoice manapun | `PASS` | `TestListExceptionsMengecualikanYangSudahCocok` |
+| Daftar exception mengecualikan event yang sudah di-dismiss | `PASS` | `TestListExceptionsMengecualikanYangSudahDismiss` |
+| Daftar exception menampilkan event yang belum cocok | `PASS` | `TestListExceptionsMenampilkanYangBelumCocok` |
+| Daftar exception tidak pernah menampilkan event dengan amount_hint nil | `PASS` | `TestListExceptionsMengecualikanAmountHintNil` |
+| Cocok manual berhasil ke invoice PENDING maupun EXPIRED (bayar telat) | `PASS` | `TestManualMatchEventBerhasilKeInvoicePending`, `...KeInvoiceExpired` |
+| Cocok manual ditolak ke invoice yang sudah PAID | `PASS` | `TestManualMatchEventGagalKeInvoicePaid` |
+| Cocok manual ditolak kalau event sudah dipakai invoice lain (constraint `invoices_matched_event_id_idx` baru) | `PASS` | `TestManualMatchEventGagalEventSudahDipakaiInvoiceLain` |
+| Race dua admin mencocokkan event yang sama ke invoice berbeda, hanya satu menang | `PASS` | `TestManualMatchEventRaceHanyaSatuYangMenang` (dengan `-race`) |
+| Dismiss berhasil; dismiss dua kali untuk event yang sama ditolak; event yang tidak ada ditolak | `PASS` | `TestDismissEventBerhasil`, `TestDismissEventDuaKaliDitolak`, `TestDismissEventTidakDitemukan` |
+| `GET /admin/exceptions` menampilkan event tak cocok; perlu sesi | `PASS` | `TestAdminExceptionsMenampilkanEventTakCocok`, `TestAdminExceptionsMemerlukanSesi` |
+| Integrasi ujung-ke-ujung: event masuk tak cocok → muncul di exceptions → dicocokkan manual → invoice PAID + webhook invoice.paid terkirim → event hilang dari exceptions | `PASS` | `TestAdminMatchExceptionUjungKeUjung` |
+| `POST .../match` ditolak (409) kalau invoice sudah PAID | `PASS` | `TestAdminMatchExceptionInvoiceSudahPaid` |
+| `POST .../dismiss` berhasil sekali, ditolak (409) kalau diulang; event tidak ada → 404 | `PASS` | `TestAdminDismissExceptionBerhasilDanTidakBisaDuaKali`, `TestAdminDismissExceptionTidakDitemukan` |
 | `go build ./...`, `go vet ./...`, `gofmt -l .` bersih | `PASS` | Dijalankan langsung, tanpa output error/diff |
 
 ### Frontend (Next.js)
