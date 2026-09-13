@@ -2,7 +2,7 @@
 
 **Milestone terakhir diperiksa:** M1–M4 selesai — pengiriman, retry, kegagalan autentikasi, duplikat, error server, dan sekarang HTTPS produksi lewat VPS sungguhan, seluruhnya terbukti di perangkat/produksi.
 **Tanggal:** 2026-09-13
-**Ringkasan:** `PASS` 65 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 0 · `PENDING` 4
+**Ringkasan:** `PASS` 66 · `FAIL` 0 · `BLOCKED` 0 · `NEEDS-DEVICE` 0 · `PENDING` 3
 
 ---
 
@@ -93,7 +93,14 @@ $ curl -s -o /dev/null -w '%{http_code}' https://whuzpay.com/login
 
 `307` di `/` benar — belum ada cookie sesi, `proxy.ts` mengalihkan ke `/login`.
 
-**`PENDING`:** `curl -u admin:<pw> https://whuzpay.com/api/v1/events` → mau `200`, membuktikan basic auth Caddy pada `/api/v1/events` menerima kredensial yang benar (`401` di atas baru membuktikan penolakan tanpa kredensial). Menunggu Akbar menjalankannya dengan password sungguhan.
+**Bukti — basic auth menerima kredensial yang benar:**
+
+```
+$ curl -s -o /dev/null -w '%{http_code}' -u admin:<pw> https://whuzpay.com/api/v1/events
+200
+```
+
+Digabung dengan `401` tanpa kredensial di atas, ini membuktikan basic auth Caddy pada `/api/v1/events` menyaring dengan benar: menolak tanpa kredensial, menerima dengan kredensial yang cocok hash bcrypt di Caddyfile. Akbar, 2026-09-13.
 
 **Login sungguhan berhasil** di `https://whuzpay.com` lewat browser dengan akun yang dibuat via `admintool` — rantai penuh Caddy → dashboard Next.js (systemd `gopay-dashboard`) → backend Go (systemd `gopay-ingestion`) → Postgres terbukti jalan end-to-end di produksi.
 
