@@ -83,3 +83,24 @@ func TestVendorChangePasswordButuhSesiVendor(t *testing.T) {
 		t.Fatalf("status = %d, mau 401 tanpa cookie vendor_session", rec.Code)
 	}
 }
+
+func TestVendorMeMengembalikanUsernameSesi(t *testing.T) {
+	h := newAPIWithVendor(t)
+
+	if rec := vendorRequest(t, h, nil, http.MethodGet, "/api/v1/vendor/me", ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("tanpa sesi status = %d, mau 401", rec.Code)
+	}
+
+	rec := vendorRequest(t, h, loginAsVendor(t, h), http.MethodGet, "/api/v1/vendor/me", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Vendor struct {
+			Username string `json:"username"`
+		} `json:"vendor"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Vendor.Username != "akbar" {
+		t.Fatalf("body = %s, mau username akbar", rec.Body.String())
+	}
+}

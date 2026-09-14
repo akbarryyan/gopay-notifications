@@ -520,7 +520,11 @@ Halaman:
   uji), per channel, dengan alasan gagal.
 - **Settings** (`/settings`) — pengaturan SMTP + bot Telegram untuk
   notifikasi ke customer (lihat "Pengingat kedaluwarsa ke customer" di
-  atas) dan ganti password vendor.
+  atas).
+- **Profile** (`/profile`, tidak di sidebar) — ganti password vendor.
+  Dibuka dari menu avatar di header (`user-menu.tsx`), yang juga memuat
+  Keluar dengan modal konfirmasi. Nama di avatar dari
+  `GET /api/v1/vendor/me`.
 
 Warna badge status account (`active`/`expiring`/`expired`/`suspended`/
 `revoked`) disatukan di `src/lib/account-status.ts`, dipakai bersama oleh

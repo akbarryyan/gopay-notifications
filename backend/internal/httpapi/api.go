@@ -171,6 +171,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/revoke", a.requireVendor(http.HandlerFunc(a.handleVendorRevokeAccount)))
 	mux.Handle("GET /api/v1/vendor/audit-log", a.requireVendor(http.HandlerFunc(a.handleVendorAuditLog)))
+	mux.Handle("GET /api/v1/vendor/me", a.requireVendor(http.HandlerFunc(a.handleVendorMe)))
 	mux.Handle("POST /api/v1/vendor/me/password", a.requireVendor(http.HandlerFunc(a.handleVendorChangePassword)))
 	mux.Handle("GET /api/v1/vendor/settings/notifications", a.requireVendor(http.HandlerFunc(a.handleVendorGetNotificationSettings)))
 	mux.Handle("PUT /api/v1/vendor/settings/notifications", a.requireVendor(http.HandlerFunc(a.handleVendorSaveNotificationSettings)))

@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import toast from "react-hot-toast";
-import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SidebarNav } from "./sidebar-nav";
+import { UserMenu } from "./user-menu";
 
 const COLLAPSE_STORAGE_KEY = "vc.sidebarCollapsed";
 
@@ -34,9 +32,7 @@ function LogoMark({ collapsed }: { collapsed?: boolean }) {
 // tidak punya kotak pencarian "Segera" seperti Customer Dashboard karena
 // tidak ada rencana fitur pencarian di sini.
 export function AppShell({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   // Kenyamanan per-browser saja (bukan state yang perlu dibagi atau tahan
@@ -64,17 +60,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       return next;
     });
-  }
-
-  async function onLogout() {
-    setLoggingOut(true);
-    try {
-      await logout();
-    } finally {
-      // Navigasi tetap terjadi walau permintaan logout gagal — cookie sesi
-      // yang salah tidak boleh mengunci orang di dalam dashboard.
-      router.push("/login");
-    }
   }
 
   return (
@@ -129,18 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="flex-1" />
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => {
-              onLogout().catch(() => toast.error("Gagal keluar, coba lagi."));
-            }}
-            disabled={loggingOut}
-          >
-            <LogOut className="mr-1.5 size-4" />
-            Keluar
-          </Button>
+          <UserMenu />
         </header>
 
         <main className="flex-1 overflow-x-hidden p-4 md:p-8">{children}</main>

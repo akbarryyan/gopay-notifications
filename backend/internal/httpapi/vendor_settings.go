@@ -6,6 +6,18 @@ import (
 	"net/http"
 )
 
+// handleVendorMe mengembalikan identitas vendor pemilik sesi -- dipakai
+// avatar dan menu akun di header Vendor Dashboard. Username sudah ada di
+// token sesi yang lolos requireVendor, jadi tidak perlu query database.
+func (a *API) handleVendorMe(w http.ResponseWriter, r *http.Request) {
+	username, ok := VendorFromContext(r.Context())
+	if !ok || username == "" {
+		a.writeError(w, http.StatusUnauthorized, "unauthorized", "sesi tidak valid")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "vendor": map[string]string{"username": username}})
+}
+
 type changeVendorPasswordRequest struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`

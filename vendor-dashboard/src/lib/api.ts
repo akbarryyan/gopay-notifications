@@ -188,6 +188,11 @@ export async function getAccountDevices(accountId: string): Promise<Device[]> {
 
 // --- Settings (vendor sendiri) ------------------------------------------------
 
+export async function getVendorMe(): Promise<{ username: string }> {
+  const res = await apiFetch<{ vendor: { username: string } }>("/api/v1/vendor/me");
+  return res.vendor;
+}
+
 export function changeVendorPassword(
   currentPassword: string,
   newPassword: string,
