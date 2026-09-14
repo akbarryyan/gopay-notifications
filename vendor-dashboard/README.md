@@ -4,7 +4,8 @@ Dashboard vendor untuk mengelola account customer — **cuma dipakai Akbar**,
 sama sekali terpisah dari `dashboard/` (dashboard customer). Next.js 16
 (App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
 
-Kelola Accounts (customer) dan Audit Log. Rancangan penuh:
+Kelola Accounts (customer), lihat ringkasan lintas platform di Dashboard,
+dan Audit Log. Rancangan penuh:
 `docs/superpowers/specs/2026-09-13-multitenant-accounts-design.md`. Sejak
 pivot ke hosted multi-tenant (2026-09-13), app ini memanggil endpoint
 vendor (`/api/v1/vendor/*`) **di backend utama yang sama** dipakai
@@ -78,15 +79,21 @@ npx next build       # build produksi penuh, mem-verifikasi seluruh route
 src/
 ├── proxy.ts                    # Gerbang navigasi (bukan gerbang keamanan)
 ├── lib/
-│   ├── api.ts                  # Klien fetch ke /api/v1/vendor/*
-│   ├── format.ts                # Format tanggal/waktu
-│   └── use-api-data.ts          # Hook ambil-data: loading/error/401-redirect
-├── components/ui/               # shadcn/ui, jangan diedit manual — re-add via CLI
+│   ├── api.ts                   # Klien fetch ke /api/v1/vendor/*
+│   ├── format.ts                 # Format tanggal/waktu/rupiah
+│   ├── account-status.ts         # Warna badge status, dipakai Dashboard + Accounts
+│   └── use-api-data.ts           # Hook ambil-data: loading/error/401-redirect
+├── components/
+│   ├── ui/                       # shadcn/ui, jangan diedit manual — re-add via CLI
+│   └── dashboard/                # app-shell (sidebar collapsible), sidebar-nav,
+│                                  # nav-items, stat-card, overview-trend-chart
+│                                  # -- pola sama dengan components/dashboard/ di dashboard/
 └── app/
     ├── login/page.tsx
-    └── (dashboard)/              # Route group berbagi layout (nav atas)
+    └── (dashboard)/              # Route group berbagi AppShell (sidebar)
         ├── layout.tsx
-        ├── page.tsx              # Accounts: daftar + buat baru
+        ├── page.tsx              # Dashboard ("/"): ringkasan lintas account + grafik
+        ├── accounts/page.tsx     # Accounts: daftar + buat baru
         ├── accounts/[id]/page.tsx    # Detail account: renew/suspend/revoke
         └── audit-log/page.tsx
 ```

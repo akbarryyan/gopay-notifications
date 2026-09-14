@@ -213,15 +213,29 @@ masih menjelaskannya untuk konteks sejarah. Detail lengkap: bagian
 
 Dashboard customer Next.js (folder dashboard/) sudah punya delapan halaman
 dengan data sungguhan — Overview, Devices, Events, Transactions, API Keys,
-Webhooks, Exceptions, License — plus login dan gerbang navigasi.
-`vendor-dashboard/` (Next.js terpisah, cuma Akbar) kelola account
-customer + audit log, manggil backend yang sama.
+Webhooks, Exceptions, License — plus login dan gerbang navigasi. `/` sudah
+jadi landing page publik dan `/register` form signup swalayan (plan
+Starter, trial 3 hari, langsung aktif) sejak sub-project #2+#6 dari pivot
+selesai (spec docs/superpowers/specs/2026-09-13-landing-signup-design.md)
+— Overview yang dulu di `/` sekarang di `/overview`. Grafik tren Overview
+sudah biaxial (Recharts): jumlah event vs nominal lunas per hari.
+
+`vendor-dashboard/` (Next.js terpisah, cuma Akbar) sekarang tiga halaman:
+Dashboard (`/`, ringkasan lintas SEMUA account + grafik biaxial account
+baru vs pendapatan, lewat `GET /api/v1/vendor/overview` yang baru),
+Accounts (`/accounts`, dulu di `/`), Audit Log. Sidebar collapsible-nya
+sekarang disamakan polanya dengan `AppShell` di `dashboard/`.
+
+`cmd/seedtool` (baru) mengisi `gopay_dev` dengan banyak account +
+device/invoice/event/API key/webhook sekaligus lewat `Store` yang sama
+seperti server sungguhan — buat dev lokal supaya semua halaman dashboard
+kelihatan terisi wajar, bukan kosong.
 
 Belum: uji ketahanan semalaman di ColorOS (M6), deploy pivot akun
 multi-tenant ke VPS produksi (3 item NEEDS-DEVICE di qa-report.md §15 —
 sudah diimplementasikan dan lulus `make test` lokal, tinggal deploy
-nyata), dan sub-project #2-#6 dari pivot (signup publik, penyesuaian
-Customer Dashboard, mobile bridge, landing page whuzpay.com).
+nyata), dan sisa sub-project pivot: fase 3-5 (penyesuaian lanjutan
+Customer Dashboard — swalayan tambah device — dan mobile bridge).
 
 Periksa docs/qa/qa-report.md untuk angka pasti, dan git log untuk keputusan
 terbaru beserta alasannya. Pesan commit di repo ini sengaja panjang dan memuat

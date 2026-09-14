@@ -6,6 +6,12 @@ multi-tenant"). Satu deployment melayani seluruh customer sekaligus, data
 dipisah lewat `account_id` per akun, bukan lewat instalasi terpisah lagi.
 Next.js 16 (App Router) + Tailwind CSS v4 + shadcn/ui (base-ui).
 
+`/` adalah landing page publik dan `/register` form signup swalayan (plan
+Starter, trial 3 hari, langsung aktif tanpa campur tangan vendor) — spec
+`docs/superpowers/specs/2026-09-13-landing-signup-design.md`. Keduanya di
+luar route group `(dashboard)`, dikecualikan dari gerbang sesi di
+`proxy.ts`. Overview (halaman berkebutuhan sesi) ada di `/overview`.
+
 Hanya mencakup halaman yang datanya benar-benar ada: **Overview**, **Devices**,
 **Events**, **Transactions**, **API Keys**, **Webhooks**, **Exceptions**,
 **License**. Settings dan Logs ditampilkan di sidebar sebagai "Segera" —
@@ -58,10 +64,15 @@ cp .env.local.example .env.local   # isi BACKEND_URL bila backend tidak di :8090
 ```
 
 Backend harus sudah jalan (lihat `backend/CLAUDE.md` / root `CLAUDE.md`) dan
-sudah ada account customer untuk login. Account dibuat lewat Vendor
-Dashboard (`vendor-dashboard/`, cuma dipakai Akbar) — **bukan lagi**
-`make dev-admin` (itu sekarang membuat akun vendor, dipakai login ke Vendor
-Dashboard itu sendiri, bukan akun customer). Lihat `vendor-dashboard/README.md`.
+sudah ada account customer untuk login. Dua cara: (1) daftar sendiri lewat
+`/register` (plan Starter, trial 3 hari, langsung aktif) — cara tercepat
+untuk dev lokal; atau (2) dibuat lewat Vendor Dashboard
+(`vendor-dashboard/`, cuma dipakai Akbar, plan bebas dipilih) — **bukan
+lagi** `make dev-admin` (itu sekarang membuat akun vendor, dipakai login
+ke Vendor Dashboard itu sendiri, bukan akun customer). Lihat
+`vendor-dashboard/README.md`. Untuk data dev yang lebih banyak sekaligus
+(banyak account + device/invoice/event dsb), pakai `cmd/seedtool` di
+`backend/` — lihat root `CLAUDE.md`.
 
 Jalankan dev server (dijalankan sendiri oleh Akbar, bukan oleh Claude —
 lihat pembagian kerja di root `CLAUDE.md`):
@@ -86,19 +97,25 @@ npx next build       # build produksi penuh, mem-verifikasi seluruh route
 
 ```text
 src/
-├── proxy.ts                    # Gerbang navigasi (bukan gerbang keamanan)
+├── proxy.ts                    # Gerbang navigasi (bukan gerbang keamanan) --
+│                                # mengecualikan /, /register, /login
 ├── lib/
-│   ├── api.ts                  # Klien fetch ke /api/v1/admin/*
+│   ├── api.ts                  # Klien fetch ke /api/v1/admin/* + signup()
 │   ├── format.ts                # Format nominal & waktu, selaras dengan mobile/
 │   └── use-api-data.ts          # Hook ambil-data: loading/error/401-redirect
 ├── components/
 │   ├── ui/                      # shadcn/ui, jangan diedit manual — re-add via CLI
-│   └── dashboard/                # Sidebar, AppShell, StatCard, FilterDropdown, DateRangeFilter, EventsTrendChart
+│   ├── auth/                     # Panel kiri login/register (mockup dashboard, ilustratif)
+│   ├── landing/                  # Section landing page publik (navbar, hero, pricing, dst)
+│   └── dashboard/                 # Sidebar, AppShell, StatCard, FilterDropdown,
+│                                  # DateRangeFilter, EventsTrendChart (Recharts, biaxial)
 └── app/
+    ├── page.tsx                  # Landing page PUBLIK (bukan Overview lagi)
+    ├── register/page.tsx         # Signup swalayan
     ├── login/page.tsx
-    └── (dashboard)/              # Route group berbagi AppShell (sidebar)
+    └── (dashboard)/              # Route group berbagi AppShell (sidebar), butuh sesi
         ├── layout.tsx
-        ├── page.tsx              # Overview
+        ├── overview/page.tsx     # Overview (dulu di "/")
         ├── devices/page.tsx
         ├── events/page.tsx
         ├── transactions/page.tsx

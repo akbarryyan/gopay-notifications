@@ -47,7 +47,7 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
 | 3 | Gateway: invoice, nominal unik, matching, webhook, API key, konsol pengecualian | seluruh 4 fase selesai |
 | 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks, Exceptions, License | sedang dikerjakan |
-| 5 | Platform akun multi-tenant — fase 1 (tabel `accounts`, `account_id` di seluruh tabel data, endpoint vendor, Vendor Dashboard) | fase 1 selesai (`make test` PASS), deploy VPS `NEEDS-DEVICE`. Fase 2-6 (signup publik, penyesuaian Customer Dashboard, mobile bridge, landing page) belum dimulai |
+| 5 | Platform akun multi-tenant — fase 1 (tabel `accounts`, `account_id` di seluruh tabel data, endpoint vendor, Vendor Dashboard) | fase 1 selesai (`make test` PASS), deploy VPS `NEEDS-DEVICE`. Fase 2 (signup publik) dan fase 6 (landing page) sudah selesai — lihat di bawah. Fase 3-5 (penyesuaian lanjutan Customer Dashboard swalayan tambah device, mobile bridge) belum dimulai |
 
 Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2–#4
 di atas. Seluruhnya sudah selesai — kalau ada permintaan fitur baru untuk
@@ -224,6 +224,17 @@ go run ./cmd/devicetool -genkey                 # cetak DEVICE_SECRET_KEY
 go run ./cmd/devicetool -name "HP GoPay Utama"  # cetak Device ID + Secret
 ```
 
+Mengisi `gopay_dev` dengan banyak data sekaligus (dev lokal saja —
+**jangan pernah** ke `gopay_test`/UAT/produksi): `cmd/seedtool` membuat
+beberapa account customer sekaligus beserta device/invoice/event/API
+key/webhook-nya, lewat `Store` yang sama seperti server sungguhan
+(password/secret ikut ter-enkripsi/ter-hash persis alur asli, jadi
+account hasil seed bisa langsung dipakai login sungguhan).
+
+```bash
+go run ./cmd/seedtool -accounts 8   # default password123 untuk semua account
+```
+
 `make db-down` menghapus volume Docker — **`gopay_dev` ikut hilang**, bukan
 hanya data test.
 
@@ -326,6 +337,18 @@ Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
 API Keys, Webhooks, Exceptions, License. Sisanya (Settings, Logs)
 ditampilkan di sidebar sebagai "Segera", non-aktif.
 
+Grafik tren di Overview (`EventsTrendChart`) pakai Recharts, biaxial —
+sumbu kiri jumlah event, sumbu kanan total nominal invoice yang lunas
+per hari (`GET /overview` mengembalikan `events.daily[].paid_amount_rp`,
+selain `count` yang sudah ada). Bukan SVG tangan sendiri seperti
+sebelumnya.
+
+Untuk mengisi dashboard dev lokal dengan banyak data sekaligus (banyak
+account, device, invoice/event campuran status, API key, webhook +
+riwayat delivery) tanpa klik manual satu-satu, pakai `cmd/seedtool`
+(lihat bagian Backend di atas) — HANYA untuk `gopay_dev`, jangan pernah
+ke `gopay_test`/UAT/produksi.
+
 Sejak sub-project #2+#6 (spec
 docs/superpowers/specs/2026-09-13-landing-signup-design.md): `/` adalah
 landing page publik dan `/register` form signup swalayan (plan Starter,
@@ -357,3 +380,39 @@ satu-satunya proses latar belakang di backend, sejak goroutine validasi
 lisensi 24-jam yang dulu ada (License Server) dihapus bersama seluruh
 platform lisensi lama — status akun sekarang dicek langsung ke database
 tiap request (`requireActiveAccount`), bukan diperiksa berkala.
+
+### Vendor Dashboard
+
+Next.js terpisah total dari `dashboard/` (folder `vendor-dashboard/`) —
+cuma Akbar yang pakai, sesi `vendor_session`, manggil `/api/v1/vendor/*`
+di backend utama. Sama scaffold shadcn/ui + token warna dengan
+`dashboard/` (termasuk token `--sidebar-*` yang ternyata sudah ada di
+`globals.css` sejak awal tapi baru dipakai belakangan), jadi banyak
+komponen (`Sheet`, `StatCard`, pola `AppShell` sidebar collapsible)
+sengaja disalin dari `dashboard/` alih-alih dibangun ulang dari nol.
+
+```bash
+cd vendor-dashboard
+npm install
+cp .env.local.example .env.local
+npm run dev                        # Akbar yang menjalankan
+```
+
+Tiga halaman:
+
+- **Dashboard** (`/`, tujuan redirect setelah login) — ringkasan lintas
+  SEMUA account: total/status/account baru minggu ini/total device/total
+  pendapatan seumur hidup, grafik biaxial 14 hari (account baru vs
+  nominal lunas, Recharts, pola sama dengan Overview `dashboard/`), dan
+  5 account terbaru. Sumber datanya `GET /api/v1/vendor/overview` —
+  **beda** dari `GET /overview` customer yang selalu di-scope satu
+  account dari sesi; endpoint vendor ini sengaja lintas account karena
+  itu memang tugas vendor.
+- **Accounts** (`/accounts`, dulu di `/`) — daftar semua account + form
+  buat account baru + link ke halaman detail (`/accounts/{id}`: renew,
+  suspend, revoke).
+- **Audit Log** (`/audit-log`) — riwayat aksi vendor (`LogAudit`).
+
+Warna badge status account (`active`/`expiring`/`expired`/`suspended`/
+`revoked`) disatukan di `src/lib/account-status.ts`, dipakai bersama oleh
+halaman Accounts dan Dashboard supaya tidak diam-diam berbeda.

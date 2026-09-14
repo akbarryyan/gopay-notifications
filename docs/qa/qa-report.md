@@ -678,3 +678,55 @@ go run ./cmd/devicetool -account <account_id_dari_langkah_3> -name "HP Uji"
 # 6. Suspend account itu dari Vendor Dashboard, refresh halaman apa pun di
 #    Customer Dashboard -- harus langsung 402, tanpa jeda/restart apa pun.
 ```
+
+---
+
+## 16. Landing page + signup swalayan, redesain visual, Dashboard Vendor, seedtool
+
+Spec: [`docs/superpowers/specs/2026-09-13-landing-signup-design.md`](../superpowers/specs/2026-09-13-landing-signup-design.md)
+untuk sub-project #2+#6 dari pivot (§0 spec multitenant-accounts). Bagian
+redesain visual (Finpay-style, enterprise-grade, animasi konektor, seed
+data, Dashboard Vendor) tidak punya spec tertulis tersendiri — permintaan
+iteratif langsung dari Akbar lewat chat, diverifikasi manual olehnya di
+`npm run dev` tiap tahap sebelum lanjut ke tahap berikutnya.
+
+**Ringkasan:** `PASS` 14 · `FAIL` 0 · `NEEDS-DEVICE` 0 · `PENDING` 0
+
+### 16a. Signup swalayan + landing page publik (dashboard/)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `POST /api/v1/signup` — buat account (plan Starter, trial 3 hari, max 3 device), rate limit per IP, auto-login | `PASS` | `go test ./internal/httpapi -run TestSignup -v` — 7 test lulus (sukses+cookie, konflik email/username → 409, password < 8 karakter, field kosong, rate limit setelah 5 percobaan, tanpa kredensial) |
+| Konflik email/username di `CreateAccount` (store) dan `handleVendorCreateAccount` mengembalikan 409, bukan 500 generik | `PASS` | `TestCreateAccountEmailBentrokDitolak`, `TestCreateAccountUsernameBentrokDitolak`, `TestVendorCreateAccountEmailBentrokMengembalikan409` — lulus |
+| `/` jadi landing page publik, `/register` jadi form signup, `/overview` (dulu `/`) tetap perlu sesi — proxy.ts mengecualikan keduanya dari gerbang sesi | `PASS` | `npx next build` bersih, route `/`, `/register`, `/overview` semua ter-generate; diverifikasi manual oleh Akbar di `npm run dev` ("okee sudah aman semua yg aku test") |
+| Landing page tidak mengarang logo/testimoni/statistik pelanggan yang tidak nyata | `PASS` | Tinjauan manual tiap section saat ditulis — highlight fitur (bukan testimoni orang) dipakai justru karena produk belum punya customer nyata untuk dikutip, dikonfirmasi eksplisit oleh Akbar saat memilih opsi itu |
+
+### 16b. Redesain visual landing/login/register + Overview biaxial chart (dashboard/)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih di setiap tahap redesain (Finpay-style, enterprise-grade, animasi konektor, halaman login/register split-panel) | `PASS` | Dijalankan berulang sepanjang sesi, keluaran bersih tiap kali sebelum lanjut ke permintaan berikutnya |
+| `GET /overview` menyertakan `paid_amount_rp` per hari (nominal lunas), selain `count` yang sudah ada | `PASS` | `TestDailyEventCountsMenjumlahkanNominalLunasPerHariSesuaiPaidAt`, `TestDailyEventCountsNolKalauBelumAdaPembayaran` — lulus, isolasi antar akun ikut diuji |
+| `EventsTrendChart` diganti dari SVG manual ke Recharts biaxial (jumlah event kiri, nominal lunas kanan) | `PASS` | Build bersih + dikonfirmasi manual oleh Akbar di `npm run dev` ("ok cocok") setelah revisi (skala sumbu-Y, titik per hari) |
+| Animasi (fade-in scroll, konektor "Cara Kerja"/"Arsitektur" mengisi warna, carousel highlight) menghormati `prefers-reduced-motion` | `PASS` | Kode memeriksa `window.matchMedia("(prefers-reduced-motion: reduce)")` di `Reveal`, `EventsTrendChart` (lama), dan CSS `@media (prefers-reduced-motion: reduce)` untuk `lp-flow-dot`/`lp-line-fill` di `globals.css` |
+
+### 16c. `cmd/seedtool` — data dev banyak-account
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `go build ./...`, `go vet ./...`, `gofmt -l .` bersih | `PASS` | Dijalankan langsung, tanpa output error/diff |
+| Seed sungguhan ke `gopay_dev` oleh Akbar: 8 account (plan berselang Starter/Business/Enterprise), device, invoice (PAID/EXPIRED/PENDING campuran), event pengecualian, API key, webhook + riwayat delivery | `PASS` | Ditempel Akbar: `seed: Warung Kopi Senja selesai (1 device, 47 invoice)` … dst, 8 baris, total 490 invoice — akun hasil seed langsung dipakai login sungguhan ke `dashboard/` |
+| Riwayat `webhook_deliveries` diisi lewat `Pool()` langsung, bukan `EnqueueWebhookDeliveries` (fungsi itu tidak difilter `account_id`, akan bocor lintas akun bila dipanggil berulang saat seeding banyak akun) | `PASS` | Tinjauan kode `seedWebhook` di `cmd/seedtool/main.go` — dicatat sebagai keputusan desain di komentar fungsi |
+
+### 16d. Dashboard Vendor — sidebar, halaman Dashboard, `/api/v1/vendor/overview`
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `GET /api/v1/vendor/overview` — ringkasan lintas SEMUA account (total/status/account baru minggu ini/total device/total pendapatan seumur hidup), tren 14 hari (account baru + nominal lunas), 5 account terbaru | `PASS` | `TestVendorOverviewStatsMenghitungRingkasanLintasAccount`, `TestVendorOverviewStatsMenjumlahkanNominalLunasLintasAccount`, `TestVendorDailyStatsLintasAccountTanpaFilter`, `TestVendorOverviewButuhSesiVendor`, `TestVendorOverviewMeringkasAccountDanDaily`, `TestVendorOverviewRecentAccountsDibatasiLimaBaris` — 6 test, seluruhnya lulus |
+| `make test` full suite (seluruh 4 paket backend) tetap lulus setelah `vendor_stats.go`/`vendor_overview.go` ditambahkan | `PASS` | `ok internal/auth`, `ok internal/connector`, `ok internal/httpapi` (16.7s), `ok internal/secretbox`, `ok internal/store` (8.8s) |
+| Vendor Dashboard: sidebar collapsible (pola sama dengan `AppShell` Customer Dashboard, token `--sidebar-*` yang sudah ada tapi belum pernah dipakai), Dashboard jadi `/`, Accounts pindah ke `/accounts` | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih; dikonfirmasi manual oleh Akbar di `npm run dev`, sudah di-commit+push olehnya sendiri (`abc014b`, `95d5595`, `bd9f8a3`) |
+| Bug runtime `Cannot read properties of undefined (reading 'length')` pada `recent_accounts` saat backend lokal belum di-restart setelah field baru ditambahkan | `FAIL` → `PASS` | Ditempel Akbar (stack trace lengkap); diperbaiki dengan fallback `?? []` di frontend, dikonfirmasi lewat build bersih. Penyebab sungguhan: proses `go run ./cmd/server` tidak hot-reload, bukan bug logika |
+
+### Catatan cakupan
+
+Tidak ada butir `NEEDS-DEVICE` di bagian ini — seluruhnya halaman web (Next.js) dan backend Go yang bisa diverifikasi penuh dari mesin development lewat build otomatis + `npm run dev` manual oleh Akbar sendiri, tanpa HP atau VPS. Deploy pivot akun multi-tenant ke VPS produksi (§15) dan uji ketahanan HP semalaman (M6) masih `NEEDS-DEVICE` seperti sebelumnya, tidak berubah oleh pekerjaan di bagian ini.
