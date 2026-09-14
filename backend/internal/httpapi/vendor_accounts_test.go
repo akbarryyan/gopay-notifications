@@ -223,6 +223,78 @@ func TestVendorRenewSuspendRevokeAccount(t *testing.T) {
 	}
 }
 
+func TestVendorChangePlan(t *testing.T) {
+	h := newAPIWithVendor(t)
+	cookie := loginAsVendor(t, h)
+
+	createBody := `{"business_name":"Toko Plan","email":"plan@t.test","username":"toko_plan","plan":"Starter","expires_at":"2027-01-01"}`
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/vendor/accounts", strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.AddCookie(cookie)
+	createRec := httptest.NewRecorder()
+	h.ServeHTTP(createRec, createReq)
+	var created struct {
+		Account struct {
+			ID string `json:"id"`
+		} `json:"account"`
+	}
+	json.Unmarshal(createRec.Body.Bytes(), &created)
+	id := created.Account.ID
+
+	planReq := httptest.NewRequest(http.MethodPost, "/api/v1/vendor/accounts/"+id+"/plan",
+		strings.NewReader(`{"plan":"Business"}`))
+	planReq.Header.Set("Content-Type", "application/json")
+	planReq.AddCookie(cookie)
+	planRec := httptest.NewRecorder()
+	h.ServeHTTP(planRec, planReq)
+	if planRec.Code != http.StatusOK {
+		t.Fatalf("status = %d (body=%s)", planRec.Code, planRec.Body.String())
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/vendor/accounts/"+id, nil)
+	getReq.AddCookie(cookie)
+	getRec := httptest.NewRecorder()
+	h.ServeHTTP(getRec, getReq)
+	var got struct {
+		Account struct {
+			Plan       string `json:"plan"`
+			MaxDevices int    `json:"max_devices"`
+		} `json:"account"`
+	}
+	json.Unmarshal(getRec.Body.Bytes(), &got)
+	if got.Account.Plan != "Business" || got.Account.MaxDevices != 10 {
+		t.Fatalf("Plan/MaxDevices = %q/%d, mau Business/10", got.Account.Plan, got.Account.MaxDevices)
+	}
+}
+
+func TestVendorChangePlanTidakValidDitolak(t *testing.T) {
+	h := newAPIWithVendor(t)
+	cookie := loginAsVendor(t, h)
+
+	createBody := `{"business_name":"Toko X","email":"x@t.test","username":"toko_x","plan":"Starter","expires_at":"2027-01-01"}`
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/vendor/accounts", strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.AddCookie(cookie)
+	createRec := httptest.NewRecorder()
+	h.ServeHTTP(createRec, createReq)
+	var created struct {
+		Account struct {
+			ID string `json:"id"`
+		} `json:"account"`
+	}
+	json.Unmarshal(createRec.Body.Bytes(), &created)
+
+	planReq := httptest.NewRequest(http.MethodPost, "/api/v1/vendor/accounts/"+created.Account.ID+"/plan",
+		strings.NewReader(`{"plan":"Gold"}`))
+	planReq.Header.Set("Content-Type", "application/json")
+	planReq.AddCookie(cookie)
+	planRec := httptest.NewRecorder()
+	h.ServeHTTP(planRec, planReq)
+	if planRec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, mau 400 untuk plan tidak dikenal (body=%s)", planRec.Code, planRec.Body.String())
+	}
+}
+
 func TestVendorAccountsButuhSesiVendor(t *testing.T) {
 	h := newAPIWithVendor(t)
 	rec := httptest.NewRecorder()

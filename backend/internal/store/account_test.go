@@ -134,6 +134,36 @@ func TestSetAccountAdminStatus(t *testing.T) {
 	}
 }
 
+func TestSetAccountPlan(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_plan", BusinessName: "Toko Plan", Email: "plan@uji.test",
+		Username: "toko_plan", PlaintextPassword: "x", Plan: "Starter", MaxDevices: 3,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := s.SetAccountPlan(ctx, "acc_plan", "Business", 10); err != nil {
+		t.Fatalf("set plan: %v", err)
+	}
+	acc, err := s.GetAccountByID(ctx, "acc_plan")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if acc.Plan != "Business" || acc.MaxDevices != 10 {
+		t.Fatalf("plan/max_devices = %q/%d, mau Business/10", acc.Plan, acc.MaxDevices)
+	}
+}
+
+func TestSetAccountPlanTidakDitemukan(t *testing.T) {
+	s := testStore(t)
+	err := s.SetAccountPlan(context.Background(), "tidak-ada", "Business", 10)
+	if err != store.ErrAccountNotFound {
+		t.Fatalf("err = %v, mau ErrAccountNotFound", err)
+	}
+}
+
 func TestListAccounts(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()

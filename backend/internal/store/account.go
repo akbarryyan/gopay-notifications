@@ -204,3 +204,21 @@ func (s *Store) SetAccountAdminStatus(ctx context.Context, id, status string) er
 	}
 	return nil
 }
+
+// SetAccountPlan mengubah plan (dan kuota max_devices yang mengikutinya)
+// akun yang sudah ada -- dipakai vendor untuk upgrade/downgrade tanpa harus
+// membuat ulang akun. plan dan maxDevices divalidasi/dipetakan dari
+// planPresets di lapisan HTTP (sama seperti handleVendorCreateAccount),
+// bukan di sini. Tidak menyentuh expires_at atau admin_status sama sekali.
+func (s *Store) SetAccountPlan(ctx context.Context, id, plan string, maxDevices int) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE accounts SET plan = $2, max_devices = $3, updated_at = now() WHERE id = $1`,
+		id, plan, maxDevices)
+	if err != nil {
+		return fmt.Errorf("store: set account plan: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrAccountNotFound
+	}
+	return nil
+}

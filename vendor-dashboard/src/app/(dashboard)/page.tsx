@@ -65,7 +65,8 @@ export default function VendorDashboardPage() {
           title="Akan Berakhir"
           icon={<AlertTriangle className="size-4" />}
           value={accounts.expiring}
-          subtitle="dalam 30 hari, perlu ditindaklanjuti"
+          subtitle="dalam 30 hari, klik untuk lihat daftarnya"
+          href="/accounts?status=expiring"
         />
         <StatCard
           title="Account Baru"

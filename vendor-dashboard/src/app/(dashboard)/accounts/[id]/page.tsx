@@ -20,17 +20,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { getAccount, renewAccount, revokeAccount, suspendAccount, type Account } from "@/lib/api";
+import {
+  changeAccountPlan,
+  getAccount,
+  renewAccount,
+  revokeAccount,
+  suspendAccount,
+  type AccountPlan,
+} from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
+import { STATUS_BADGE } from "@/lib/account-status";
 
-const STATUS_BADGE: Record<Account["status"], string> = {
-  active: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  expiring: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  expired: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
-  suspended: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
-  revoked: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
-};
+const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 
 export default function AccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -39,6 +41,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
   const [renewing, setRenewing] = useState(false);
   const [newExpiresAt, setNewExpiresAt] = useState("");
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [newPlan, setNewPlan] = useState<AccountPlan>("Starter");
   const [pendingSuspend, setPendingSuspend] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,6 +58,20 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
       reload();
     } catch {
       toast.error("Gagal memperpanjang akun.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onChangePlan() {
+    setBusy(true);
+    try {
+      await changeAccountPlan(id, newPlan);
+      toast.success(`Plan diubah ke ${newPlan}.`);
+      setChangingPlan(false);
+      reload();
+    } catch {
+      toast.error("Gagal mengubah plan.");
     } finally {
       setBusy(false);
     }
@@ -124,6 +142,16 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
               <Button size="sm" variant="outline" onClick={() => setRenewing(true)}>
                 Renew
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setNewPlan(data.plan);
+                  setChangingPlan(true);
+                }}
+              >
+                Ubah Plan
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setPendingSuspend(true)}>
                 Suspend
               </Button>
@@ -172,6 +200,39 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
             <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={onRenew} disabled={busy || !newExpiresAt}>
               Perpanjang
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={changingPlan} onOpenChange={(open) => !open && setChangingPlan(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ubah plan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kuota device menyesuaikan otomatis ke plan baru. Tidak mengubah tanggal
+              kedaluwarsa atau status akun.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Label htmlFor="new-plan">Plan</Label>
+            <select
+              id="new-plan"
+              value={newPlan}
+              onChange={(e) => setNewPlan(e.target.value as AccountPlan)}
+              className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+            >
+              {PLANS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={onChangePlan} disabled={busy || newPlan === data?.plan}>
+              Ubah
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

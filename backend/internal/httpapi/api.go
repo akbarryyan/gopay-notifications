@@ -127,6 +127,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorListAccounts)))
 	mux.Handle("GET /api/v1/vendor/accounts/{accountID}", a.requireVendor(http.HandlerFunc(a.handleVendorGetAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/renew", a.requireVendor(http.HandlerFunc(a.handleVendorRenewAccount)))
+	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/plan", a.requireVendor(http.HandlerFunc(a.handleVendorChangePlan)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/revoke", a.requireVendor(http.HandlerFunc(a.handleVendorRevokeAccount)))
 	mux.Handle("GET /api/v1/vendor/audit-log", a.requireVendor(http.HandlerFunc(a.handleVendorAuditLog)))

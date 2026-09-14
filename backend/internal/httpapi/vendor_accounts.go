@@ -209,6 +209,43 @@ func (a *API) handleVendorRenewAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
+type changePlanRequest struct {
+	Plan string `json:"plan"`
+}
+
+// handleVendorChangePlan mengubah plan akun yang sudah ada (upgrade/
+// downgrade) -- max_devices ikut menyesuaikan dari planPresets, sama
+// pemetaan yang dipakai handleVendorCreateAccount. Tidak menyentuh
+// expires_at atau admin_status sama sekali; renew/suspend/revoke tetap
+// endpoint terpisah.
+func (a *API) handleVendorChangePlan(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("accountID")
+	var req changePlanRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
+		return
+	}
+	maxDevices, ok := planPresets[req.Plan]
+	if !ok {
+		a.writeError(w, http.StatusBadRequest, "invalid_plan", "plan harus salah satu: Starter, Business, Enterprise")
+		return
+	}
+	if err := a.store.SetAccountPlan(r.Context(), id, req.Plan, maxDevices); errors.Is(err, store.ErrAccountNotFound) {
+		a.writeError(w, http.StatusNotFound, "not_found", "account tidak ditemukan")
+		return
+	} else if err != nil {
+		slog.Error("ubah plan account gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	vendorUsername, _ := VendorFromContext(r.Context())
+	if err := a.store.LogAudit(r.Context(), vendorUsername, "ACCOUNT_PLAN_CHANGED", id,
+		map[string]string{"new_plan": req.Plan}); err != nil {
+		slog.Error("log audit gagal", "err", err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
 func (a *API) setAccountAdminStatus(w http.ResponseWriter, r *http.Request, status, action string) {
 	id := r.PathValue("accountID")
 	if err := a.store.SetAccountAdminStatus(r.Context(), id, status); errors.Is(err, store.ErrAccountNotFound) {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus, RotateCw, Search, Users, Check, Copy } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,10 +72,27 @@ function matchesFilters(
   return true;
 }
 
+// useSearchParams() (dibaca dari ?status=... link "Akan Berakhir" di
+// Dashboard) menuntut Suspense boundary supaya prerender halaman ini tidak
+// dianggap bergantung sepenuhnya pada request -- dipisah ke komponen
+// sendiri, bukan dipasang di root export, supaya fallback-nya cuma
+// menutupi bagian yang benar-benar butuh search params.
 export default function AccountsPage() {
+  return (
+    <Suspense>
+      <AccountsPageInner />
+    </Suspense>
+  );
+}
+
+function AccountsPageInner() {
   const { data, loading, error, reload } = useApiData(getAccounts);
+  const searchParams = useSearchParams();
+  // Diisi dari ?status=... (mis. link "Akan Berakhir" di Dashboard) --
+  // lazy initializer, bukan efek, supaya tidak berkedip kosong dulu sebelum
+  // filter terpasang.
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() => searchParams.get("status") ?? "");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const filtered = useMemo(
     () => (data ?? []).filter((acc) => matchesFilters(acc, query, status, dateRange)),

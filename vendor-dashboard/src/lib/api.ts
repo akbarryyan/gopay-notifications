@@ -105,6 +105,13 @@ export function renewAccount(id: string, expiresAt: string): Promise<{ success: 
   });
 }
 
+export function changeAccountPlan(id: string, plan: AccountPlan): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/plan`, {
+    method: "POST",
+    body: JSON.stringify({ plan }),
+  });
+}
+
 export function suspendAccount(id: string): Promise<{ success: true }> {
   return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/suspend`, { method: "POST" });
 }
