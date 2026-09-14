@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, RotateCw, Users, Check, Copy } from "lucide-react";
+import { Plus, RotateCw, Search, Users, Check, Copy } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,15 +28,60 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { createAccount, getAccounts, type AccountPlan } from "@/lib/api";
+import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
+import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
+import { createAccount, getAccounts, type Account, type AccountPlan, type AccountStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
 import { STATUS_BADGE } from "@/lib/account-status";
 
 const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 
+const STATUS_OPTIONS: { value: AccountStatus; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "expiring", label: "Expiring" },
+  { value: "expired", label: "Expired" },
+  { value: "suspended", label: "Suspended" },
+  { value: "revoked", label: "Revoked" },
+];
+
+// Filter dilakukan di sisi klien (bukan lewat query ke backend) --
+// GET /api/v1/vendor/accounts tidak punya parameter filter/pagination sama
+// sekali, dan wajar begitu: ini satu vendor mengelola puluhan-ratusan
+// customer, bukan ribuan baris yang butuh filter di database. Menambah
+// filter server-side untuk skala ini cuma menambah kompleksitas tanpa
+// manfaat nyata.
+function matchesFilters(
+  acc: Account,
+  query: string,
+  status: string,
+  dateRange: { from: string; to: string },
+): boolean {
+  if (query) {
+    const q = query.toLowerCase();
+    const haystack = `${acc.business_name} ${acc.username} ${acc.email}`.toLowerCase();
+    if (!haystack.includes(q)) return false;
+  }
+  if (status && acc.status !== status) return false;
+  if (dateRange.from || dateRange.to) {
+    const createdDate = acc.created_at.slice(0, 10); // "YYYY-MM-DD" dari ISO
+    if (dateRange.from && createdDate < dateRange.from) return false;
+    if (dateRange.to && createdDate > dateRange.to) return false;
+  }
+  return true;
+}
+
 export default function AccountsPage() {
   const { data, loading, error, reload } = useApiData(getAccounts);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const filtered = useMemo(
+    () => (data ?? []).filter((acc) => matchesFilters(acc, query, status, dateRange)),
+    [data, query, status, dateRange],
+  );
+  const hasFilter = query.trim() !== "" || status !== "" || dateRange.from !== "" || dateRange.to !== "";
+
   const [creating, setCreating] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");
@@ -113,13 +158,36 @@ export default function AccountsPage() {
         </Alert>
       )}
 
+      {!loading && data && data.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-background px-3 sm:max-w-xs">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari nama bisnis, username, email..."
+              className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <FilterDropdown
+            className="w-full sm:w-44"
+            allLabel="Semua Status"
+            value={status}
+            options={STATUS_OPTIONS}
+            onChange={setStatus}
+            searchPlaceholder="Cari status..."
+          />
+          <DateRangeFilter from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
+        </div>
+      )}
+
       {loading ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-14" />
           ))}
         </div>
-      ) : data && data.length > 0 ? (
+      ) : filtered.length > 0 ? (
         <div className="overflow-x-auto rounded-xl border border-border/60 shadow-sm">
           <Table>
             <TableHeader>
@@ -128,12 +196,13 @@ export default function AccountsPage() {
                 <TableHead>Username</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Dibuat</TableHead>
                 <TableHead>Kedaluwarsa</TableHead>
                 <TableHead className="text-right">Detail</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((acc) => (
+              {filtered.map((acc) => (
                 <TableRow key={acc.id}>
                   <TableCell className="font-medium">{acc.business_name}</TableCell>
                   <TableCell className="font-mono text-xs">{acc.username}</TableCell>
@@ -141,6 +210,7 @@ export default function AccountsPage() {
                   <TableCell>
                     <Badge className={STATUS_BADGE[acc.status]}>{acc.status}</Badge>
                   </TableCell>
+                  <TableCell>{formatDateOnly(acc.created_at.slice(0, 10))}</TableCell>
                   <TableCell>{formatDateOnly(acc.expires_at)}</TableCell>
                   <TableCell className="text-right">
                     <Link
@@ -158,7 +228,14 @@ export default function AccountsPage() {
       ) : (
         <div className="rounded-2xl border border-dashed p-8 text-center">
           <Users className="mx-auto mb-2 size-8 text-muted-foreground" />
-          <p className="font-medium">Belum ada akun</p>
+          <p className="font-medium">
+            {hasFilter ? "Tidak ada akun yang cocok dengan filter ini" : "Belum ada akun"}
+          </p>
+          {hasFilter && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Coba ubah atau bersihkan pencarian/filter di atas.
+            </p>
+          )}
         </div>
       )}
 
