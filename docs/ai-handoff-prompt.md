@@ -195,8 +195,11 @@ admin, sub-project 3 penuh (invoice, nominal unik, matching, webhook, API
 key, konsol pengecualian — 4 fase, semuanya selesai), dan platform akun
 multi-tenant fase 1 (sub-project 5).
 
-Deploy VPS produksi sudah jalan di whuzpay.com (HTTPS lewat Caddy, systemd,
-basic auth) — lihat docs/qa/qa-report.md untuk buktinya.
+Deploy produksi jalan di whuzpay.com dan vendor.whuzpay.com, pindah ke AWS
+EC2 (eu-north-1) pada 2026-09-14 lewat instalasi bersih: HTTPS lewat Caddy,
+systemd, basic auth, backup harian `gopay-backup.timer`. Cara update setelah
+`git push` dan jebakan yang pernah terjadi ada di
+backend/deploy/README.md §"Update rutin setelah ada perubahan kode".
 
 **PIVOT ARSITEKTUR (2026-09-13):** produk berubah dari self-hosted (tiap
 customer deploy backend+dashboard sendiri) jadi hosted SaaS multi-tenant

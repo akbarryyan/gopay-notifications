@@ -24,6 +24,14 @@ Panduan di bawah ditulis untuk produksi. Untuk UAT, ganti setiap nama sesuai
 tabel di atas dan pakai `.env.uat.example` serta
 `deploy/gopay-ingestion-uat.service`.
 
+**Mau update server setelah `git push`?** Langsung ke
+[§"Update rutin setelah ada perubahan kode"](#update-rutin-setelah-ada-perubahan-kode).
+Bagian "Sekali di awal" cuma untuk memasang VPS baru dari nol.
+
+Server produksi sekarang: `whuzpay.com` + `vendor.whuzpay.com`, AWS EC2
+region Stockholm (`eu-north-1`), login `ssh -i ~/vps-aws-trial.pem
+ubuntu@13.60.252.148`.
+
 
 ## Sekali di awal
 
@@ -103,55 +111,288 @@ tabel di atas dan pakai `.env.uat.example` serta
    satu domain, tanpa CORS, persis seperti yang diasumsikan
    `dashboard/README.md`.
 
-## Tiap rilis — backend
+### Jebakan yang pernah terjadi saat memasang VPS baru
+
+Semuanya terjadi saat pindah ke AWS pada 2026-09-14:
+
+- **Sertifikat HTTPS gagal dengan `Timeout during connect (likely firewall
+  problem)`.** Security Group AWS belum membuka port **80** dan **443**.
+  Buka lewat EC2 → Instances → tab Security → Security group → Edit inbound
+  rules, dengan Source `0.0.0.0/0` dan `::/0`. Caddy mencoba ulang sendiri,
+  atau jalankan `sudo systemctl restart caddy` supaya langsung dicoba.
+- **`caddy validate` gagal dengan `base64-decoding password: illegal base64
+  data`.** Hash dari `caddy hash-password` (`$2a$14$...`) harus ditulis dalam
+  bentuk base64 di Caddyfile:
+  `printf '%s' "$HASH" | base64 -w0`. Hasilnya diawali `JDJh`.
+- **`systemctl reload caddy` gagal padahal `caddy validate` sukses.**
+  `sudo caddy validate` ikut membuat file log di `/var/log/caddy/` sebagai
+  root, sehingga service Caddy (user `caddy`) tidak bisa menulisnya.
+  Perbaikannya `sudo chown -R caddy:caddy /var/log/caddy`, lalu reload lagi.
+- **`vendor.whuzpay.com` tidak bisa diakses.** Record DNS `A` untuk
+  subdomain `vendor` harus dibuat sendiri; tidak ikut record domain utama.
+- **IP publik EC2 berubah setelah instance di-stop/start.** Pasang Elastic
+  IP supaya DNS tidak salah alamat.
+- **Password database dengan simbol `@ : / ? # %` merusak `DATABASE_URL`.**
+  Pakai huruf dan angka saja.
+- **`.env` bisa dibuat langsung di VPS** tanpa Go, karena format
+  `openssl rand -base64 32` sama dengan `devicetool -genkey`. Simpan salinan
+  `.env` di password manager: kunci-kuncinya wajib dibawa kalau pindah VPS
+  lagi.
+- **AWS memblokir port 25 keluar.** Untuk SMTP di Vendor Dashboard, pakai
+  port **587** atau **465**.
+
+## Update rutin setelah ada perubahan kode
+
+Semua langkah dijalankan **dari satu terminal di laptop**. Perintah ke VPS
+dikirim lewat `ssh`, jadi tidak perlu membuka sesi SSH terpisah. Binary dan
+dashboard dibangun di laptop, bukan di VPS: VPS tidak pernah butuh Go atau
+`npm install`, dan RAM instance kecil tidak cukup untuk `next build`.
+
+### Update bagian mana?
+
+Cukup bagian yang berubah sejak update terakhir. Cek dengan `git log` atau
+`git diff --stat <commit-terakhir-yang-di-deploy>..HEAD`.
+
+| Yang berubah | Jalankan |
+|---|---|
+| `backend/` (Go) | U1 Backend |
+| `backend/migrations/` (file `.sql` baru) | U1 Backend, **termasuk langkah migrasi** |
+| `dashboard/` | U2 Customer Dashboard |
+| `vendor-dashboard/` | U3 Vendor Dashboard |
+| `backend/deploy/*.service`, `*.timer`, `gopay-backup.sh` | U4 File deploy |
+| `backend/.env.example` (variabel baru) | Tambahkan variabelnya ke `.env` VPS **sebelum** U1, lihat U5 |
+
+Kalau ragu, jalankan U1, U2, dan U3 semuanya. Menjalankan update untuk bagian
+yang tidak berubah aman, hanya makan waktu.
+
+### U0. Persiapan (setiap buka terminal baru)
 
 ```bash
-GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
-GOOS=linux GOARCH=amd64 go build -o devicetool ./cmd/devicetool
-GOOS=linux GOARCH=amd64 go build -o admintool ./cmd/admintool
-scp server devicetool admintool VPS:/tmp/
-ssh VPS 'sudo systemctl stop gopay-ingestion \
-  && sudo mv /tmp/server /tmp/devicetool /tmp/admintool /opt/gopay-ingestion/ \
-  && sudo chown gopay:gopay /opt/gopay-ingestion/server /opt/gopay-ingestion/devicetool /opt/gopay-ingestion/admintool \
-  && sudo chmod 755 /opt/gopay-ingestion/server /opt/gopay-ingestion/devicetool /opt/gopay-ingestion/admintool \
-  && sudo systemctl start gopay-ingestion'
+export KEY=~/vps-aws-trial.pem
+export NEW=ubuntu@13.60.252.148
+export REPO=~/Kerjaan/personal/gopay-notifications
+
+cd "$REPO" && git pull
+ssh -i "$KEY" "$NEW" 'uname -m'
 ```
 
-Migrasi dijalankan terpisah:
+Lalu jalankan **salah satu**, sesuai jawaban `uname -m`:
 
 ```bash
-goose -dir migrations postgres "$DATABASE_URL" up
+export GOARCH=amd64    # jawaban x86_64
+export GOARCH=arm64    # jawaban aarch64
 ```
 
-## Tiap rilis — dashboard
+Variabel ini hilang kalau terminal ditutup. Ulangi U0 setiap membuka
+terminal baru.
 
-`output: "standalone"` di `dashboard/next.config.ts` membuat `next build`
-menghasilkan server Node yang berdiri sendiri di `.next/standalone` —
-lengkap dengan subset `node_modules` yang benar-benar dipakai. VPS tidak
-pernah perlu `npm install`.
+### U1. Backend
+
+**Build dan upload:**
 
 ```bash
-cd dashboard
+cd "$REPO/backend"
+mkdir -p /tmp/deploy
+GOOS=linux go build -o /tmp/deploy/server ./cmd/server
+scp -i "$KEY" /tmp/deploy/server "$NEW":/tmp/server
+```
+
+Hasil yang benar: satu baris progres `server ... 100%`.
+
+**Migrasi database** (wajib kalau ada file baru di `backend/migrations/`,
+aman dijalankan walau tidak ada). Port Postgres VPS tidak dibuka ke
+internet, jadi `goose` di laptop tersambung lewat terowongan SSH: port
+`15432` laptop diteruskan ke `5432` VPS.
+
+Ganti `PASSWORD_DB` dengan password di baris `DATABASE_URL` pada `.env` VPS
+(salinannya ada di `~/whuzpay-production.env` kalau disimpan waktu pasang):
+
+```bash
+ssh -i "$KEY" -f -N -L 15432:127.0.0.1:5432 "$NEW"
+~/go/bin/goose -dir migrations postgres "postgres://gopay:PASSWORD_DB@127.0.0.1:15432/gopay?sslmode=disable" up
+pkill -f "15432:127.0.0.1:5432"
+```
+
+Hasil yang benar diakhiri dengan
+`goose: successfully migrated database to version: <nomor migrasi terakhir>`,
+atau `no migrations to run` kalau tidak ada migrasi baru.
+
+Migrasi dijalankan **sebelum** binary baru dinyalakan: kode baru mungkin
+membutuhkan kolom atau tabel baru, sedangkan kode lama tetap jalan dengan
+skema yang lebih baru karena migrasi di repo ini selalu menambah, tidak
+menghapus.
+
+**Pasang dan restart.** Binary lama disimpan sebagai `server.prev` untuk
+rollback:
+
+```bash
+ssh -i "$KEY" "$NEW" 'cd /opt/gopay-ingestion \
+  && sudo cp server server.prev \
+  && sudo mv /tmp/server server \
+  && sudo chown gopay:gopay server && sudo chmod 755 server \
+  && sudo systemctl restart gopay-ingestion \
+  && sleep 3 && systemctl is-active gopay-ingestion'
+```
+
+Hasil yang benar: `active`.
+
+Kalau `cmd/devicetool` atau `cmd/admintool` juga berubah, build dan upload
+dengan pola yang sama (`go build -o /tmp/deploy/admintool ./cmd/admintool`,
+`scp`, lalu `sudo mv` ke `/opt/gopay-ingestion/`). Keduanya bukan service,
+jadi tidak perlu restart.
+
+### U2. Customer Dashboard
+
+`output: "standalone"` di `next.config.ts` membuat `next build` menghasilkan
+server Node yang berdiri sendiri di `.next/standalone`, lengkap dengan
+`node_modules` yang dipakai. Aset statis (`public/`, `.next/static`) tidak
+ikut otomatis, jadi disalin manual.
+
+```bash
+cd "$REPO/dashboard"
 npm ci
 npx next build
-
-# .next/standalone TIDAK menyertakan aset statis (public/, .next/static)
-# secara default — disalin manual ke dalamnya sebelum dikirim.
 cp -r public .next/standalone/
 cp -r .next/static .next/standalone/.next/
-
-scp -r .next/standalone/. VPS:/tmp/dashboard/
-ssh VPS 'sudo systemctl stop gopay-dashboard \
-  && sudo rm -rf /opt/gopay-ingestion/dashboard \
-  && sudo mv /tmp/dashboard /opt/gopay-ingestion/dashboard \
-  && sudo chown -R gopay:gopay /opt/gopay-ingestion/dashboard \
-  && sudo systemctl start gopay-dashboard'
+ls .next/standalone/server.js
 ```
 
-Dashboard produksi **tidak butuh** `.env.local` atau `BACKEND_URL` sama
-sekali — itu cuma dipakai `next dev` di laptop. Di belakang Caddy, dashboard
-tidak pernah memanggil backend lewat rewrite-nya sendiri; browser yang
-memanggil `/api/*` langsung, dan Caddy yang merutekannya ke backend.
+`next build` harus diakhiri tabel daftar route tanpa `Error`, dan `ls` harus
+menjawab `.next/standalone/server.js`. Peringatan `npm warn deprecated` dan
+`allow-scripts` dari `npm ci` aman diabaikan.
+
+**Upload** sebagai satu arsip. Jangan pakai `scp -r`: `.next/standalone`
+berisi ribuan file kecil yang dikirim satu per satu, dan ke region Stockholm
+bisa makan belasan menit.
+
+```bash
+tar -C .next/standalone -czf - . | ssh -i "$KEY" "$NEW" 'rm -rf /tmp/dashboard && mkdir -p /tmp/dashboard && tar -xzf - -C /tmp/dashboard'
+```
+
+Tidak ada output; selesai saat prompt muncul lagi.
+
+**Pasang dan restart.** Versi lama disimpan sebagai `dashboard.prev`:
+
+```bash
+ssh -i "$KEY" "$NEW" 'cd /opt/gopay-ingestion \
+  && sudo rm -rf dashboard.prev \
+  && sudo mv dashboard dashboard.prev \
+  && sudo mv /tmp/dashboard dashboard \
+  && sudo chown -R gopay:gopay dashboard \
+  && sudo systemctl restart gopay-dashboard \
+  && sleep 3 && systemctl is-active gopay-dashboard'
+```
+
+Hasil yang benar: `active`.
+
+Dashboard produksi tidak butuh `.env.local` atau `BACKEND_URL`; itu hanya
+untuk `next dev` di laptop. Di produksi, browser memanggil `/api/*` dan
+Caddy yang meneruskannya ke backend.
+
+### U3. Vendor Dashboard
+
+Sama dengan U2, tapi **tanpa** `cp -r public`, karena `vendor-dashboard/`
+tidak punya folder `public/` (kalau dijalankan, muncul
+`cannot stat 'public'`, dan itu tidak apa-apa).
+
+```bash
+cd "$REPO/vendor-dashboard"
+npm ci
+npx next build
+cp -r .next/static .next/standalone/.next/
+ls .next/standalone/server.js
+
+tar -C .next/standalone -czf - . | ssh -i "$KEY" "$NEW" 'rm -rf /tmp/vendor-dashboard && mkdir -p /tmp/vendor-dashboard && tar -xzf - -C /tmp/vendor-dashboard'
+
+ssh -i "$KEY" "$NEW" 'cd /opt/gopay-ingestion \
+  && sudo rm -rf vendor-dashboard.prev \
+  && sudo mv vendor-dashboard vendor-dashboard.prev \
+  && sudo mv /tmp/vendor-dashboard vendor-dashboard \
+  && sudo chown -R gopay:gopay vendor-dashboard \
+  && sudo systemctl restart gopay-vendor-dashboard \
+  && sleep 3 && systemctl is-active gopay-vendor-dashboard'
+```
+
+Hasil yang benar: `active`.
+
+### U4. File deploy (unit systemd / skrip backup)
+
+Hanya kalau file di `backend/deploy/` berubah. Contoh untuk unit backend:
+
+```bash
+cd "$REPO/backend"
+scp -i "$KEY" deploy/gopay-ingestion.service "$NEW":/tmp/
+ssh -i "$KEY" "$NEW" 'sudo mv /tmp/gopay-ingestion.service /etc/systemd/system/ \
+  && sudo systemctl daemon-reload \
+  && sudo systemctl restart gopay-ingestion \
+  && systemctl is-active gopay-ingestion'
+```
+
+Untuk skrip backup:
+
+```bash
+scp -i "$KEY" deploy/gopay-backup.sh "$NEW":/tmp/
+ssh -i "$KEY" "$NEW" 'sudo install -m 755 /tmp/gopay-backup.sh /usr/local/bin/gopay-backup && rm /tmp/gopay-backup.sh'
+```
+
+### U5. Variabel `.env` baru
+
+Kalau `backend/.env.example` mendapat variabel baru, backend baru bisa gagal
+start tanpa variabel itu. Tambahkan dulu **sebelum** U1:
+
+```bash
+ssh -i "$KEY" -t "$NEW" 'sudo nano /opt/gopay-ingestion/.env'
+```
+
+Tambahkan barisnya, simpan dengan `Ctrl+O` lalu `Enter`, dan keluar dengan
+`Ctrl+X`. Kunci baru (`..._KEY`) dibuat dengan `openssl rand -base64 32`.
+**Jangan pernah mengubah kunci yang sudah ada**, dan perbarui juga salinan
+`.env` di password manager.
+
+### U6. Cek setelah update
+
+```bash
+curl -s https://whuzpay.com/api/v1/health; echo
+curl -s -o /dev/null -w 'dashboard: %{http_code}\n' https://whuzpay.com/login
+curl -s -o /dev/null -w 'vendor:    %{http_code}\n' https://vendor.whuzpay.com/login
+```
+
+Hasil yang benar: `{"status":"ok",...}`, `dashboard: 200`, `vendor: 200`.
+Setelah itu buka halaman yang berubah di browser.
+
+### Rollback: kembali ke versi sebelumnya
+
+Kalau sebuah service tidak `active` atau versi baru bermasalah, kembalikan
+dulu supaya situs jalan lagi, baru cari penyebabnya lewat log:
+
+```bash
+# Backend
+ssh -i "$KEY" "$NEW" 'cd /opt/gopay-ingestion && sudo mv server.prev server && sudo systemctl restart gopay-ingestion; sudo journalctl -u gopay-ingestion -n 30 --no-pager'
+
+# Customer Dashboard
+ssh -i "$KEY" "$NEW" 'cd /opt/gopay-ingestion && sudo rm -rf dashboard && sudo mv dashboard.prev dashboard && sudo systemctl restart gopay-dashboard; sudo journalctl -u gopay-dashboard -n 30 --no-pager'
+
+# Vendor Dashboard
+ssh -i "$KEY" "$NEW" 'cd /opt/gopay-ingestion && sudo rm -rf vendor-dashboard && sudo mv vendor-dashboard.prev vendor-dashboard && sudo systemctl restart gopay-vendor-dashboard; sudo journalctl -u gopay-vendor-dashboard -n 30 --no-pager'
+```
+
+Migrasi database **tidak** ikut dibatalkan oleh rollback. Itu memang tidak
+perlu, karena kode lama tetap jalan dengan skema yang lebih baru. Jangan
+menjalankan `goose down` di produksi tanpa backup, karena perintah itu bisa
+menghapus data.
+
+### Kalau ada error
+
+| Gejala | Penyebab | Solusi |
+|---|---|---|
+| `bind: Address already in use` saat membuka terowongan | Terowongan lama masih hidup | `pkill -f "15432:127.0.0.1:5432"`, ulangi |
+| `password authentication failed for user "gopay"` | `PASSWORD_DB` salah | Lihat baris `DATABASE_URL` di `.env` VPS: `ssh -i "$KEY" "$NEW" 'sudo grep DATABASE_URL /opt/gopay-ingestion/.env'` |
+| `KEY=`/`NEW=` kosong, atau `ssh: Could not resolve hostname` | Variabel U0 hilang | Ulangi U0 |
+| `ssh: connect to host ... Connection timed out` | IP internet laptop berubah, sedangkan Security Group membatasi SSH ke "My IP" | AWS Console → EC2 → Security Group → Edit inbound rules → rule SSH → Source **My IP** → Save |
+| Backend tidak `active`, log berisi `config: ... wajib diisi` | Ada variabel `.env` baru yang belum ditambahkan | Rollback, lakukan U5, ulangi U1 |
+| Log berisi `status=203/EXEC` atau `exec format error` | `GOARCH` salah | Rollback, cek `uname -m` di U0, ulangi U1 |
+| Dashboard tidak `active`, log berisi `Cannot find module .../server.js` | Upload atau build belum lengkap | Rollback, ulangi U2/U3 dari `npx next build` |
+| `scp -r` sangat lambat | Ribuan file kecil dikirim satu per satu | Pakai perintah `tar ... \| ssh` di U2/U3 |
 
 ## Backup database otomatis
 
@@ -260,7 +501,7 @@ Di VPS:
 
 ```bash
 cd /opt/gopay-ingestion
-sudo -u gopay env $(cat .env | xargs) ./devicetool -name "HP GoPay Utama"
+sudo -u gopay env $(sudo cat .env | xargs) ./devicetool -account <account_id> -name "HP GoPay Utama"
 ```
 
 Salin `Device ID` dan `Device Secret` ke Settings aplikasi Android.
@@ -274,7 +515,7 @@ password diketik dua kali tanpa ditampilkan:
 
 ```bash
 cd /opt/gopay-ingestion
-sudo -u gopay env $(cat .env | xargs) ./admintool -username akbar
+sudo -u gopay env $(sudo cat .env | xargs) ./admintool -username akbar
 ```
 
 Password dapat diganti kapan saja dengan menjalankan perintah yang sama lagi.
@@ -298,24 +539,9 @@ lagi validasi berkala.
 
 ### Deploy Vendor Dashboard
 
-Sama persis polanya seperti `dashboard/` di atas (`output: "standalone"`,
-`npx next build`, salin `public/`+`.next/static` manual) — bedanya cuma
-port dan nama direktori:
-
-```bash
-cd vendor-dashboard
-npm ci
-npx next build
-cp -r public .next/standalone/
-cp -r .next/static .next/standalone/.next/
-
-scp -r .next/standalone/. VPS:/tmp/vendor-dashboard/
-ssh VPS 'sudo systemctl stop gopay-vendor-dashboard \
-  && sudo rm -rf /opt/gopay-ingestion/vendor-dashboard \
-  && sudo mv /tmp/vendor-dashboard /opt/gopay-ingestion/vendor-dashboard \
-  && sudo chown -R gopay:gopay /opt/gopay-ingestion/vendor-dashboard \
-  && sudo systemctl start gopay-vendor-dashboard'
-```
+Pola build dan upload-nya ada di §"Update rutin" → **U3. Vendor
+Dashboard**. Yang cuma sekali di awal adalah unit systemd, Caddyfile, dan
+DNS di bawah ini.
 
 Unit systemd (sekali di awal, mirip `gopay-dashboard.service` tapi port
 `3010`):
@@ -326,8 +552,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable gopay-vendor-dashboard
 ```
 
-Tambahkan blok `Caddyfile` untuk subdomain vendor (mis.
-`vendor.whuzpay.com`) yang merutekan `/api/*` ke backend **yang sama**
+Buat record DNS `A` untuk `vendor` yang mengarah ke IP VPS, karena subdomain
+tidak ikut otomatis walau record domain utama sudah benar. Lalu tambahkan
+blok `Caddyfile` untuk subdomain vendor (mis. `vendor.whuzpay.com`) yang merutekan `/api/*` ke backend **yang sama**
 (port 8080, BUKAN service terpisah) dan sisanya ke Vendor Dashboard (port
 3010):
 
@@ -368,16 +595,17 @@ Dashboard:
    kanal sendiri.
 3. Customer login langsung ke `dashboard/` (backend yang sama, tidak ada
    instalasi terpisah untuk mereka) dengan kredensial itu.
-4. Buat device untuk account itu:
+4. Customer menambah device sendiri dari Customer Dashboard → **Devices →
+   Tambah device**, lalu mengisi Device ID dan Secret yang muncul ke aplikasi
+   Android. `devicetool` masih bisa dipakai dari VPS untuk keadaan darurat:
 
    ```bash
    cd /opt/gopay-ingestion
-   sudo -u gopay env $(cat .env | xargs) ./devicetool -account <account_id> -name "HP Toko"
+   sudo -u gopay env $(sudo cat .env | xargs) ./devicetool -account <account_id> -name "HP Toko"
    ```
 
    `<account_id>` dilihat dari URL halaman detail account di Vendor
-   Dashboard (`/accounts/<account_id>`). Swalayan tambah device dari
-   Customer Dashboard belum ada — ditunda ke sub-project terpisah (spec §7).
+   Dashboard (`/accounts/<account_id>`).
 
 5. Memperpanjang/suspend/revoke: dari halaman detail account di Vendor
    Dashboard. Efeknya **langsung** terlihat di request berikutnya customer
@@ -418,7 +646,7 @@ D=GANTI-DOMAIN.com          # lalu ulangi dengan D=uat.GANTI-DOMAIN.com
 
 curl -s "https://$D/api/v1/health"
 curl -s -o /dev/null -w '%{http_code}\n' "https://$D/api/v1/events"                  # mau 401
-curl -s -o /dev/null -w '%{http_code}\n' -u admin:<pw> "https://$D/api/v1/events"    # mau 200
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:<pw> "https://$D/api/v1/events"    # mau 405 (lolos basic auth; rute ini cuma menerima POST dari HP)
 curl -s -o /dev/null -w '%{http_code}\n' "http://$D/api/v1/health"                   # mau 308
 ```
 

@@ -160,6 +160,18 @@ sampai Akbar menempelkan buktinya — tidak pernah `PASS` berdasarkan penalaran.
 
 ## Perintah
 
+### Update server produksi
+
+Produksi: `whuzpay.com` + `vendor.whuzpay.com` di AWS EC2
+(`ssh -i ~/vps-aws-trial.pem ubuntu@13.60.252.148`), systemd + Caddy, tanpa
+Docker. Langkah update setelah `git push` (build di laptop, upload `tar |
+ssh`, migrasi lewat terowongan SSH, cadangan `.prev`, rollback) ada di
+[`backend/deploy/README.md`](backend/deploy/README.md) §"Update rutin
+setelah ada perubahan kode". Kalau Akbar bertanya cara update VPS, arahkan
+ke sana dan sebutkan bagian mana yang perlu dijalankan (U1 backend, U2
+dashboard, U3 vendor-dashboard, U5 bila ada env var baru) sesuai perubahan
+yang di-push.
+
 ### Backend
 
 ```bash
