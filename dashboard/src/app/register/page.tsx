@@ -11,6 +11,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AuthSidePanel } from "@/components/auth/side-panel";
 import { ApiError, signup } from "@/lib/api";
 
+// Pemeriksaan cepat di browser saja -- yang menentukan sah/tidaknya tetap
+// validasi di backend (net/mail.ParseAddress). Ini cuma memberi tahu salah
+// ketik lebih awal, sebelum submit ke server.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function RegisterPage() {
   const router = useRouter();
   const [businessName, setBusinessName] = useState("");
@@ -21,14 +26,21 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const emailTrimmed = email.trim();
+  const emailInvalid = emailTrimmed.length > 0 && !EMAIL_PATTERN.test(emailTrimmed);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!EMAIL_PATTERN.test(emailTrimmed)) {
+      setError("Format email tidak valid.");
+      return;
+    }
     setLoading(true);
     try {
       await signup({
         business_name: businessName,
-        email,
+        email: emailTrimmed,
         username,
         password,
       });
@@ -98,8 +110,15 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="kamu@contoh.test"
+                aria-invalid={emailInvalid}
                 required
               />
+              {emailInvalid && (
+                <p className="text-xs text-destructive">Format email tidak valid.</p>
+              )}
+              <p className="text-xs text-slate-400">
+                Dipakai untuk verifikasi, reset password, dan notifikasi -- pastikan aktif.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">

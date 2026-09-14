@@ -55,7 +55,8 @@ gateway ini, itu perluasan di luar keempat fase itu, bukan bagian dari
 salah satunya.
 
 Dashboard mencakup halaman yang datanya sungguhan ada: Overview, Devices,
-Events, Transactions, API Keys, Webhooks, Exceptions, License, Settings.
+Events, Transactions, API Keys, Webhooks, Exceptions, API Docs, License,
+Settings.
 Logs ditampilkan di sidebar sebagai "Segera" (non-aktif).
 
 **PIVOT ARSITEKTUR (2026-09-13):** produk ini berubah dari self-hosted
@@ -256,6 +257,13 @@ Produksi di-backup setiap hari oleh `gopay-backup.timer`
 `backend/deploy/README.md` §"Backup database otomatis". `.env` sengaja
 tidak ikut dibackup — kunci enkripsi disimpan terpisah dari dump.
 
+Kesehatan server produksi dipantau dua lapis: `gopay-monitor.timer`
+(`backend/deploy/gopay-monitor.sh`, tiap 5 menit, cek service, URL publik,
+sertifikat, disk, memori, umur backup, lalu Telegram ke vendor **hanya saat
+status berubah**) dan UptimeRobot dari luar untuk kasus VPS mati total,
+yang tidak bisa dideteksi skrip di server itu sendiri. Cara pasang di
+`backend/deploy/README.md` §"Monitoring dan peringatan".
+
 ### Lingkungan
 
 Tiga varian, package berbeda sehingga dapat terpasang bersamaan dan datanya
@@ -352,8 +360,38 @@ hanya memeriksa keberadaan cookie untuk mencegah kedipan halaman kosong —
 validitas sesi sesungguhnya selalu diputuskan backend lewat `requireAdmin`.
 
 Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
-API Keys, Webhooks, Exceptions, License, Settings (profil, ganti password,
-chat id Telegram). Logs ditampilkan di sidebar sebagai "Segera", non-aktif.
+API Keys, Webhooks, Exceptions, License, Settings (profil dengan verifikasi
+email, ganti password, hubungkan Telegram), dan API Docs. Logs ditampilkan
+di sidebar sebagai "Segera", non-aktif.
+
+**API Docs (`/api-docs`)** adalah dokumentasi integrasi untuk customer:
+autentikasi API key, `POST`/`GET /api/v1/invoices`, payload dan tanda
+tangan webhook (`X-Webhook-Signature` = hex HMAC-SHA256 body mentah dengan
+secret `whsec_…` apa adanya), percobaan ulang (5 kali, jeda 1/2/4/8 menit),
+dan kode error, dengan contoh curl/Node/PHP. Isinya ditulis tangan dari
+kode, bukan dibangkitkan otomatis, jadi **setiap perubahan perilaku API
+invoice atau webhook wajib ikut memperbarui halaman ini**. Daftar file
+sumbernya ada di komentar atas `api-docs/page.tsx`.
+
+### Verifikasi email saat signup
+
+Migrasi 00015 (`accounts.email_verified_at`, tabel
+`email_verification_tokens`, pola sama persis `password_reset_tokens`:
+hash SHA-256, sekali pakai). Dikirim otomatis setelah `POST /api/v1/signup`
+dan setiap kali email diganti dari Settings (`UpdateAccountProfile`
+mengosongkan `email_verified_at` bila email BEDA dari yang tersimpan).
+Link berlaku 24 jam (`store.EmailVerificationTTL`), dibuka di
+`/verify-email?token=...` — **query string, bukan fragment** seperti reset
+password, karena verifikasi email bukan kunci akun (tidak bisa dipakai
+mengambil alih apa pun), jadi aman tercatat di log akses.
+
+**Pengingat, bukan gerbang.** Account tetap berfungsi penuh selama belum
+diverifikasi — `accountProfileJSON.email_verified` cuma dipakai
+menampilkan banner + tombol "Kirim email verifikasi"
+(`POST /api/v1/admin/account/email/resend`, dibatasi cooldown yang sama
+dengan reset password) di halaman Settings. Validasi FORMAT email (bukan
+verifikasi) sudah wajib sejak signup — `isEmailAddress()` dipakai ulang di
+`handleSignup` dan `handleAdminUpdateAccount`.
 
 ### Password customer: reset lewat email dan ganti dari Settings
 
@@ -521,6 +559,17 @@ Ambangnya 7 hari (`reminder.DefaultWithinDays`), sengaja BEDA dari
 dashboard: status itu pasif (dibaca kalau dibuka) jadi wajar menyala lebih
 awal, sedangkan pengingat aktif menghampiri orang — sebulan sebelumnya
 terlalu dini dan gampang diabaikan saat benar-benar mendesak.
+
+### Vendor: kirim link reset password untuk customer yang terkunci
+
+`POST /api/v1/vendor/accounts/{id}/send-password-reset` (tombol "Kirim
+link reset password" di halaman detail account) memakai alur reset yang
+sama (`store.CreatePasswordResetToken` + `notify.PasswordResetEmail`),
+tapi endpoint TERPISAH dari `handleForgotPassword` — di sini vendor sudah
+login dan memilih account-nya sendiri dari daftar, jadi tidak ada risiko
+enumerasi email dan errornya boleh spesifik (`not_available`,
+`account_revoked`), bukan disamarkan jadi "sukses" untuk semua kasus
+seperti endpoint publik.
 
 ### Vendor Dashboard
 

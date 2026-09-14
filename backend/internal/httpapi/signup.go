@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
@@ -43,9 +44,15 @@ func (a *API) handleSignup(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
 		return
 	}
+	req.Email = strings.TrimSpace(req.Email)
 	if req.BusinessName == "" || req.Email == "" || req.Username == "" {
 		a.signupThrottle.RecordFailure(ip, a.now())
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "business_name, email, dan username wajib diisi")
+		return
+	}
+	if !isEmailAddress(req.Email) {
+		a.signupThrottle.RecordFailure(ip, a.now())
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "format email tidak valid")
 		return
 	}
 	if len(req.Password) < minPasswordLen {
@@ -83,6 +90,11 @@ func (a *API) handleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.signupThrottle.RecordSuccess(ip)
+
+	// Best-effort, di background -- account customer sudah jadi dan harus
+	// tetap bisa dipakai walau email verifikasi gagal terkirim (mis. SMTP
+	// belum diisi vendor). Customer bisa minta kirim ulang dari Settings.
+	a.sendVerificationEmail(r.Context(), store.Account{ID: id, BusinessName: req.BusinessName, Email: req.Email})
 
 	if err := a.store.LogAudit(r.Context(), "signup", "ACCOUNT_CREATED", id,
 		map[string]string{"business_name": req.BusinessName, "plan": signupPlan}); err != nil {

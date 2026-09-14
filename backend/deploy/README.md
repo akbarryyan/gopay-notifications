@@ -495,6 +495,123 @@ restore bila kode yang di-deploy lebih baru dari backup.
 Backup yang tidak pernah dicoba di-restore belum terbukti bisa dipakai —
 coba restore ke database uji (`createdb gopay_restore_test`) sesekali.
 
+## Monitoring dan peringatan
+
+Dua lapis, karena masing-masing menutupi celah yang tidak bisa ditutup yang
+lain:
+
+| | `gopay-monitor` (di VPS) | UptimeRobot (dari luar) |
+|---|---|---|
+| Service mati (backend, dashboard, Caddy, Postgres) | ✅ | Sebagian (terlihat dari URL yang tidak menjawab) |
+| Disk / memori hampir penuh | ✅ | ❌ |
+| Sertifikat HTTPS gagal diperpanjang | ✅ | ✅ (paket gratis: peringatan SSL) |
+| Backup harian tidak jalan | ✅ | ❌ |
+| **VPS mati total / jaringan putus** | ❌ (ikut mati) | ✅ |
+
+Pasang **keduanya**.
+
+### A. `gopay-monitor` — peringatan ke Telegram kamu
+
+`deploy/gopay-monitor.sh` + `gopay-monitor.service` + `gopay-monitor.timer`
+berjalan setiap 5 menit dan hanya mengirim pesan **saat status berubah**:
+sekali ketika masalah muncul, diulang setiap 6 jam selama belum beres, dan
+sekali saat pulih. Tidak ada spam setiap 5 menit.
+
+Yang diperiksa: service `gopay-ingestion`, `gopay-dashboard`,
+`gopay-vendor-dashboard`, `caddy`, `postgresql`; Postgres menerima koneksi;
+`https://whuzpay.com/api/v1/health`, `/login`, dan
+`https://vendor.whuzpay.com/login` menjawab; sisa masa berlaku sertifikat
+kedua domain (peringatan kalau < 14 hari); disk `/` < 85%; memori < 92%;
+dan backup terakhir < 26 jam.
+
+**1. Siapkan chat Telegram kamu**
+
+1. Buka bot Telegram yang sama dengan yang diisi di Vendor Dashboard →
+   Settings, lalu tekan **Start**. Bot dilarang mengirim pesan duluan ke
+   orang yang belum menekan Start. Bot juga boleh berbeda; untuk kirim pesan,
+   satu token bisa dipakai bersamaan oleh backend dan skrip ini.
+2. Kirim pesan apa saja ke **@userinfobot** di Telegram. Angka **Id** yang
+   dibalas adalah `TELEGRAM_CHAT_ID` kamu.
+
+**2. Pasang di VPS** (dari laptop, setelah U0 di §"Update rutin"):
+
+```bash
+cd "$REPO/backend"
+scp -i "$KEY" deploy/gopay-monitor.sh deploy/gopay-monitor.service deploy/gopay-monitor.timer "$NEW":/tmp/
+ssh -i "$KEY" "$NEW" 'sudo install -m 755 /tmp/gopay-monitor.sh /usr/local/bin/gopay-monitor \
+  && sudo mv /tmp/gopay-monitor.service /tmp/gopay-monitor.timer /etc/systemd/system/ \
+  && sudo systemctl daemon-reload'
+```
+
+**3. Isi token dan chat id** (terminal SSH VPS):
+
+```bash
+ssh -i ~/vps-aws-trial.pem ubuntu@13.60.252.148
+sudo nano /etc/default/gopay-monitor
+```
+
+Isi dengan dua baris berikut, ganti nilainya, lalu simpan (`Ctrl+O`, `Enter`,
+`Ctrl+X`):
+
+```
+TELEGRAM_BOT_TOKEN=123456789:ABCdef...
+TELEGRAM_CHAT_ID=123456789
+```
+
+```bash
+sudo chmod 600 /etc/default/gopay-monitor
+```
+
+**4. Uji: pastikan pesan benar-benar sampai.** Paksa satu pemeriksaan gagal
+dengan batas disk 1%, yang pasti terlampaui, memakai file state terpisah:
+
+```bash
+sudo env $(sudo cat /etc/default/gopay-monitor | xargs) DISK_WARN_PERCENT=1 STATE_FILE=/tmp/monitor-uji /usr/local/bin/gopay-monitor
+```
+
+Harus muncul `monitor: peringatan terkirim`, dan Telegram kamu menerima pesan
+`🔴 Disk / terpakai ...`. Hapus file ujinya: `sudo rm -f /tmp/monitor-uji`.
+
+**5. Aktifkan jadwal:**
+
+```bash
+sudo systemctl enable --now gopay-monitor.timer
+sudo systemctl start gopay-monitor.service
+sudo journalctl -u gopay-monitor -n 20 --no-pager
+systemctl list-timers gopay-monitor.timer --no-pager
+```
+
+Log yang benar setelah semuanya sehat: `monitor: tidak ada perubahan (0
+masalah aktif)`. Kalau ada baris `masalah: ...`, itu masalah sungguhan yang
+juga dikirim ke Telegram.
+
+**Menyesuaikan batas.** Semua variabel di bagian atas
+`deploy/gopay-monitor.sh` bisa ditimpa di `/etc/default/gopay-monitor`,
+misalnya `DISK_WARN_PERCENT=90`, `REPEAT_HOURS=12`, atau
+`URLS="https://whuzpay.com/api/v1/health"`. Tidak perlu restart; perubahan
+berlaku di putaran berikutnya.
+
+### B. UptimeRobot — pemantau dari luar (gratis)
+
+1. Daftar di <https://uptimerobot.com> (paket Free: 50 monitor, interval 5
+   menit).
+2. **Alert Contacts:** Integrations & API → **Telegram** → ikuti
+   petunjuknya, atau cukup pakai email yang terdaftar.
+3. **Add New Monitor** tiga kali:
+
+   | Monitor Type | Friendly Name | URL | Catatan |
+   |---|---|---|---|
+   | Keyword | Backend health | `https://whuzpay.com/api/v1/health` | Keyword `"ok"`, alert kalau keyword **tidak ada** |
+   | HTTP(s) | Customer Dashboard | `https://whuzpay.com/login` | |
+   | HTTP(s) | Vendor Dashboard | `https://vendor.whuzpay.com/login` | |
+
+   Di setiap monitor, centang alert contact dari langkah 2, dan aktifkan
+   **SSL expiry reminder** kalau pilihannya ada.
+4. **Uji:** di VPS jalankan `sudo systemctl stop gopay-dashboard`, tunggu ±5
+   menit sampai UptimeRobot mengabari "Customer Dashboard down" (dan
+   `gopay-monitor` juga), lalu `sudo systemctl start gopay-dashboard` dan
+   tunggu kabar "up" atau "pulih".
+
 ## Membuat device untuk HP
 
 Di VPS:

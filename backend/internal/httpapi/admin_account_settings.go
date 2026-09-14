@@ -84,6 +84,9 @@ type accountProfileJSON struct {
 	// TelegramAvailable false berarti vendor belum mengisi token bot --
 	// tombol "Hubungkan Telegram" tidak ditampilkan.
 	TelegramAvailable bool `json:"telegram_available"`
+	// EmailVerified: pengingat untuk memverifikasi, bukan gerbang -- account
+	// tetap berfungsi penuh selama belum diverifikasi.
+	EmailVerified bool `json:"email_verified"`
 }
 
 // handleAdminGetAccount melayani halaman Settings Customer Dashboard.
@@ -107,7 +110,7 @@ func (a *API) handleAdminGetAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "account": accountProfileJSON{
 		Username: acc.Username, BusinessName: acc.BusinessName, Email: acc.Email, TelegramChatID: acc.TelegramChatID,
-		TelegramAvailable: settings.TelegramBotToken != "",
+		TelegramAvailable: settings.TelegramBotToken != "", EmailVerified: acc.EmailVerifiedAt != nil,
 	}})
 }
 
@@ -169,8 +172,23 @@ func (a *API) handleAdminUpdateAccount(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+
+	emailChanged := !strings.EqualFold(email, acc.Email)
+	if emailChanged {
+		// UpdateAccountProfile sudah mengosongkan email_verified_at di
+		// database untuk alamat baru -- kirim link verifikasi barunya.
+		a.sendVerificationEmail(r.Context(), store.Account{ID: accountID, BusinessName: businessName, Email: email})
+	}
+
+	settings, err := a.store.GetNotificationSettings(r.Context(), a.settingsSecretKey)
+	if err != nil {
+		slog.Error("baca notification settings gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "account": accountProfileJSON{
 		Username: acc.Username, BusinessName: businessName, Email: email, TelegramChatID: acc.TelegramChatID,
+		TelegramAvailable: settings.TelegramBotToken != "", EmailVerified: acc.EmailVerifiedAt != nil && !emailChanged,
 	}})
 }
 

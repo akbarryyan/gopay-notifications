@@ -7,6 +7,7 @@ import {
   EyeOff,
   KeyRound,
   Loader2,
+  MailWarning,
   RotateCw,
   Send,
   Unlink,
@@ -35,6 +36,7 @@ import {
   changePassword,
   createTelegramLink,
   getAccountProfile,
+  resendVerificationEmail,
   setTelegramChatID,
   updateAccountProfile,
   type AccountProfile,
@@ -73,16 +75,19 @@ export default function SettingsPage() {
           <Skeleton className="h-80 rounded-2xl" />
         </div>
       ) : data ? (
-        <div className="grid items-start gap-6 lg:grid-cols-2">
-          {/* key: form diinisialisasi ulang dari data terbaru setelah disimpan. */}
-          <ProfileCard
-            key={`${data.business_name}|${data.email}`}
-            profile={data}
-            onSaved={reload}
-          />
-          <PasswordCard />
-          <div className="lg:col-span-2">
-            <NotificationCard key={data.telegram_chat_id ?? ""} profile={data} onSaved={reload} />
+        <div className="flex flex-col gap-6">
+          {!data.email_verified && <VerifyEmailBanner email={data.email} />}
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            {/* key: form diinisialisasi ulang dari data terbaru setelah disimpan. */}
+            <ProfileCard
+              key={`${data.business_name}|${data.email}`}
+              profile={data}
+              onSaved={reload}
+            />
+            <PasswordCard />
+            <div className="lg:col-span-2">
+              <NotificationCard key={data.telegram_chat_id ?? ""} profile={data} onSaved={reload} />
+            </div>
           </div>
         </div>
       ) : null}
@@ -182,7 +187,14 @@ function ProfileCard({ profile, onSaved }: { profile: AccountProfile; onSaved: (
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="email">Email</Label>
+            {profile.email_verified && !emailChanged && (
+              <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                Terverifikasi
+              </Badge>
+            )}
+          </div>
           <Input
             id="email"
             type="email"
@@ -519,5 +531,52 @@ function NotificationCard({ profile, onSaved }: { profile: AccountProfile; onSav
         </AlertDialogContent>
       </AlertDialog>
     </SettingsCard>
+  );
+}
+
+/** Pengingat, bukan gerbang -- account tetap bisa dipakai penuh sambil ini tampil. */
+function VerifyEmailBanner({ email }: { email: string }) {
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function onResend() {
+    setSending(true);
+    try {
+      const res = await resendVerificationEmail();
+      if (res.already_verified) {
+        toast.success("Email sudah terverifikasi.");
+      } else {
+        setSent(true);
+        toast.success("Email verifikasi dikirim.");
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "not_available") {
+        toast.error("Verifikasi email belum tersedia untuk saat ini.");
+      } else if (err instanceof ApiError && err.code === "too_many_attempts") {
+        toast.error("Tunggu sebentar sebelum meminta email verifikasi lagi.");
+      } else {
+        toast.error("Gagal mengirim email verifikasi.");
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="flex items-start gap-3">
+        <MailWarning className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="text-sm">
+          <p className="font-medium text-amber-900 dark:text-amber-200">Email belum diverifikasi</p>
+          <p className="text-amber-800/80 dark:text-amber-300/80">
+            Pastikan <span className="font-medium">{email}</span> benar supaya pengingat dan link
+            reset password sampai ke tempat yang tepat.
+          </p>
+        </div>
+      </div>
+      <Button size="sm" variant="outline" onClick={onResend} disabled={sending || sent}>
+        {sending ? "Mengirim..." : sent ? "Terkirim" : "Kirim email verifikasi"}
+      </Button>
+    </div>
   );
 }

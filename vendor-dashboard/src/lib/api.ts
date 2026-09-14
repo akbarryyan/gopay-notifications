@@ -94,7 +94,9 @@ export function createAccount(input: {
 }
 
 export async function getAccount(id: string): Promise<Account> {
-  const res = await apiFetch<{ account: Account }>(`/api/v1/vendor/accounts/${encodeURIComponent(id)}`);
+  const res = await apiFetch<{ account: Account }>(
+    `/api/v1/vendor/accounts/${encodeURIComponent(id)}`,
+  );
   return res.account;
 }
 
@@ -118,6 +120,18 @@ export function suspendAccount(id: string): Promise<{ success: true }> {
 
 export function revokeAccount(id: string): Promise<{ success: true }> {
   return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/revoke`, { method: "POST" });
+}
+
+/**
+ * Mengirim link reset password ke email account -- dipakai untuk membantu
+ * customer yang terkunci (lupa password) tanpa vendor perlu tahu atau
+ * mengganti passwordnya sendiri. Butuh SMTP terisi di Settings; gagal
+ * dengan "not_available" kalau belum.
+ */
+export function sendPasswordReset(id: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(id)}/send-password-reset`, {
+    method: "POST",
+  });
 }
 
 // --- Audit log ---------------------------------------------------------------
@@ -290,7 +304,9 @@ export async function getTransactions(
   if (filter.status) params.set("status", filter.status);
   if (filter.from) params.set("from", filter.from);
   if (filter.to) params.set("to", filter.to);
-  const res = await apiFetch<{ invoices: VendorInvoice[] }>(`/api/v1/vendor/transactions?${params}`);
+  const res = await apiFetch<{ invoices: VendorInvoice[] }>(
+    `/api/v1/vendor/transactions?${params}`,
+  );
   return res.invoices;
 }
 

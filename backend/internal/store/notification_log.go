@@ -14,8 +14,9 @@ const (
 	NotificationKindTest           = "test"
 	// NotificationKindPasswordReset: email berisi link reset. Isi email
 	// (yang memuat token) tidak pernah dicatat -- cuma subjeknya.
-	NotificationKindPasswordReset   = "password_reset"
-	NotificationKindPasswordChanged = "password_changed"
+	NotificationKindPasswordReset     = "password_reset"
+	NotificationKindPasswordChanged   = "password_changed"
+	NotificationKindEmailVerification = "email_verification"
 )
 
 // Status di notification_log.status.

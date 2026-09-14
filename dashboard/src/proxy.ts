@@ -15,7 +15,14 @@ import type { NextRequest } from "next/server";
  * "/forgot-password" dan "/reset-password": orang yang lupa password
  * memang tidak punya sesi.
  */
-const PUBLIC_PATHS = new Set(["/", "/register", "/login", "/forgot-password", "/reset-password"]);
+const PUBLIC_PATHS = new Set([
+  "/",
+  "/register",
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+]);
 
 export function proxy(request: NextRequest) {
   const hasSession = request.cookies.has("admin_session");

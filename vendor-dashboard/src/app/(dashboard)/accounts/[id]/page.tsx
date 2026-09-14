@@ -2,7 +2,7 @@
 
 import { use, useCallback, useState } from "react";
 import Link from "next/link";
-import { RotateCw, Smartphone } from "lucide-react";
+import { KeyRound, RotateCw, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,11 +30,13 @@ import {
 import toast from "react-hot-toast";
 import { DeviceStatusBadge } from "@/components/dashboard/device-status-badge";
 import {
+  ApiError,
   changeAccountPlan,
   getAccount,
   getAccountDevices,
   renewAccount,
   revokeAccount,
+  sendPasswordReset,
   suspendAccount,
   type AccountPlan,
 } from "@/lib/api";
@@ -57,6 +59,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   const [newPlan, setNewPlan] = useState<AccountPlan>("Starter");
   const [pendingSuspend, setPendingSuspend] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState(false);
+  const [pendingPasswordReset, setPendingPasswordReset] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onRenew() {
@@ -117,6 +121,27 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function onSendPasswordReset() {
+    setSendingReset(true);
+    try {
+      await sendPasswordReset(id);
+      toast.success("Link reset password dikirim ke email customer.");
+      setPendingPasswordReset(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "not_available") {
+        toast.error("Belum bisa mengirim -- isi SMTP di Settings dulu.");
+      } else if (err instanceof ApiError && err.code === "too_many_attempts") {
+        toast.error("Link baru saja dikirim, tunggu beberapa menit sebelum mengirim lagi.");
+      } else if (err instanceof ApiError && err.code === "account_revoked") {
+        toast.error("Account ini sudah dicabut.");
+      } else {
+        toast.error("Gagal mengirim link reset password.");
+      }
+    } finally {
+      setSendingReset(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -163,6 +188,10 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                 }}
               >
                 Ubah Plan
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPendingPasswordReset(true)}>
+                <KeyRound className="mr-1.5 size-3.5" />
+                Kirim link reset password
               </Button>
               <Button size="sm" variant="outline" onClick={() => setPendingSuspend(true)}>
                 Suspend
@@ -269,8 +298,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
           <AlertDialogHeader>
             <AlertDialogTitle>Ubah plan</AlertDialogTitle>
             <AlertDialogDescription>
-              Kuota device menyesuaikan otomatis ke plan baru. Tidak mengubah tanggal
-              kedaluwarsa atau status akun.
+              Kuota device menyesuaikan otomatis ke plan baru. Tidak mengubah tanggal kedaluwarsa
+              atau status akun.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex flex-col gap-2 py-2">
@@ -297,13 +326,35 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={pendingPasswordReset}
+        onOpenChange={(open) => !open && setPendingPasswordReset(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kirim link reset password?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Link untuk membuat password baru dikirim ke{" "}
+              <span className="font-medium text-foreground">{data?.email}</span>, berlaku 30 menit.
+              Password saat ini tidak berubah sampai customer membukanya.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendingReset}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={onSendPasswordReset} disabled={sendingReset}>
+              {sendingReset ? "Mengirim..." : "Kirim"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={pendingSuspend} onOpenChange={(open) => !open && setPendingSuspend(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Suspend akun?</AlertDialogTitle>
             <AlertDialogDescription>
-              Seluruh endpoint device/admin/API key customer ini langsung ditolak
-              402 sejak permintaan berikutnya. Bisa diaktifkan lagi kapan saja.
+              Seluruh endpoint device/admin/API key customer ini langsung ditolak 402 sejak
+              permintaan berikutnya. Bisa diaktifkan lagi kapan saja.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -320,8 +371,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
           <AlertDialogHeader>
             <AlertDialogTitle>Cabut akun?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tidak bisa dibatalkan — buat akun baru kalau customer ini perlu
-              diaktifkan lagi.
+              Tidak bisa dibatalkan — buat akun baru kalau customer ini perlu diaktifkan lagi.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

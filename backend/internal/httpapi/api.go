@@ -114,6 +114,9 @@ func (a *API) Handler() http.Handler {
 	// account_password.go.
 	mux.HandleFunc("POST /api/v1/password/forgot", a.handleForgotPassword)
 	mux.HandleFunc("POST /api/v1/password/reset", a.handleResetPassword)
+	// Verifikasi email: publik juga, dengan alasan yang sama -- link dibuka
+	// dari email, bukan dari sesi dashboard yang sedang aktif.
+	mux.HandleFunc("POST /api/v1/email/verify", a.handleVerifyEmail)
 	mux.Handle("GET /api/v1/admin/license", a.requireAdmin(http.HandlerFunc(a.handleAdminLicense)))
 	// Settings akun: SENGAJA tanpa requireActiveAccount, sama seperti
 	// /license -- account yang kedaluwarsa tetap harus bisa mengganti
@@ -121,6 +124,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/admin/account", a.requireAdmin(http.HandlerFunc(a.handleAdminGetAccount)))
 	mux.Handle("PATCH /api/v1/admin/account", a.requireAdmin(http.HandlerFunc(a.handleAdminUpdateAccount)))
 	mux.Handle("POST /api/v1/admin/account/password", a.requireAdmin(http.HandlerFunc(a.handleAdminChangePassword)))
+	mux.Handle("POST /api/v1/admin/account/email/resend", a.requireAdmin(http.HandlerFunc(a.handleAdminResendVerificationEmail)))
 	mux.Handle("POST /api/v1/admin/account/telegram", a.requireAdmin(http.HandlerFunc(a.handleAdminSetTelegram)))
 	mux.Handle("POST /api/v1/admin/account/telegram/link", a.requireAdmin(http.HandlerFunc(a.handleAdminTelegramLink)))
 	mux.Handle("GET /api/v1/admin/overview",
@@ -182,6 +186,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/vendor/webhook-deliveries", a.requireVendor(http.HandlerFunc(a.handleVendorWebhookDeliveries)))
 	mux.Handle("GET /api/v1/vendor/notification-log", a.requireVendor(http.HandlerFunc(a.handleVendorNotificationLog)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/renew", a.requireVendor(http.HandlerFunc(a.handleVendorRenewAccount)))
+	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/send-password-reset", a.requireVendor(http.HandlerFunc(a.handleVendorSendPasswordReset)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/plan", a.requireVendor(http.HandlerFunc(a.handleVendorChangePlan)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/revoke", a.requireVendor(http.HandlerFunc(a.handleVendorRevokeAccount)))

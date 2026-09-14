@@ -10,6 +10,7 @@ import {
   Settings,
   ScrollText,
   AlertTriangle,
+  BookOpen,
 } from "lucide-react";
 
 export interface NavItem {
@@ -44,6 +45,7 @@ export const GATEWAY_ITEMS: NavItem[] = [
   { label: "API Keys", href: "/api-keys", icon: KeyRound },
   { label: "Webhooks", href: "/webhooks", icon: Webhook },
   { label: "Exceptions", href: "/exceptions", icon: AlertTriangle },
+  { label: "API Docs", href: "/api-docs", icon: BookOpen },
 ];
 
 export const SYSTEM_ITEMS: NavItem[] = [

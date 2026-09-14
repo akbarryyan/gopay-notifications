@@ -461,6 +461,8 @@ export interface AccountProfile {
   telegram_chat_id: string | null;
   /** false berarti vendor belum mengaktifkan bot Telegram. */
   telegram_available: boolean;
+  /** false = pengingat, bukan gerbang -- account tetap berfungsi penuh. */
+  email_verified: boolean;
 }
 
 export async function getAccountProfile(): Promise<AccountProfile> {
@@ -479,6 +481,17 @@ export async function updateAccountProfile(input: {
     body: JSON.stringify(input),
   });
   return res.account;
+}
+
+export function verifyEmail(token: string): Promise<{ success: true; business_name: string }> {
+  return apiFetch("/api/v1/email/verify", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function resendVerificationEmail(): Promise<{ success: true; already_verified?: boolean }> {
+  return apiFetch("/api/v1/admin/account/email/resend", { method: "POST" });
 }
 
 /** Sesi lain ikut dikeluarkan; sesi yang sedang dipakai diperbarui backend. */

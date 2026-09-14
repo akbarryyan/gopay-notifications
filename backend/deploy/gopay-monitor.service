@@ -1,0 +1,19 @@
+[Unit]
+Description=Pemantau kesehatan server Payment Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Root: perlu membaca /var/backups/gopay (milik postgres, mode 700).
+User=root
+EnvironmentFile=-/etc/default/gopay-monitor
+ExecStart=/usr/local/bin/gopay-monitor
+StateDirectory=gopay-monitor
+Nice=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gopay-monitor

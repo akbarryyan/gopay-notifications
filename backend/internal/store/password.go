@@ -154,9 +154,15 @@ func (s *Store) ChangeAccountPassword(ctx context.Context, accountID, newPasswor
 
 // UpdateAccountProfile mengubah nama bisnis dan email yang diisi customer
 // sendiri di Settings.
+// UpdateAccountProfile mengubah nama bisnis dan email. Mengganti ke email
+// yang BEDA dari yang tersimpan otomatis mengosongkan email_verified_at --
+// alamat baru itu belum pernah dibuktikan bisa menerima email dari kami.
 func (s *Store) UpdateAccountProfile(ctx context.Context, accountID, businessName, email string) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE accounts SET business_name = $2, email = $3, updated_at = now() WHERE id = $1`,
+		`UPDATE accounts
+		 SET business_name = $2, email = $3, updated_at = now(),
+		     email_verified_at = CASE WHEN email = $3 THEN email_verified_at ELSE NULL END
+		 WHERE id = $1`,
 		accountID, businessName, email)
 	if isAccountUniqueViolation(err, "accounts_email_key") {
 		return ErrAccountEmailTaken

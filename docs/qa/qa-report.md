@@ -880,3 +880,72 @@ dilarang memulai obrolan dengan orang yang belum menekan Start.
 ### Keseluruhan suite
 
 `make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (25.9s), `notify`, `reminder`, `secretbox`, `store` (13.1s), `telegram`, `telegrambot`.
+
+---
+
+## 20. Monitoring server + halaman API Docs
+
+Permintaan langsung Akbar lewat chat.
+
+**Ringkasan:** `PASS` 5 · `FAIL` 0 · `NEEDS-DEVICE` 4 · `PENDING` 0
+
+### 20a. Monitoring dan peringatan
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `gopay-monitor.sh` hanya mengabari saat status berubah: masalah baru dikabari, masalah yang sama tidak dikirim ulang, diulang setelah `REPEAT_HOURS`, pulih dikabari dengan pesan masalah sebelumnya | `PASS` | Uji lokal `DRY_RUN=1` dengan service fiktif, URL mati (`http://127.0.0.1:1/`), dan backup berumur 30 jam. Putaran 1: `🔴` untuk ketiganya. Putaran 2: `monitor: tidak ada perubahan (3 masalah aktif)`. Setelah pulih: `✅ Sudah pulih setelah 0 menit. Sebelumnya: Backup terakhir sudah 30 jam lalu`. Setelah waktu kirim di state dimundurkan: `🟠 Masih bermasalah sejak 0 jam lalu: ...` |
+| Tanpa token Telegram, pesan tetap ditulis ke log dan skrip tidak gagal | `PASS` | `monitor: TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID belum diisi, pesan tidak dikirim:` diikuti isi pesan, `exit=0` |
+| Pesan sungguhan sampai ke Telegram vendor dari VPS, dan timer berjalan tiap 5 menit | `NEEDS-DEVICE` | Langkah A.4–A.5 di `backend/deploy/README.md` §"Monitoring dan peringatan" |
+| UptimeRobot mengabari saat layanan mati dari luar | `NEEDS-DEVICE` | Langkah B.4 (stop `gopay-dashboard`, tunggu kabar down lalu up) |
+
+### 20b. Halaman API Docs (`/api-docs`)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Isi dicocokkan dengan kode: header `Authorization: Bearer sk_…`, body `external_ref`/`amount`, `201` baru vs `200` idempoten, `409 external_ref_conflict`, `503 allocation_full`, nominal unik +1..999, masa berlaku 15 menit, `external_ref` lama tetap mengembalikan invoice EXPIRED, header `X-Webhook-Event`/`X-Webhook-Signature`, HMAC-SHA256 hex dengan secret `whsec_…` apa adanya, timeout 10 detik, 5 percobaan dengan jeda 1/2/4/8 menit, `invoice.paid` bisa menyusul `invoice.expired` lewat pencocokan manual Exceptions | `PASS` | Dibaca langsung dari `invoices.go`, `apikey_auth.go`, `webhook_send.go`, `store/invoice.go` (`invoiceExpiryDuration = 15m`, `invoiceOffsetMax = 999`, `GetInvoiceByExternalRef` tanpa filter status), `store/webhook.go` (`webhookMaxAttempts = 5`, `webhookBackoff`), `store/exception.go` (`ManualMatchEvent` menerima `PENDING`/`EXPIRED`) |
+| Halaman ter-build dan muncul di sidebar Gateway | `PASS` | `npx tsc --noEmit`, `npx eslint .` bersih; `npx next build` → `○ /api-docs` |
+| Rumus tanda tangan di contoh Node.js, PHP, dan `openssl` identik dengan `signWebhookBody` backend | `PASS` | Body dan secret yang sama, dihitung empat cara: `go` (salinan persis `signWebhookBody`), `node` (`createHmac`), `openssl dgst -hmac`, `php hash_hmac` — keempatnya `49b58c4b221761683e8ffbb8d5118c3f66df55299f62e62204e44ec460026fb7` |
+| Contoh verifikasi tanda tangan berjalan end-to-end di server merchant sungguhan | `NEEDS-DEVICE` | Butuh server merchant uji: daftarkan webhook, tekan **Test** di halaman Webhooks, pastikan contoh kode menjawab 200; ubah secret, pastikan menjawab 401 |
+| Tampilan halaman di browser (tab kode, tombol salin, daftar isi) | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev` |
+
+---
+
+## 21. Validasi + verifikasi email saat signup, dan "Kirim link reset password" di Vendor Dashboard
+
+Permintaan langsung Akbar lewat chat.
+
+**Ringkasan:** `PASS` 15 · `FAIL` 0 · `NEEDS-DEVICE` 2 · `PENDING` 0
+
+### 21a. Validasi format email saat signup
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `/register` menolak format email salah sebelum submit (client-side) dan backend menolaknya juga (authoritative) | `PASS` | `TestSignupEmailFormatSalahDitolak` (4 kasus: tanpa `@`, tanpa TLD, lokal kosong, mengandung spasi) — lulus; `npx tsc`/`eslint`/`next build` bersih untuk perubahan `/register` |
+| Validasi yang sama dipakai ulang di ganti email Settings (`isEmailAddress`, sudah ada sejak §18) | `PASS` | Tidak ada regresi — `TestAdminAccountProfile` (§18) masih lulus |
+
+### 21b. Verifikasi email
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Signup mengirim email verifikasi otomatis (di background), tercatat di `notification_log` kind `email_verification` | `PASS` | `TestSignupMengirimEmailVerifikasi` — lulus |
+| Token sekali pakai, berlaku 24 jam, permintaan baru membatalkan token lama | `PASS` | `TestEmailVerificationTokenSekaliPakai`, `TestEmailVerificationTokenKedaluwarsaDanDigantikan` — lulus |
+| `POST /api/v1/email/verify`: token valid menandai terverifikasi, token dipakai ulang atau tidak dikenal → `400 invalid_token`, endpoint publik (tidak butuh sesi) | `PASS` | `TestVerifyEmailSekaliPakai` — lulus |
+| `POST /api/v1/admin/account/email/resend`: terkirim, dibatasi cooldown 2 menit, menjawab `already_verified` bila sudah terverifikasi, wajib sesi | `PASS` | `TestResendVerificationEmail`, `TestResendVerificationEmailSudahTerverifikasi` — lulus |
+| Ganti ke email BEDA dari Settings mengosongkan status terverifikasi dan mengirim link verifikasi baru; ganti ke email SAMA tidak mengubah apa pun | `PASS` | `TestUpdateAccountProfileMenggantiEmailMengosongkanVerifikasi`, `TestGantiEmailMengirimVerifikasiBaru` — lulus |
+| Halaman `/verify-email` (token dari query string, bukan fragment — verifikasi bukan kunci akun) dan banner "Email belum diverifikasi" + tombol kirim ulang di Settings | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih; route `/verify-email` ter-generate |
+| Migrasi `00015` bisa di-rollback dan diterapkan ulang | `PASS` | `goose down` lalu `goose up`: `OK 00015_email_verification.sql` dua kali, `successfully migrated database to version: 15` |
+| Email verifikasi sungguhan sampai, link membuka halaman dan menandai terverifikasi | `NEEDS-DEVICE` | Butuh SMTP asli + `DASHBOARD_URL`. Langkah: daftar akun baru → buka email verifikasi → klik link → halaman `/verify-email` menampilkan "Email terverifikasi" |
+
+### 21c. Vendor: "Kirim link reset password" di detail account
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Terkirim ke email account, tercatat di `notification_log` sebagai `password_reset`, dan ke `audit_log` sebagai `PASSWORD_RESET_SENT` oleh vendor | `PASS` | `TestVendorSendPasswordReset` — lulus |
+| Dibatasi cooldown yang sama dengan reset password publik (2 menit) | `PASS` | `TestVendorSendPasswordReset` (bagian cooldown) — lulus |
+| `503 not_available` tanpa `DASHBOARD_URL`/SMTP; `404` account tidak ada; `409 account_revoked` untuk account yang sudah dicabut; wajib sesi vendor | `PASS` | `TestVendorSendPasswordResetBelumTersedia`, `TestVendorSendPasswordResetAccountTidakDitemukanAtauDicabut`, `TestVendorSendPasswordResetButuhSesiVendor` — lulus |
+| Tombol + modal konfirmasi di halaman detail account | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih untuk `vendor-dashboard/` |
+| Email reset sungguhan sampai dan link berfungsi | `NEEDS-DEVICE` | Sama alur reset password yang sudah diverifikasi di §18 (tanda tangan/logika sama, cuma pemicunya beda) — butuh SMTP asli untuk membuktikan pengiriman vendor secara spesifik |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (29.2s), `notify`, `reminder`, `secretbox`, `store` (14.5s), `telegram`, `telegrambot`.

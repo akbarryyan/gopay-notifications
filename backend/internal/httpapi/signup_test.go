@@ -118,3 +118,17 @@ func TestSignupTidakButuhCredentialApaPun(t *testing.T) {
 		t.Fatalf("status = %d, mau 200 tanpa credential apa pun (body=%s)", rec.Code, rec.Body.String())
 	}
 }
+
+func TestSignupEmailFormatSalahDitolak(t *testing.T) {
+	h := newAPIWithAdmin(t)
+
+	for _, email := range []string{"bukan-email", "tanpa-tld@domain", "@kosong.test", "spasi @domain.com"} {
+		rec := signupReq(t, h, "Toko Baru", email, "toko_"+email[:1], "password123")
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("email %q: status = %d, mau 400 (body=%s)", email, rec.Code, rec.Body.String())
+		}
+		if got := errorCode(t, rec); got != "invalid_payload" {
+			t.Fatalf("email %q: error = %q, mau invalid_payload", email, got)
+		}
+	}
+}

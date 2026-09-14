@@ -1,0 +1,10 @@
+[Unit]
+Description=Jalankan pemantau kesehatan server setiap 5 menit
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
