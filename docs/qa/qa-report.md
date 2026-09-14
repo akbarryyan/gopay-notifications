@@ -1085,3 +1085,46 @@ memakainya.
 ### Keseluruhan suite
 
 `make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (32.4s), `notify`, `reminder`, `secretbox`, `store` (15.5s), `telegram`, `telegrambot`.
+
+---
+
+## 26. Kelola device + cabut API key dari Vendor Dashboard (halaman detail account)
+
+Permintaan langsung Akbar (setelah menyebut Vendor Dashboard terasa
+minim fitur untuk "super admin"): tambah/hapus device dan cabut API key
+customer langsung dari Vendor Dashboard, tanpa SSH `cmd/devicetool` atau
+minta customer login sendiri. Endpoint baru reuse penuh helper/store yang
+sudah ada (`randomDeviceID`, `toAdminDeviceJSON`, `store.ListAPIKeys`,
+`store.RevokeAPIKey` — dua yang terakhir sudah di-scope per account sejak
+awal, tidak perlu store method baru). Vendor tidak pernah bisa membuat
+API key baru untuk customer (cuma lihat metadata + cabut) dan tidak
+pernah melihat key mentah/hash. Aksi dicatat ke `LogAudit` (Audit Log
+vendor), bukan `account_activity_log` customer — konsisten dengan
+renew/suspend/plan/send-password-reset yang sudah ada.
+
+**Ringkasan:** `PASS` 10 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+
+### 26a. Backend
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `POST /vendor/accounts/{id}/devices` membuat device, menegakkan kuota `max_devices` plan (409 `device_limit_reached` saat penuh), butuh sesi vendor | `PASS` | `TestVendorCreateDevice`, `TestVendorCreateDeviceKuotaPenuh`, `TestVendorCreateDeviceButuhSesiVendor` — lulus |
+| `DELETE /vendor/accounts/{id}/devices/{deviceID}` menghapus device tanpa riwayat; menolak 409 `device_has_events` untuk device yang sudah punya event | `PASS` | `TestVendorDeleteDevice`, `TestVendorDeleteDeviceDenganRiwayatDitolak` — lulus |
+| `PATCH /vendor/accounts/{id}/devices/{deviceID}` mengaktifkan/menonaktifkan device; 404 untuk device tak dikenal | `PASS` | `TestVendorSetDeviceEnabled`, `TestVendorSetDeviceEnabledDeviceTakDikenal` — lulus |
+| `GET /vendor/accounts/{id}/devices` (sudah ada) tetap lulus setelah refactor helper `createVendorTestAccount` | `PASS` | `TestVendorListDevices`, `TestVendorListDevicesButuhSesiVendor` — lulus |
+| `GET /vendor/accounts/{id}/api-keys` mengembalikan metadata key (nama, dibuat, dicabut) TANPA key mentah/hash sama sekali; butuh sesi vendor | `PASS` | `TestVendorListAPIKeys` (assert `hash-dummy` tidak muncul di body), `TestVendorAPIKeysButuhSesiVendor` — lulus |
+| `DELETE /vendor/accounts/{id}/api-keys/{keyID}` mencabut key, idempotent, 404 untuk key tak dikenal | `PASS` | `TestVendorRevokeAPIKey`, `TestVendorRevokeAPIKeyIdempotent`, `TestVendorRevokeAPIKeyTakDikenal` — lulus |
+| `go build`/`go vet`/`gofmt -l .` bersih | `PASS` | Dijalankan langsung, keluaran kosong |
+| `make test` (seluruh suite backend) | `PASS` | `ok` untuk seluruh paket termasuk `httpapi` (40.1s) dan `store` (18.8s) |
+
+### 26b. Vendor Dashboard
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Halaman detail account: tombol "Tambah Device" (dialog nama → reveal device_id/secret sekali, copy-to-clipboard), tombol Aktifkan/Nonaktifkan/Hapus per baris, card API Keys baru (badge Aktif/Dicabut, tombol Cabut dengan konfirmasi) | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih setelah `rm -rf .next` |
+| Fungsi `lib/api.ts` baru (`createAccountDevice`, `setAccountDeviceEnabled`, `deleteAccountDevice`, `getAccountAPIKeys`, `revokeAccountAPIKey`) tertipe benar, dipakai halaman detail | `PASS` | Bagian dari build/tsc di atas — tidak ada `any` yang lolos |
+| Uji end-to-end sungguhan di browser (tambah device baru untuk account nyata, cabut API key, lihat device dengan riwayat event ditolak dihapus) | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev` |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (40.1s), `notify`, `reminder`, `secretbox`, `store` (18.8s), `telegram`, `telegrambot`.

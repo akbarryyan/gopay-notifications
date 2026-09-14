@@ -179,7 +179,7 @@ export async function getOverview(): Promise<VendorOverview> {
   return res.overview;
 }
 
-// --- Devices (per account, read-only untuk vendor) ---------------------------
+// --- Devices (per account) ----------------------------------------------------
 
 export type DeviceStatus = "PENDING" | "ONLINE" | "OFFLINE" | "DISABLED";
 
@@ -199,6 +199,77 @@ export async function getAccountDevices(accountId: string): Promise<Device[]> {
     `/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/devices`,
   );
   return res.devices;
+}
+
+/**
+ * Membuat device baru untuk account ini -- dipakai saat customer minta
+ * tolong pasang HP baru lewat WA/telepon, tanpa vendor perlu SSH ke server
+ * (`cmd/devicetool`). device_secret cuma ditampilkan sekali di response
+ * ini, sama seperti API key -- tidak bisa diambil ulang, harus diteruskan
+ * ke customer lewat kanal vendor sendiri.
+ */
+export function createAccountDevice(
+  accountId: string,
+  name: string,
+): Promise<{ success: true; device_id: string; device_secret: string }> {
+  return apiFetch(`/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/devices`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+/**
+ * Device yang sudah punya riwayat event tidak bisa dihapus (lihat
+ * deleteAccountDevice) -- nonaktifkan lewat sini adalah satu-satunya cara
+ * "mencabut" device semacam itu (HP hilang/rusak/diganti).
+ */
+export function setAccountDeviceEnabled(
+  accountId: string,
+  deviceId: string,
+  enabled: boolean,
+): Promise<{ success: true }> {
+  return apiFetch(
+    `/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/devices/${encodeURIComponent(deviceId)}`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
+  );
+}
+
+export function deleteAccountDevice(
+  accountId: string,
+  deviceId: string,
+): Promise<{ success: true }> {
+  return apiFetch(
+    `/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/devices/${encodeURIComponent(deviceId)}`,
+    { method: "DELETE" },
+  );
+}
+
+// --- API keys (per account) ---------------------------------------------------
+
+export interface AccountApiKey {
+  id: string;
+  name: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+/** key mentah/hash tidak pernah ada di response ini -- lihat catatan di store.CreateAPIKey. */
+export async function getAccountAPIKeys(accountId: string): Promise<AccountApiKey[]> {
+  const res = await apiFetch<{ api_keys: AccountApiKey[] }>(
+    `/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/api-keys`,
+  );
+  return res.api_keys;
+}
+
+/** Idempotent -- mencabut key yang sudah dicabut tetap sukses. */
+export function revokeAccountAPIKey(
+  accountId: string,
+  keyId: string,
+): Promise<{ success: true }> {
+  return apiFetch(
+    `/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/api-keys/${encodeURIComponent(keyId)}`,
+    { method: "DELETE" },
+  );
 }
 
 // --- Settings (vendor sendiri) ------------------------------------------------

@@ -29,3 +29,6 @@ tmp/
 # direktori yang cocok — berkas build.gradle tetap ter-track.
 /mobile/modules/*/android/build/
 /mobile/modules/*/android/.gradle/
+
+# payment gateway aggregator
+/whuzpay-pg

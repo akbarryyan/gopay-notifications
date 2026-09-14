@@ -2,7 +2,7 @@
 
 import { use, useCallback, useState } from "react";
 import Link from "next/link";
-import { KeyRound, RotateCw, Smartphone } from "lucide-react";
+import { Check, Copy, KeyRound, Plus, RotateCw, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,13 +32,20 @@ import { DeviceStatusBadge } from "@/components/dashboard/device-status-badge";
 import {
   ApiError,
   changeAccountPlan,
+  createAccountDevice,
+  deleteAccountDevice,
   getAccount,
+  getAccountAPIKeys,
   getAccountDevices,
   getPlans,
   renewAccount,
   revokeAccount,
+  revokeAccountAPIKey,
   sendPasswordReset,
+  setAccountDeviceEnabled,
   suspendAccount,
+  type AccountApiKey,
+  type Device,
 } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly, formatDateTime } from "@/lib/format";
@@ -50,6 +57,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   const { data, loading, error, reload } = useApiData(fetcher);
   const devicesFetcher = useCallback(() => getAccountDevices(id), [id]);
   const devices = useApiData(devicesFetcher);
+  const apiKeysFetcher = useCallback(() => getAccountAPIKeys(id), [id]);
+  const apiKeys = useApiData(apiKeysFetcher);
   const plans = useApiData(getPlans);
 
   const [renewing, setRenewing] = useState(false);
@@ -67,6 +76,18 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   const [pendingPasswordReset, setPendingPasswordReset] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const [creatingDevice, setCreatingDevice] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [createdDevice, setCreatedDevice] = useState<{
+    name: string;
+    device_id: string;
+    device_secret: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<"id" | "secret" | null>(null);
+  const [pendingToggleDevice, setPendingToggleDevice] = useState<Device | null>(null);
+  const [pendingDeleteDevice, setPendingDeleteDevice] = useState<Device | null>(null);
+  const [pendingRevokeKey, setPendingRevokeKey] = useState<AccountApiKey | null>(null);
 
   async function onRenew() {
     if (!newExpiresAt) return;
@@ -144,6 +165,94 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
       }
     } finally {
       setSendingReset(false);
+    }
+  }
+
+  async function onCreateDevice() {
+    if (!newDeviceName.trim()) return;
+    setBusy(true);
+    try {
+      const created = await createAccountDevice(id, newDeviceName.trim());
+      toast.success(`Device "${newDeviceName.trim()}" dibuat.`);
+      setCreatedDevice({
+        name: newDeviceName.trim(),
+        device_id: created.device_id,
+        device_secret: created.device_secret,
+      });
+      setCreatingDevice(false);
+      setNewDeviceName("");
+      devices.reload();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "device_limit_reached") {
+        toast.error(err.message);
+      } else {
+        toast.error("Gagal membuat device.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyDeviceField(field: "id" | "secret", value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      toast.error("Gagal menyalin -- salin manual dari kotak di atas.");
+    }
+  }
+
+  async function confirmToggleDevice() {
+    if (!pendingToggleDevice) return;
+    setBusy(true);
+    try {
+      await setAccountDeviceEnabled(id, pendingToggleDevice.device_id, !pendingToggleDevice.enabled);
+      toast.success(
+        pendingToggleDevice.enabled
+          ? `${pendingToggleDevice.name} dinonaktifkan.`
+          : `${pendingToggleDevice.name} diaktifkan kembali.`,
+      );
+      devices.reload();
+    } catch {
+      toast.error("Gagal mengubah status device.");
+    } finally {
+      setBusy(false);
+      setPendingToggleDevice(null);
+    }
+  }
+
+  async function confirmDeleteDevice() {
+    if (!pendingDeleteDevice) return;
+    setBusy(true);
+    try {
+      await deleteAccountDevice(id, pendingDeleteDevice.device_id);
+      toast.success(`${pendingDeleteDevice.name} dihapus.`);
+      devices.reload();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "device_has_events") {
+        toast.error("Device ini sudah punya riwayat event -- nonaktifkan saja, tidak bisa dihapus.");
+      } else {
+        toast.error("Gagal menghapus device.");
+      }
+    } finally {
+      setBusy(false);
+      setPendingDeleteDevice(null);
+    }
+  }
+
+  async function confirmRevokeKey() {
+    if (!pendingRevokeKey) return;
+    setBusy(true);
+    try {
+      await revokeAccountAPIKey(id, pendingRevokeKey.id);
+      toast.success(`API key "${pendingRevokeKey.name}" dicabut.`);
+      apiKeys.reload();
+    } catch {
+      toast.error("Gagal mencabut API key.");
+    } finally {
+      setBusy(false);
+      setPendingRevokeKey(null);
     }
   }
 
@@ -229,10 +338,17 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Devices</h2>
-          <p className="text-xs text-muted-foreground">
-            Read-only -- customer menambah/menonaktifkan device sendiri lewat dashboard mereka.
-          </p>
+          <div>
+            <h2 className="text-base font-semibold">Devices</h2>
+            <p className="text-xs text-muted-foreground">
+              Bantu customer pasang/lepas HP lewat sini kalau mereka belum sempat lakukan sendiri
+              di dashboard mereka.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setCreatingDevice(true)}>
+            <Plus className="mr-1.5 size-4" />
+            Tambah Device
+          </Button>
         </div>
         {devices.loading ? (
           <Skeleton className="h-14 rounded-xl" />
@@ -247,6 +363,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                   <TableHead>Status</TableHead>
                   <TableHead>Heartbeat terakhir</TableHead>
                   <TableHead>Versi Android</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -261,6 +378,20 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                     </TableCell>
                     <TableCell>{formatDateTime(d.heartbeat_at)}</TableCell>
                     <TableCell>{d.android_version ?? "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant={d.enabled ? "outline" : "default"}
+                          onClick={() => setPendingToggleDevice(d)}
+                        >
+                          {d.enabled ? "Nonaktifkan" : "Aktifkan"}
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => setPendingDeleteDevice(d)}>
+                          Hapus
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -273,6 +404,228 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </div>
+
+      <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">API Keys</h2>
+            <p className="text-xs text-muted-foreground">
+              Cabut kalau customer lapor key-nya bocor atau kepakai website lama. Key baru tetap
+              dibuat customer sendiri lewat dashboard mereka.
+            </p>
+          </div>
+        </div>
+        {apiKeys.loading ? (
+          <Skeleton className="h-14 rounded-xl" />
+        ) : apiKeys.error ? (
+          <p className="text-sm text-destructive">{apiKeys.error}</p>
+        ) : apiKeys.data && apiKeys.data.length > 0 ? (
+          <div className="overflow-x-auto rounded-xl border border-border/60">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Dibuat</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apiKeys.data.map((k) => (
+                  <TableRow key={k.id}>
+                    <TableCell>
+                      <div className="font-medium">{k.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{k.id}</div>
+                    </TableCell>
+                    <TableCell>{formatDateTime(k.created_at)}</TableCell>
+                    <TableCell>
+                      {k.revoked_at ? (
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                          Dicabut {formatDateTime(k.revoked_at)}
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          Aktif
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!!k.revoked_at}
+                        onClick={() => setPendingRevokeKey(k)}
+                      >
+                        Cabut
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-6 text-center">
+            <KeyRound className="mx-auto mb-2 size-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Belum ada API key dibuat.</p>
+          </div>
+        )}
+      </div>
+
+      <AlertDialog open={creatingDevice} onOpenChange={(open) => !open && setCreatingDevice(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tambah device baru</AlertDialogTitle>
+            <AlertDialogDescription>
+              Beri nama supaya mudah dikenali, mis. &ldquo;HP Kasir Depan&rdquo;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Label htmlFor="device-name">Nama</Label>
+            <Input
+              id="device-name"
+              value={newDeviceName}
+              onChange={(e) => setNewDeviceName(e.target.value)}
+              placeholder="HP Kasir Depan"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={onCreateDevice} disabled={busy || !newDeviceName.trim()}>
+              Buat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Device ID + Secret -- tampil satu kali saja, sama pola API key */}
+      <AlertDialog
+        open={createdDevice !== null}
+        onOpenChange={(open) => !open && setCreatedDevice(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Device &ldquo;{createdDevice?.name}&rdquo; dibuat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Salin lalu teruskan ke customer lewat kanal sendiri (WA/telepon). Secret{" "}
+              <strong>tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Device ID</Label>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-muted px-3 py-2 font-mono text-xs whitespace-nowrap">
+                  {createdDevice?.device_id}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => createdDevice && copyDeviceField("id", createdDevice.device_id)}
+                >
+                  {copiedField === "id" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Device Secret</Label>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-muted px-3 py-2 font-mono text-xs whitespace-nowrap">
+                  {createdDevice?.device_secret}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    createdDevice && copyDeviceField("secret", createdDevice.device_secret)
+                  }
+                >
+                  {copiedField === "secret" ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setCreatedDevice(null)}>
+              Sudah disalin, tutup
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingToggleDevice !== null}
+        onOpenChange={(open) => !open && setPendingToggleDevice(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingToggleDevice?.enabled ? "Nonaktifkan" : "Aktifkan"} device &ldquo;
+              {pendingToggleDevice?.name}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingToggleDevice?.enabled
+                ? "Device berhenti bisa mengirim event sampai diaktifkan lagi. Tidak menghapus riwayatnya."
+                : "Device bisa mengirim event lagi seperti biasa."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmToggleDevice} disabled={busy}>
+              {pendingToggleDevice?.enabled ? "Nonaktifkan" : "Aktifkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingDeleteDevice !== null}
+        onOpenChange={(open) => !open && setPendingDeleteDevice(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus device &ldquo;{pendingDeleteDevice?.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tidak bisa dibatalkan. Device yang sudah punya riwayat event akan ditolak -- nonaktifkan
+              saja kalau begitu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDevice} disabled={busy}>
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingRevokeKey !== null}
+        onOpenChange={(open) => !open && setPendingRevokeKey(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cabut API key &ldquo;{pendingRevokeKey?.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tidak bisa dibatalkan -- website/integrasi customer yang masih memakai key ini langsung
+              ditolak sejak permintaan berikutnya.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRevokeKey} disabled={busy}>
+              Cabut
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={renewing} onOpenChange={(open) => !open && setRenewing(false)}>
         <AlertDialogContent>

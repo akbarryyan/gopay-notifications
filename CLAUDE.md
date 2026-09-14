@@ -671,6 +671,22 @@ Halaman:
   buat account baru + link ke halaman detail (`/accounts/{id}`: renew,
   suspend, revoke). Dropdown Plan diisi dinamis dari `GET /vendor/plans`
   (lihat halaman Plans di bawah), bukan lagi tiga nilai tetap di kode.
+  Halaman detail sekarang juga bisa **kelola device dan API key milik
+  account itu** (2026-09-15, sebelumnya cuma read-only) — tambah/nonaktifkan/
+  hapus device (`POST`/`PATCH`/`DELETE
+  /vendor/accounts/{id}/devices[/{deviceID}]`, reuse
+  `randomDeviceID`/`toAdminDeviceJSON` dari `admin_devices.go`, kuota
+  `max_devices` plan tetap ditegakkan server-side) dan cabut API key
+  (`GET`/`DELETE /vendor/accounts/{id}/api-keys[/{keyID}]`, reuse
+  `store.ListAPIKeys`/`RevokeAPIKey` — keduanya sudah di-scope per account
+  sejak awal, jadi tidak perlu store method baru). Vendor tidak pernah
+  membuat API key baru untuk customer (cuma cabut) dan tidak pernah melihat
+  key mentah/hash-nya — hanya customer sendiri yang generate lewat
+  Customer Dashboard. Sama seperti renew/suspend/plan, aksi ini dicatat ke
+  `LogAudit` (Audit Log vendor), BUKAN ke `account_activity_log` milik
+  customer (`logActivity`) — konsisten dengan seluruh aksi vendor lain di
+  file ini, supaya "Logs" customer tetap murni aktivitas dari sesi mereka
+  sendiri.
 - **Plans** (`/plans`) — kelola paket: nama, kuota device (`max_devices`,
   -1 = unlimited), harga (`price_label`/`price_period`, teks bebas —
   kosong berarti section Harga TIDAK menampilkan baris harga sama sekali,
