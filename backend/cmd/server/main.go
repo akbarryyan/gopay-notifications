@@ -17,6 +17,7 @@ import (
 	"github.com/akbarryyan/gopay-notifications/backend/internal/notify"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/reminder"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/telegrambot"
 )
 
 func main() {
@@ -149,6 +150,12 @@ func main() {
 			}
 		}
 	}()
+
+	// Bot Telegram: membaca /start dari customer yang menekan "Hubungkan
+	// Telegram" di Settings. Diam saja selama token bot belum diisi di
+	// Vendor Dashboard. Long polling, jadi satu token bot hanya boleh
+	// dipakai SATU backend -- backend dev di laptop wajib memakai bot lain.
+	go telegrambot.New(s, cfg.SettingsSecretKey).Run(ctx)
 
 	<-ctx.Done()
 	slog.Info("shutdown dimulai")

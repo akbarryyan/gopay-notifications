@@ -1,0 +1,12 @@
+[Unit]
+Description=Backup database Payment Bridge setiap hari
+
+[Timer]
+# 19:00 UTC = 02:00 WIB, jam paling sepi transaksi.
+OnCalendar=*-*-* 19:00:00 UTC
+# Kalau server sedang mati saat jadwal, backup dijalankan begitu menyala.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

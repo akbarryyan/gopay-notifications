@@ -1,0 +1,19 @@
+[Unit]
+Description=Backup database Payment Bridge (pg_dump)
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+# Opsional: BACKUP_S3_URI, RETENTION_DAYS, BACKUP_DIR, DB_NAME.
+EnvironmentFile=-/etc/default/gopay-backup
+ExecStart=/usr/local/bin/gopay-backup
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true

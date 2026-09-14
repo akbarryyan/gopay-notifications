@@ -271,7 +271,9 @@ export function NotificationSettingsCard() {
             <div>
               <h3 className="text-sm font-medium">Bot Telegram (opsional)</h3>
               <p className="text-xs text-muted-foreground">
-                Token dari @BotFather. Kosong berarti pengingat hanya lewat email.
+                Token dari @BotFather. Kosong berarti pengingat hanya lewat email. Customer
+                menghubungkan Telegram sendiri lewat tombol di Settings dashboard mereka. Satu bot
+                hanya untuk satu server -- backend di laptop (dev) wajib memakai bot lain.
               </p>
             </div>
             <SecretField

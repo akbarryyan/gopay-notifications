@@ -143,6 +143,8 @@ func (s *Store) SaveNotificationSettings(ctx context.Context, key []byte, u Noti
 		     THEN EXCLUDED.smtp_password_enc ELSE notification_settings.smtp_password_enc END,
 		   telegram_bot_token_enc = CASE WHEN $8::boolean
 		     THEN EXCLUDED.telegram_bot_token_enc ELSE notification_settings.telegram_bot_token_enc END,
+		   telegram_update_offset = CASE WHEN $8::boolean
+		     THEN 0 ELSE notification_settings.telegram_update_offset END,
 		   updated_at = now(),
 		   updated_by = EXCLUDED.updated_by`,
 		u.SMTPHost, u.SMTPPort, u.SMTPUsername, u.SMTPFrom,

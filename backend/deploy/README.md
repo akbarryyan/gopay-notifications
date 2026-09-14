@@ -153,6 +153,107 @@ sekali — itu cuma dipakai `next dev` di laptop. Di belakang Caddy, dashboard
 tidak pernah memanggil backend lewat rewrite-nya sendiri; browser yang
 memanggil `/api/*` langsung, dan Caddy yang merutekannya ke backend.
 
+## Backup database otomatis
+
+`deploy/gopay-backup.sh` + `gopay-backup.service` + `gopay-backup.timer`:
+`pg_dump` setiap hari pukul 02:00 WIB ke `/var/backups/gopay`, diverifikasi
+dengan `pg_restore --list`, backup lokal lebih dari 14 hari dihapus, dan
+opsional diunggah ke S3.
+
+**Backup lokal saja tidak cukup** — kalau instance atau disknya hilang,
+backup ikut hilang. Isi juga bagian S3 di bawah.
+
+`.env` **sengaja tidak ikut dibackup**. Kunci enkripsi yang disimpan
+bersama dump membuat siapa pun yang mendapat backup bisa membuka secret
+device, webhook, dan SMTP sekaligus. Simpan `.env` di password manager.
+
+### Sekali di awal
+
+Dari laptop, di folder `backend/`:
+
+```bash
+scp -i "$KEY" deploy/gopay-backup.sh deploy/gopay-backup.service deploy/gopay-backup.timer "$NEW":/tmp/
+```
+
+Di VPS:
+
+```bash
+sudo install -m 755 /tmp/gopay-backup.sh /usr/local/bin/gopay-backup
+sudo install -d -o postgres -g postgres -m 700 /var/backups/gopay
+sudo mv /tmp/gopay-backup.service /tmp/gopay-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Uji sekali sekarang, jangan tunggu jadwal
+sudo systemctl start gopay-backup.service
+sudo journalctl -u gopay-backup -n 20 --no-pager     # harus ada "backup: selesai"
+sudo ls -lh /var/backups/gopay
+
+# Aktifkan jadwal harian
+sudo systemctl enable --now gopay-backup.timer
+systemctl list-timers gopay-backup.timer             # kolom NEXT = jadwal berikutnya
+```
+
+### Salinan di luar server (S3)
+
+1. **Bucket.** AWS Console → S3 → Create bucket, region sama dengan
+   instance, *Block all public access* tetap **aktif**.
+2. **Retensi di S3.** Bucket → Management → Create lifecycle rule →
+   prefix `gopay/` → *Expire current versions of objects* setelah 30 hari.
+3. **Izin untuk instance.** IAM → Roles → Create role → *AWS service: EC2*
+   → buat inline policy di bawah (ganti `NAMA_BUCKET`) → beri nama mis.
+   `gopay-backup-writer`. Lalu EC2 → Instances → pilih instance → Actions →
+   Security → **Modify IAM role** → pilih role tadi.
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "s3:PutObject",
+       "Resource": "arn:aws:s3:::NAMA_BUCKET/gopay/*"
+     }]
+   }
+   ```
+
+   Sengaja cuma `PutObject`, tanpa izin hapus atau baca: server yang
+   dibobol tidak boleh bisa menghapus atau mengunduh backup di S3.
+4. **AWS CLI** (installer resmi, masuk ke `/usr/local/bin` yang terbaca
+   systemd — versi snap tidak):
+
+   ```bash
+   sudo apt install -y unzip
+   curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
+   unzip -q /tmp/awscliv2.zip -d /tmp && sudo /tmp/aws/install && rm -rf /tmp/aws /tmp/awscliv2.zip
+   aws --version
+   ```
+
+5. **Konfigurasi dan uji:**
+
+   ```bash
+   echo 'BACKUP_S3_URI=s3://NAMA_BUCKET/gopay' | sudo tee /etc/default/gopay-backup
+   sudo systemctl start gopay-backup.service
+   sudo journalctl -u gopay-backup -n 20 --no-pager   # harus ada "backup: unggah ke s3://..."
+   ```
+
+   Pastikan filenya muncul di S3 Console → bucket → folder `gopay/`.
+
+### Mengembalikan dari backup
+
+```bash
+sudo systemctl stop gopay-ingestion
+sudo -u postgres dropdb gopay
+sudo -u postgres createdb gopay --owner gopay
+sudo -u postgres pg_restore --no-owner --role=gopay -d gopay /var/backups/gopay/gopay-YYYYMMDDTHHMMSSZ.dump
+sudo systemctl start gopay-ingestion
+```
+
+`.env` yang dipakai harus berisi kunci yang **sama** dengan saat backup
+dibuat. Kalau restore ke VPS baru, jalankan migrasi (`goose up`) setelah
+restore bila kode yang di-deploy lebih baru dari backup.
+
+Backup yang tidak pernah dicoba di-restore belum terbukti bisa dipakai —
+coba restore ke database uji (`createdb gopay_restore_test`) sesekali.
+
 ## Membuat device untuk HP
 
 Di VPS:

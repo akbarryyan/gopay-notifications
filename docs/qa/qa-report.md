@@ -845,3 +845,38 @@ ok  	.../internal/reminder
 ok  	.../internal/secretbox
 ok  	.../internal/store	12.461s
 ```
+
+---
+
+## 19. Hubungkan Telegram lewat deep link + backup database otomatis
+
+Permintaan langsung Akbar lewat chat. Menutup bug: chat id Telegram yang
+diketik manual tidak pernah bisa dikirimi pesan, karena bot Telegram
+dilarang memulai obrolan dengan orang yang belum menekan Start.
+
+**Ringkasan:** `PASS` 9 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+
+### 19a. Hubungkan Telegram
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Kode tautan sekali pakai, berlaku 15 menit, disimpan hash, kode baru membatalkan yang lama; pemakaian ulang tidak menimpa chat id | `PASS` | `TestTelegramLinkCodeSekaliPakai`, `TestTelegramLinkCodeKedaluwarsaDanDigantikan` — lulus |
+| Offset `getUpdates` tersimpan di database dan direset saat token bot diganti | `PASS` | `TestTelegramUpdateOffsetDiresetSaatTokenBerganti` — lulus |
+| Bot: `/start <kode>` di chat pribadi menautkan dan membalas konfirmasi; kode salah, `/start` polos, dan chat grup dibalas petunjuk; pesan lain diabaikan; offset maju ke update terakhir + 1 | `PASS` | `TestPollOnceMenautkanDanMembalas` — lulus |
+| Bot diam selama token kosong; galat database tidak memajukan offset (pesan dicoba lagi) | `PASS` | `TestPollOnceTanpaTokenTidakMembaca`, `TestPollOnceGagalDatabaseTidakMemajukanOffset` — lulus |
+| Klien Bot API: `getMe`/`getUpdates` terbaca, `409` jadi `ErrConflict`, galat jaringan tidak memuat token | `PASS` | `TestGetMeDanGetUpdates`, `TestKonflikDanGalatTidakMembocorkanToken` — lulus |
+| `POST /admin/account/telegram/link`: 503 tanpa token, deep link `t.me/<bot>?start=<kode>` dengan username dari `getMe` (di-cache per token), `telegram_available` di `GET /admin/account`, chat id terlihat setelah kode dipakai, wajib sesi | `PASS` | `TestAdminTelegramLink` (Bot API palsu via `httptest`) — lulus |
+| Migrasi `00014` bisa di-rollback dan diterapkan ulang | `PASS` | `goose down` lalu `goose up`: `OK 00014_telegram_link.sql`, `successfully migrated database to version: 14` |
+| Alur sungguhan: Settings → Hubungkan Telegram → Start di bot asli → status Terhubung → notifikasi uji sampai di Telegram | `NEEDS-DEVICE` | Butuh token bot asli di server yang berjalan. `npx tsc`, `npx eslint`, `npx next build` bersih untuk `dashboard/` dan `vendor-dashboard/` |
+
+### 19b. Backup database otomatis
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `gopay-backup.sh`: dump terverifikasi, retensi lokal menghapus dump lama, dan hasilnya bisa di-restore utuh | `PASS` | Uji di Postgres 16 (container `make db-up`) terhadap `gopay_dev`: `backup: selesai, ukuran 104.0K`; restore ke `gopay_restore_test` → `accounts asli: 10`, `accounts restore: 10`, `versi migrasi: 13`. Uji retensi (laptop): file bertanggal 20 hari lalu → `backup: 1 backup lokal lebih dari 14 hari dihapus` |
+| Timer systemd berjalan harian di VPS produksi | `NEEDS-DEVICE` | Langkah: `backend/deploy/README.md` §"Backup database otomatis", bukti `systemctl list-timers gopay-backup.timer` + `journalctl -u gopay-backup` |
+| Unggah ke S3 dengan IAM role `PutObject` saja | `NEEDS-DEVICE` | Butuh bucket + IAM role di akun AWS Akbar; bukti file muncul di bucket |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (25.9s), `notify`, `reminder`, `secretbox`, `store` (13.1s), `telegram`, `telegrambot`.

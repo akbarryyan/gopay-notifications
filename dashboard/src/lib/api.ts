@@ -459,6 +459,8 @@ export interface AccountProfile {
   business_name: string;
   email: string;
   telegram_chat_id: string | null;
+  /** false berarti vendor belum mengaktifkan bot Telegram. */
+  telegram_available: boolean;
 }
 
 export async function getAccountProfile(): Promise<AccountProfile> {
@@ -488,4 +490,15 @@ export function changePassword(
     method: "POST",
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
+}
+
+export interface TelegramLink {
+  /** Deep link t.me/<bot>?start=<kode>, berlaku sampai expires_at. */
+  url: string;
+  bot_username: string;
+  expires_at: string;
+}
+
+export function createTelegramLink(): Promise<TelegramLink> {
+  return apiFetch("/api/v1/admin/account/telegram/link", { method: "POST" });
 }

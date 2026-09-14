@@ -238,6 +238,12 @@ go run ./cmd/seedtool -accounts 8   # default password123 untuk semua account
 `make db-down` menghapus volume Docker — **`gopay_dev` ikut hilang**, bukan
 hanya data test.
 
+Produksi di-backup setiap hari oleh `gopay-backup.timer`
+(`backend/deploy/gopay-backup.sh`: `pg_dump` terverifikasi, retensi lokal
+14 hari, opsional unggah ke S3). Cara pasang, S3, dan restore di
+`backend/deploy/README.md` §"Backup database otomatis". `.env` sengaja
+tidak ikut dibackup — kunci enkripsi disimpan terpisah dari dump.
+
 ### Lingkungan
 
 Tiga varian, package berbeda sehingga dapat terpasang bersamaan dan datanya
@@ -412,8 +418,8 @@ Telegram yang diatur vendor dan disimpan di tabel `notification_settings`
 — sengaja beda dari `WEBHOOK_SECRET_KEY` supaya rotasi salah satunya tidak
 merusak yang lain).
 
-Backend punya tiga goroutine berkala di `cmd/server/main.go`, sengaja
-dengan ticker terpisah karena kadensinya berbeda jauh:
+Backend punya empat goroutine latar di `cmd/server/main.go`, sengaja
+terpisah karena kadensinya berbeda jauh:
 
 1. **Worker webhook (1 menit)** — mendeteksi invoice yang baru kedaluwarsa
    dan mengeksekusi retry pengiriman yang jatuh tempo.
@@ -425,6 +431,9 @@ dengan ticker terpisah karena kadensinya berbeda jauh:
 3. **Peringatan HP offline (5 menit)** — `internal/devicealert`: mengabari
    customer saat HP bridge tidak mengirim heartbeat > 45 menit, lalu sekali
    lagi saat kembali online. Memakai pengaturan SMTP/Telegram yang sama.
+4. **Bot Telegram (long polling)** — `internal/telegrambot`: membaca
+   `/start <kode>` dari customer yang menekan "Hubungkan Telegram" dan
+   menyimpan chat id-nya. Lihat bagian Telegram di bawah.
 
 Goroutine validasi lisensi 24-jam yang dulu ada (License Server) sudah
 dihapus bersama seluruh platform lisensi lama — status akun sekarang dicek
@@ -463,8 +472,8 @@ berminggu-minggu tidak dipakai.
 Dua keputusan yang tidak boleh dibalik diam-diam:
 
 - **Email jalur utama, Telegram cuma tambahan.** Alamat email pasti
-  dimiliki tiap account (kolom wajib); Telegram diisi customer sendiri di
-  halaman `/settings` dashboard mereka dan belum tentu ada. Karena itu
+  dimiliki tiap account (kolom wajib); Telegram dihubungkan customer
+  sendiri dari halaman `/settings` dashboard mereka dan belum tentu ada. Karena itu
   `NotificationSettings.EmailConfigured()` menuntut SMTP terisi — pengingat yang cuma
   sampai ke sebagian customer lebih berbahaya daripada tidak ada sama
   sekali, karena bikin merasa sudah aman.
@@ -474,6 +483,26 @@ Dua keputusan yang tidak boleh dibalik diam-diam:
   pengingat periode berikutnya otomatis terbuka lagi. Kalau diganti jadi
   timestamp biasa, perpanjangan tidak akan pernah mereset apa pun dan
   customer tidak pernah diingatkan lagi setelah pengingat pertama.
+
+**Telegram dihubungkan lewat deep link, bukan chat id yang diketik.** Bot
+Telegram dilarang memulai obrolan dengan orang yang belum pernah menekan
+Start di bot itu, jadi chat id yang diketik tangan (dulu lewat
+`@userinfobot`) selalu gagal `chat not found`. Alurnya sekarang: Settings →
+"Hubungkan Telegram" → `POST /api/v1/admin/account/telegram/link`
+(kode sekali pakai 15 menit, disimpan SHA-256 di `telegram_link_codes`) →
+`t.me/<bot>?start=<kode>` → customer tekan Start → `internal/telegrambot`
+menyimpan chat id dari pesan itu. Dashboard menunggu lewat polling
+`GET /admin/account`.
+
+- **Long polling (`getUpdates`), bukan webhook** — tidak butuh URL publik,
+  jadi sama di VPS dan laptop. Konsekuensinya **satu token bot hanya boleh
+  dibaca satu backend**: backend dev di laptop wajib memakai bot terpisah
+  dari produksi, kalau tidak keduanya saling memutus (`409 Conflict`,
+  dicatat sekali di log sebagai `telegram.ErrConflict`).
+- Posisi `getUpdates` disimpan di
+  `notification_settings.telegram_update_offset`, direset ke 0 saat token
+  bot diganti. Tanpa itu, setiap restart memproses ulang `/start` 24 jam
+  terakhir.
 
 Ambangnya 7 hari (`reminder.DefaultWithinDays`), sengaja BEDA dari
 `store.WarningThresholdDays` (30 hari) yang dipakai status "expiring" di

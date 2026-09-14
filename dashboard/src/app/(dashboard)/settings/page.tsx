@@ -1,20 +1,44 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Bell, Eye, EyeOff, KeyRound, RotateCw, UserRound } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  Bell,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  RotateCw,
+  Send,
+  Unlink,
+  UserRound,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ApiError,
   changePassword,
+  createTelegramLink,
   getAccountProfile,
   setTelegramChatID,
   updateAccountProfile,
   type AccountProfile,
+  type TelegramLink,
 } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 
@@ -314,28 +338,73 @@ function PasswordCard() {
   );
 }
 
-/** Dipindah dari halaman License -- tempatnya memang di pengaturan akun. */
+/**
+ * Telegram dihubungkan lewat deep link, bukan chat id yang diketik: bot
+ * Telegram tidak bisa mengirim pesan duluan ke orang yang belum pernah
+ * menekan Start di bot itu. Setelah link dibuka, halaman ini menunggu
+ * (polling GET /admin/account) sampai backend menyimpan chat id-nya.
+ */
 function NotificationCard({ profile, onSaved }: { profile: AccountProfile; onSaved: () => void }) {
-  const [chatID, setChatID] = useState(profile.telegram_chat_id ?? "");
-  const [busy, setBusy] = useState(false);
-  const dirty = chatID.trim() !== (profile.telegram_chat_id ?? "");
+  const [link, setLink] = useState<TelegramLink | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const connected = profile.telegram_chat_id !== null;
 
-  async function onSave() {
-    setBusy(true);
+  // Selama link masih berlaku, cek tiap 3 detik apakah customer sudah
+  // menekan Start. Berhenti sendiri saat kedaluwarsa atau kartu dilepas.
+  useEffect(() => {
+    if (!link) return;
+    const expiresAt = new Date(link.expires_at).getTime();
+    const timer = setInterval(async () => {
+      if (Date.now() > expiresAt) {
+        clearInterval(timer);
+        setLink(null);
+        toast.error("Link Telegram kedaluwarsa. Buat link baru untuk mencoba lagi.");
+        return;
+      }
+      try {
+        const latest = await getAccountProfile();
+        if (latest.telegram_chat_id) {
+          clearInterval(timer);
+          toast.success("Telegram terhubung.");
+          onSaved();
+        }
+      } catch {
+        // Diamkan -- dicoba lagi di detik berikutnya.
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [link, onSaved]);
+
+  async function onCreateLink() {
+    setCreating(true);
     try {
-      await setTelegramChatID(chatID.trim());
-      toast.success(
-        chatID.trim() === "" ? "Notifikasi Telegram dimatikan." : "Chat ID Telegram disimpan.",
-      );
-      onSaved();
+      setLink(await createTelegramLink());
     } catch (err) {
-      if (err instanceof ApiError && err.code === "invalid_payload") {
-        toast.error(err.message);
+      if (err instanceof ApiError && err.code === "not_available") {
+        toast.error("Notifikasi Telegram belum tersedia.");
+      } else if (err instanceof ApiError && err.code === "telegram_unreachable") {
+        toast.error("Tidak dapat menghubungi Telegram. Coba lagi beberapa saat lagi.");
       } else {
-        toast.error("Gagal menyimpan chat ID Telegram.");
+        toast.error("Gagal membuat link Telegram.");
       }
     } finally {
-      setBusy(false);
+      setCreating(false);
+    }
+  }
+
+  async function onDisconnect() {
+    setDisconnecting(true);
+    try {
+      await setTelegramChatID("");
+      toast.success("Telegram diputuskan.");
+      setConfirmDisconnect(false);
+      onSaved();
+    } catch {
+      toast.error("Gagal memutuskan Telegram.");
+    } finally {
+      setDisconnecting(false);
     }
   }
 
@@ -347,29 +416,108 @@ function NotificationCard({ profile, onSaved }: { profile: AccountProfile; onSav
         <>
           Kami mengabari <span className="font-medium text-foreground">{profile.email}</span> saat
           masa aktif tinggal 7 hari, saat HP berhenti mengirim kabar lebih dari 45 menit (serta saat
-          kembali online), dan saat password akun diganti. Tambahkan Telegram kalau mau dikabari di
+          kembali online), dan saat password akun diganti. Hubungkan Telegram kalau mau dikabari di
           sana juga.
         </>
       }
     >
-      <div className="flex flex-col gap-2 sm:max-w-sm">
-        <Label htmlFor="telegram-chat-id">Telegram chat ID (opsional)</Label>
-        <Input
-          id="telegram-chat-id"
-          value={chatID}
-          onChange={(e) => setChatID(e.target.value)}
-          placeholder="123456789"
-          inputMode="numeric"
-        />
-        <p className="text-xs text-muted-foreground">
-          Berupa angka, bukan username. Kirim pesan apa saja ke bot <code>@userinfobot</code> di
-          Telegram untuk melihat chat ID kamu. Kosongkan untuk berhenti menerima notifikasi
-          Telegram.
-        </p>
-        <Button size="sm" className="mt-1 self-start" disabled={busy || !dirty} onClick={onSave}>
-          {busy ? "Menyimpan..." : "Simpan"}
-        </Button>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/60 p-4 sm:max-w-lg">
+        <div className="flex items-center gap-2">
+          <Send className="size-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Telegram</span>
+          {connected ? (
+            <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+              Terhubung
+            </Badge>
+          ) : (
+            <Badge variant="outline">Belum terhubung</Badge>
+          )}
+        </div>
+
+        {connected ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Notifikasi juga dikirim ke Telegram kamu.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setConfirmDisconnect(true)}>
+              <Unlink className="mr-1.5 size-3.5" />
+              Putuskan
+            </Button>
+          </div>
+        ) : !profile.telegram_available ? (
+          <p className="text-sm text-muted-foreground">
+            Notifikasi Telegram belum tersedia untuk saat ini. Notifikasi tetap dikirim lewat email.
+          </p>
+        ) : link ? (
+          <div className="flex flex-col gap-3">
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+              <li>
+                Buka bot <span className="font-medium text-foreground">@{link.bot_username}</span>{" "}
+                di Telegram lewat tombol di bawah.
+              </li>
+              <li>
+                Tekan <span className="font-medium text-foreground">Start</span> (atau{" "}
+                <span className="font-medium text-foreground">Mulai</span>).
+              </li>
+              <li>Kembali ke halaman ini, statusnya berubah sendiri.</li>
+            </ol>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants({ size: "sm" }))}
+              >
+                <Send className="mr-1.5 size-3.5" />
+                Buka Telegram
+              </a>
+              <Button size="sm" variant="ghost" onClick={() => setLink(null)}>
+                Batal
+              </Button>
+            </div>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
+              Menunggu kamu menekan Start… Link berlaku sampai{" "}
+              {new Date(link.expires_at).toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              .
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Terima notifikasi yang sama langsung di Telegram.
+            </p>
+            <Button size="sm" onClick={onCreateLink} disabled={creating}>
+              <Send className="mr-1.5 size-3.5" />
+              {creating ? "Menyiapkan..." : "Hubungkan Telegram"}
+            </Button>
+          </div>
+        )}
       </div>
+
+      <AlertDialog
+        open={confirmDisconnect}
+        onOpenChange={(open) => !disconnecting && setConfirmDisconnect(open)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Putuskan Telegram?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Notifikasi berhenti dikirim ke Telegram dan tetap dikirim lewat email. Kamu bisa
+              menghubungkannya lagi kapan saja.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={disconnecting}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={onDisconnect} disabled={disconnecting}>
+              {disconnecting ? "Memutuskan..." : "Putuskan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SettingsCard>
   );
 }

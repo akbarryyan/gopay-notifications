@@ -81,6 +81,9 @@ type accountProfileJSON struct {
 	BusinessName   string  `json:"business_name"`
 	Email          string  `json:"email"`
 	TelegramChatID *string `json:"telegram_chat_id"`
+	// TelegramAvailable false berarti vendor belum mengisi token bot --
+	// tombol "Hubungkan Telegram" tidak ditampilkan.
+	TelegramAvailable bool `json:"telegram_available"`
 }
 
 // handleAdminGetAccount melayani halaman Settings Customer Dashboard.
@@ -96,8 +99,15 @@ func (a *API) handleAdminGetAccount(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+	settings, err := a.store.GetNotificationSettings(r.Context(), a.settingsSecretKey)
+	if err != nil {
+		slog.Error("baca notification settings gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "account": accountProfileJSON{
 		Username: acc.Username, BusinessName: acc.BusinessName, Email: acc.Email, TelegramChatID: acc.TelegramChatID,
+		TelegramAvailable: settings.TelegramBotToken != "",
 	}})
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/telegram"
 )
 
 type API struct {
@@ -28,6 +29,10 @@ type API struct {
 	passwordChangeThrottle *loginThrottle
 	webhookHTTPClient      *http.Client
 	dashboardURL           string
+	// telegramBaseURL bisa diganti di test (httptest) supaya tidak pernah
+	// menyentuh api.telegram.org sungguhan.
+	telegramBaseURL string
+	botUsernames    *botUsernameCache
 	// background menjalankan pengiriman email di luar request. Lihat
 	// handleForgotPassword untuk alasannya.
 	background func(func())
@@ -53,6 +58,8 @@ func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey
 		passwordResetThrottle:  newLoginThrottle(),
 		passwordChangeThrottle: newLoginThrottle(),
 		background:             func(f func()) { go f() },
+		telegramBaseURL:        telegram.DefaultBaseURL,
+		botUsernames:           &botUsernameCache{byToken: map[string]string{}},
 		// Timeout 10 detik sesuai spec §3.1 — server merchant yang lambat
 		// tidak boleh menahan worker webhook lebih lama dari itu.
 		webhookHTTPClient: &http.Client{Timeout: 10 * time.Second},
@@ -63,6 +70,13 @@ func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey
 // email reset password. Tanpa ini, lupa password menjawab "belum tersedia".
 func (a *API) WithDashboardURL(u string) *API {
 	a.dashboardURL = u
+	return a
+}
+
+// WithTelegramBaseURL dipakai test untuk mengarahkan panggilan Bot API ke
+// server palsu.
+func (a *API) WithTelegramBaseURL(u string) *API {
+	a.telegramBaseURL = u
 	return a
 }
 
@@ -108,6 +122,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/admin/account", a.requireAdmin(http.HandlerFunc(a.handleAdminUpdateAccount)))
 	mux.Handle("POST /api/v1/admin/account/password", a.requireAdmin(http.HandlerFunc(a.handleAdminChangePassword)))
 	mux.Handle("POST /api/v1/admin/account/telegram", a.requireAdmin(http.HandlerFunc(a.handleAdminSetTelegram)))
+	mux.Handle("POST /api/v1/admin/account/telegram/link", a.requireAdmin(http.HandlerFunc(a.handleAdminTelegramLink)))
 	mux.Handle("GET /api/v1/admin/overview",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminOverview))))
 	mux.Handle("GET /api/v1/admin/devices",
