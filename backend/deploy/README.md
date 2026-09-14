@@ -71,11 +71,13 @@ tabel di atas dan pakai `.env.uat.example` serta
    ```
 
 4. Salin `.env.example` ke `/opt/gopay-ingestion/.env`, isi seluruh nilainya.
-   `DEVICE_SECRET_KEY`, `ADMIN_SESSION_KEY`, `WEBHOOK_SECRET_KEY`, dan
-   `VENDOR_SESSION_KEY` sama-sama dihasilkan dengan
-   `go run ./cmd/devicetool -genkey` — jalankan empat kali untuk empat
+   `DEVICE_SECRET_KEY`, `ADMIN_SESSION_KEY`, `WEBHOOK_SECRET_KEY`,
+   `VENDOR_SESSION_KEY`, dan `SETTINGS_SECRET_KEY` sama-sama dihasilkan
+   dengan `go run ./cmd/devicetool -genkey` — jalankan lima kali untuk lima
    nilai yang berbeda, jangan memakai hasil yang sama untuk lebih dari
-   satu. `VENDOR_SESSION_KEY` dipakai endpoint `/api/v1/vendor/*`
+   satu. **Saat pindah VPS, kelima kunci wajib disalin persis dari server
+   lama** — kunci baru membuat secret device, secret webhook, dan password
+   SMTP yang tersimpan di database tidak bisa didekripsi lagi. `VENDOR_SESSION_KEY` dipakai endpoint `/api/v1/vendor/*`
    (Vendor Dashboard, lihat §"Vendor Dashboard & account customer" di
    bawah) — wajib diisi walau instalasi ini tidak menjalankan Vendor
    Dashboard-nya sendiri.
