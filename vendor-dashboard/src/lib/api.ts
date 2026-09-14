@@ -163,3 +163,25 @@ export async function getOverview(): Promise<VendorOverview> {
   const res = await apiFetch<{ overview: VendorOverview }>("/api/v1/vendor/overview");
   return res.overview;
 }
+
+// --- Devices (per account, read-only untuk vendor) ---------------------------
+
+export type DeviceStatus = "PENDING" | "ONLINE" | "OFFLINE" | "DISABLED";
+
+export interface Device {
+  device_id: string;
+  name: string;
+  enabled: boolean;
+  status: DeviceStatus;
+  created_at: string;
+  last_seen_at: string | null;
+  heartbeat_at: string | null;
+  android_version: string | null;
+}
+
+export async function getAccountDevices(accountId: string): Promise<Device[]> {
+  const res = await apiFetch<{ devices: Device[] }>(
+    `/api/v1/vendor/accounts/${encodeURIComponent(accountId)}/devices`,
+  );
+  return res.devices;
+}

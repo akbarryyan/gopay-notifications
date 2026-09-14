@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RotateCw, Search } from "lucide-react";
+import { Check, Copy, Plus, RotateCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -23,10 +25,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { DeviceStatusBadge } from "@/components/dashboard/device-status-badge";
 import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
-import { getDevices, setDeviceEnabled, type AdminDevice, type DeviceStatus } from "@/lib/api";
+import {
+  ApiError,
+  createDevice,
+  getDevices,
+  setDeviceEnabled,
+  type AdminDevice,
+  type DeviceStatus,
+} from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateTime, timeAgo } from "@/lib/format";
 
@@ -43,6 +52,14 @@ export default function DevicesPage() {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [createdDevice, setCreatedDevice] = useState<{
+    name: string;
+    device_id: string;
+    device_secret: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<"id" | "secret" | null>(null);
 
   // Devices sudah diambil seutuhnya (tidak berpaginasi di backend), jadi
   // pencarian dan filter status cukup dilakukan di sisi klien atas data yang
@@ -60,6 +77,41 @@ export default function DevicesPage() {
       return true;
     });
   }, [data, query, status]);
+
+  async function onCreateDevice() {
+    if (!newDeviceName.trim()) return;
+    setBusy(true);
+    try {
+      const created = await createDevice(newDeviceName.trim());
+      toast.success(`Device "${newDeviceName.trim()}" dibuat.`);
+      setCreatedDevice({
+        name: newDeviceName.trim(),
+        device_id: created.device_id,
+        device_secret: created.device_secret,
+      });
+      setCreating(false);
+      setNewDeviceName("");
+      reload();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "device_limit_reached") {
+        toast.error(err.message);
+      } else {
+        toast.error("Gagal membuat device.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyDeviceField(field: "id" | "secret", value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      toast.error("Gagal menyalin — salin manual dari kotak di atas.");
+    }
+  }
 
   async function confirmToggle() {
     if (!pendingToggle) return;
@@ -82,11 +134,17 @@ export default function DevicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Devices</h1>
-        <p className="text-sm text-muted-foreground">
-          Perangkat Android yang terdaftar mengirim event ke instalasi ini.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Devices</h1>
+          <p className="text-sm text-muted-foreground">
+            Perangkat Android yang terdaftar mengirim event ke instalasi ini.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <Plus className="mr-1.5 size-4" />
+          Tambah Device
+        </Button>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -187,10 +245,91 @@ export default function DevicesPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {query || status
               ? "Coba ubah atau bersihkan filter di atas."
-              : "Pasang aplikasi Android Bridge dan isi Device ID / Secret di layar Pengaturannya untuk mulai menerima event pembayaran."}
+              : "Klik \"Tambah Device\" untuk membuat Device ID + Secret, lalu isikan ke layar Pengaturan aplikasi Android Bridge untuk mulai menerima event pembayaran."}
           </p>
         </div>
       )}
+
+      <AlertDialog open={creating} onOpenChange={(open) => !open && setCreating(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tambah device baru</AlertDialogTitle>
+            <AlertDialogDescription>
+              Beri nama supaya mudah dikenali, mis. &ldquo;HP Kasir Depan&rdquo;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Label htmlFor="device-name">Nama</Label>
+            <Input
+              id="device-name"
+              value={newDeviceName}
+              onChange={(e) => setNewDeviceName(e.target.value)}
+              placeholder="HP Kasir Depan"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={onCreateDevice} disabled={busy || !newDeviceName.trim()}>
+              Buat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Device ID + Secret -- tampil satu kali saja, sama pola API key */}
+      <AlertDialog open={createdDevice !== null} onOpenChange={(open) => !open && setCreatedDevice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Device &ldquo;{createdDevice?.name}&rdquo; dibuat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Salin dua nilai ini ke Settings aplikasi Android sekarang — secret{" "}
+              <strong>tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Device ID</Label>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-muted px-3 py-2 font-mono text-xs whitespace-nowrap">
+                  {createdDevice?.device_id}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => createdDevice && copyDeviceField("id", createdDevice.device_id)}
+                >
+                  {copiedField === "id" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Device Secret</Label>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-muted px-3 py-2 font-mono text-xs whitespace-nowrap">
+                  {createdDevice?.device_secret}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    createdDevice && copyDeviceField("secret", createdDevice.device_secret)
+                  }
+                >
+                  {copiedField === "secret" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setCreatedDevice(null)}>
+              Sudah disalin, tutup
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={pendingToggle !== null} onOpenChange={(open) => !open && setPendingToggle(null)}>
         <AlertDialogContent>

@@ -138,6 +138,15 @@ export function setDeviceEnabled(deviceId: string, enabled: boolean): Promise<{ 
   });
 }
 
+export function createDevice(
+  name: string,
+): Promise<{ success: true; device_id: string; device_secret: string }> {
+  return apiFetch("/api/v1/admin/devices", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
 // --- Events ------------------------------------------------------------
 
 export interface AdminEvent {

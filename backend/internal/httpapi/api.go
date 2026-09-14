@@ -80,6 +80,8 @@ func (a *API) Handler() http.Handler {
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminOverview))))
 	mux.Handle("GET /api/v1/admin/devices",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminDevices))))
+	mux.Handle("POST /api/v1/admin/devices",
+		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminCreateDevice))))
 	mux.Handle("PATCH /api/v1/admin/devices/{deviceID}",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminSetDeviceEnabled))))
 	mux.Handle("GET /api/v1/admin/events", a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleEvents))))
@@ -126,6 +128,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("POST /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorCreateAccount)))
 	mux.Handle("GET /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorListAccounts)))
 	mux.Handle("GET /api/v1/vendor/accounts/{accountID}", a.requireVendor(http.HandlerFunc(a.handleVendorGetAccount)))
+	mux.Handle("GET /api/v1/vendor/accounts/{accountID}/devices", a.requireVendor(http.HandlerFunc(a.handleVendorListDevices)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/renew", a.requireVendor(http.HandlerFunc(a.handleVendorRenewAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/plan", a.requireVendor(http.HandlerFunc(a.handleVendorChangePlan)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))

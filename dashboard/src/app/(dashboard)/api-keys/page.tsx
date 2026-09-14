@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { createAPIKey, getAPIKeys, revokeAPIKey, type AdminAPIKey } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateTime } from "@/lib/format";

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SidebarNav } from "./sidebar-nav";

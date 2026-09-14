@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Work_Sans, Geist_Mono, Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const workSans = Work_Sans({

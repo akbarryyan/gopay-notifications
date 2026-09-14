@@ -2,13 +2,21 @@
 
 import { use, useCallback, useState } from "react";
 import Link from "next/link";
-import { RotateCw } from "lucide-react";
+import { RotateCw, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,17 +27,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
+import { DeviceStatusBadge } from "@/components/dashboard/device-status-badge";
 import {
   changeAccountPlan,
   getAccount,
+  getAccountDevices,
   renewAccount,
   revokeAccount,
   suspendAccount,
   type AccountPlan,
 } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
-import { formatDateOnly } from "@/lib/format";
+import { formatDateOnly, formatDateTime } from "@/lib/format";
 import { STATUS_BADGE } from "@/lib/account-status";
 
 const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
@@ -38,6 +48,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const fetcher = useCallback(() => getAccount(id), [id]);
   const { data, loading, error, reload } = useApiData(fetcher);
+  const devicesFetcher = useCallback(() => getAccountDevices(id), [id]);
+  const devices = useApiData(devicesFetcher);
 
   const [renewing, setRenewing] = useState(false);
   const [newExpiresAt, setNewExpiresAt] = useState("");
@@ -180,6 +192,53 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       ) : null}
+
+      <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Devices</h2>
+          <p className="text-xs text-muted-foreground">
+            Read-only -- customer menambah/menonaktifkan device sendiri lewat dashboard mereka.
+          </p>
+        </div>
+        {devices.loading ? (
+          <Skeleton className="h-14 rounded-xl" />
+        ) : devices.error ? (
+          <p className="text-sm text-destructive">{devices.error}</p>
+        ) : devices.data && devices.data.length > 0 ? (
+          <div className="overflow-x-auto rounded-xl border border-border/60">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Device</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Heartbeat terakhir</TableHead>
+                  <TableHead>Versi Android</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {devices.data.map((d) => (
+                  <TableRow key={d.device_id}>
+                    <TableCell>
+                      <div className="font-medium">{d.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{d.device_id}</div>
+                    </TableCell>
+                    <TableCell>
+                      <DeviceStatusBadge status={d.status} />
+                    </TableCell>
+                    <TableCell>{formatDateTime(d.heartbeat_at)}</TableCell>
+                    <TableCell>{d.android_version ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-6 text-center">
+            <Smartphone className="mx-auto mb-2 size-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Belum ada device terhubung.</p>
+          </div>
+        )}
+      </div>
 
       <AlertDialog open={renewing} onOpenChange={(open) => !open && setRenewing(false)}>
         <AlertDialogContent>

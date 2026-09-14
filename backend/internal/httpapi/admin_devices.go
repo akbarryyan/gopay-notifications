@@ -1,8 +1,12 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -64,6 +68,93 @@ func (a *API) handleAdminDevices(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toAdminDeviceJSON(d, a.now()))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"devices": out})
+}
+
+type createDeviceRequest struct {
+	Name string `json:"name"`
+}
+
+// randomDeviceID mengikuti pola persis cmd/devicetool: "dev_" + hex 8 byte
+// acak.
+func randomDeviceID() (string, error) {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("acak device id: %w", err)
+	}
+	return "dev_" + hex.EncodeToString(b), nil
+}
+
+// handleAdminCreateDevice adalah swalayan tambah device dari Customer
+// Dashboard sendiri -- sebelumnya SATU-SATUNYA cara membuat device adalah
+// cmd/devicetool di server, yang berarti tiap customer baru mau pasang HP
+// kedua/ketiga harus minta tolong vendor generate ID+secret manual. Dengan
+// endpoint ini, customer bisa lakukan sendiri, persis alur API key/webhook
+// secret yang sudah ada: ditampilkan sekali, tidak bisa dilihat lagi.
+//
+// Kuota max_devices (dari plan akun, -1 berarti unlimited) ditegakkan di
+// sini, bukan cuma di UI -- kalau tidak, customer Starter (3 device) bisa
+// menambah device tanpa batas lewat panggilan API langsung, melewati
+// batasan plan yang jadi dasar harga.
+//
+// Format secret SENGAJA sama persis dengan cmd/devicetool: 32 byte acak
+// di-base64-encode dulu, string base64 itu (bukan byte mentahnya) yang
+// dienkripsi & disimpan -- device Android yang sudah dikonfigurasi manual
+// lewat devicetool dan yang dibuat lewat endpoint ini harus punya bentuk
+// secret yang sama, supaya tidak ada dua cara device menghitung HMAC-nya.
+func (a *API) handleAdminCreateDevice(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
+
+	var req createDeviceRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
+		return
+	}
+	if req.Name == "" {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "name wajib diisi")
+		return
+	}
+
+	account, err := a.store.GetAccountByID(r.Context(), accountID)
+	if err != nil {
+		slog.Error("ambil account untuk cek kuota device gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	existing, err := a.store.ListDevices(r.Context(), accountID)
+	if err != nil {
+		slog.Error("hitung device untuk cek kuota gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	if account.MaxDevices >= 0 && len(existing) >= account.MaxDevices {
+		a.writeError(w, http.StatusConflict, "device_limit_reached",
+			fmt.Sprintf("plan %s dibatasi %d device -- hubungi kami untuk upgrade plan", account.Plan, account.MaxDevices))
+		return
+	}
+
+	deviceID, err := randomDeviceID()
+	if err != nil {
+		slog.Error("generate device id gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		slog.Error("acak device secret gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	secretB64 := base64.StdEncoding.EncodeToString(secret)
+
+	if err := a.store.CreateDevice(r.Context(), a.encKey, accountID, deviceID, req.Name, []byte(secretB64)); err != nil {
+		slog.Error("create device gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"success": true, "device_id": deviceID, "device_secret": secretB64,
+	})
 }
 
 type setDeviceEnabledRequest struct {
