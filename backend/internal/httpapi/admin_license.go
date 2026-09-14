@@ -56,12 +56,17 @@ func accountErrorMessage(status string) string {
 }
 
 type accountJSON struct {
-	BusinessName  string `json:"business_name"`
-	Plan          string `json:"plan"`
-	MaxDevices    int    `json:"max_devices"`
-	ExpiresAt     string `json:"expires_at"`
-	DaysRemaining int    `json:"days_remaining"`
-	Status        string `json:"status"`
+	BusinessName string `json:"business_name"`
+	// Email ikut dikirim supaya halaman License bisa menyebut ke mana
+	// pengingat kedaluwarsa dikirim -- tanpa itu customer tidak tahu
+	// alamat mana yang dipakai.
+	Email          string  `json:"email"`
+	Plan           string  `json:"plan"`
+	MaxDevices     int     `json:"max_devices"`
+	ExpiresAt      string  `json:"expires_at"`
+	DaysRemaining  int     `json:"days_remaining"`
+	Status         string  `json:"status"`
+	TelegramChatID *string `json:"telegram_chat_id"`
 }
 
 // handleAdminLicense mengembalikan status akun untuk Customer Dashboard.
@@ -84,7 +89,8 @@ func (a *API) handleAdminLicense(w http.ResponseWriter, r *http.Request) {
 	status := acc.DerivedStatus(a.now())
 	daysRemaining := int(acc.ExpiresAt.Sub(a.now()).Hours() / 24)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "license": accountJSON{
-		BusinessName: acc.BusinessName, Plan: acc.Plan, MaxDevices: acc.MaxDevices,
+		BusinessName: acc.BusinessName, Email: acc.Email, Plan: acc.Plan, MaxDevices: acc.MaxDevices,
 		ExpiresAt: acc.ExpiresAt.Format(dateOnlyLayout), DaysRemaining: daysRemaining, Status: status,
+		TelegramChatID: acc.TelegramChatID,
 	}})
 }

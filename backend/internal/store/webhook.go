@@ -416,6 +416,100 @@ func (s *Store) RecordTestDeliveryResult(ctx context.Context, id string, now tim
 
 // ListWebhookDeliveries mengembalikan riwayat pengiriman satu endpoint,
 // terbaru lebih dulu — dipakai baris yang diperluas di dashboard.
+// VendorWebhookDelivery menambahkan konteks pemilik (account + endpoint)
+// ke satu baris delivery -- dipakai halaman Webhooks lintas-account di
+// Vendor Dashboard, supaya vendor bisa menelusuri "webhook customer X
+// gagal terus" tanpa membuka database.
+//
+// Payload SENGAJA tidak ikut diambil: kolom JSONB itu bisa besar, dan
+// untuk menelusuri kegagalan yang dibutuhkan cuma status/attempt/
+// http_status/durasi. Isi payload tetap bisa dilihat customer sendiri di
+// Customer Dashboard mereka.
+type VendorWebhookDelivery struct {
+	ID            string
+	AccountID     string
+	BusinessName  string
+	EndpointID    string
+	EndpointName  string
+	EndpointURL   string
+	Event         string
+	InvoiceID     *string
+	Status        string
+	Attempt       int
+	NextAttemptAt *time.Time
+	HTTPStatus    *int
+	DurationMs    *int
+	CreatedAt     time.Time
+	DeliveredAt   *time.Time
+}
+
+// WebhookDeliveryFilter menyaring ListAllWebhookDeliveries. Field
+// kosong/nil berarti tidak difilter pada dimensi itu -- pola yang sama
+// dengan InvoiceFilter/EventFilter.
+type WebhookDeliveryFilter struct {
+	Statuses []string
+	// Query cocok sebagian ke nama bisnis, nama endpoint, ATAU url-nya --
+	// tiga hal yang sama-sama dipakai vendor untuk menemukan baris yang
+	// dicari.
+	Query string
+	From  *time.Time
+	To    *time.Time
+}
+
+// ListAllWebhookDeliveries adalah versi lintas SEMUA account dari
+// ListWebhookDeliveries -- sengaja tidak di-scope satu account, karena
+// memang itu tugas vendor. Terbaru lebih dulu.
+func (s *Store) ListAllWebhookDeliveries(ctx context.Context, limit, offset int, filter WebhookDeliveryFilter) ([]VendorWebhookDelivery, error) {
+	query := `SELECT d.id, d.account_id, a.business_name, d.endpoint_id, e.name, e.url,
+	                 d.event, d.invoice_id, d.status, d.attempt, d.next_attempt_at,
+	                 d.http_status, d.duration_ms, d.created_at, d.delivered_at
+	          FROM webhook_deliveries d
+	          JOIN webhook_endpoints e ON e.id = d.endpoint_id
+	          JOIN accounts a ON a.id = d.account_id
+	          WHERE 1 = 1`
+	var args []any
+	arg := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+
+	if len(filter.Statuses) > 0 {
+		query += " AND d.status = ANY(" + arg(filter.Statuses) + ")"
+	}
+	if filter.Query != "" {
+		p := arg("%" + filter.Query + "%")
+		query += " AND (a.business_name ILIKE " + p + " OR e.name ILIKE " + p + " OR e.url ILIKE " + p + ")"
+	}
+	if filter.From != nil {
+		query += " AND d.created_at >= " + arg(*filter.From)
+	}
+	if filter.To != nil {
+		query += " AND d.created_at <= " + arg(*filter.To)
+	}
+	query += " ORDER BY d.created_at DESC, d.id DESC LIMIT " + arg(limit) + " OFFSET " + arg(offset)
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: list all webhook deliveries: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]VendorWebhookDelivery, 0)
+	for rows.Next() {
+		var d VendorWebhookDelivery
+		if err := rows.Scan(&d.ID, &d.AccountID, &d.BusinessName, &d.EndpointID, &d.EndpointName,
+			&d.EndpointURL, &d.Event, &d.InvoiceID, &d.Status, &d.Attempt, &d.NextAttemptAt,
+			&d.HTTPStatus, &d.DurationMs, &d.CreatedAt, &d.DeliveredAt); err != nil {
+			return nil, fmt.Errorf("store: scan vendor webhook delivery: %w", err)
+		}
+		out = append(out, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterasi vendor webhook deliveries: %w", err)
+	}
+	return out, nil
+}
+
 func (s *Store) ListWebhookDeliveries(ctx context.Context, accountID, endpointID string, limit, offset int) ([]WebhookDelivery, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT d.id, d.endpoint_id, d.event, d.invoice_id, d.payload, d.status, d.attempt,

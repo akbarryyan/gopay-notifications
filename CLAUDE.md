@@ -363,7 +363,7 @@ Dashboard, login pakai akun vendor, buat account customer baru dari sana —
 username+password awal yang muncul itu yang dipakai login ke
 `dashboard/`.
 
-Empat kunci di backend, empat tujuan berbeda, semuanya dihasilkan lewat
+Lima kunci di backend, lima tujuan berbeda, semuanya dihasilkan lewat
 `go run ./cmd/devicetool -genkey` tapi **wajib bernilai beda satu sama
 lain**: `DEVICE_SECRET_KEY` (enkripsi secret device), `ADMIN_SESSION_KEY`
 (tanda tangan cookie sesi customer, `admin_session`), `WEBHOOK_SECRET_KEY`
@@ -371,15 +371,60 @@ lain**: `DEVICE_SECRET_KEY` (enkripsi secret device), `ADMIN_SESSION_KEY`
 kunci lain yang cuma menandatangani/memverifikasi), `VENDOR_SESSION_KEY`
 (tanda tangan cookie sesi vendor, `vendor_session` — lihat "Sistem akun
 multi-tenant" di atas, sesi vendor dan customer tidak boleh pernah
-tertukar).
+tertukar), `SETTINGS_SECRET_KEY` (enkripsi password SMTP + token bot
+Telegram yang diatur vendor dan disimpan di tabel `notification_settings`
+— sengaja beda dari `WEBHOOK_SECRET_KEY` supaya rotasi salah satunya tidak
+merusak yang lain).
 
-Backend punya satu goroutine berkala (`time.Ticker`, 1 menit, di
-`cmd/server/main.go`) yang memproses webhook — mendeteksi invoice yang baru
-kedaluwarsa dan mengeksekusi retry pengiriman yang jatuh tempo. Ini
-satu-satunya proses latar belakang di backend, sejak goroutine validasi
-lisensi 24-jam yang dulu ada (License Server) dihapus bersama seluruh
-platform lisensi lama — status akun sekarang dicek langsung ke database
-tiap request (`requireActiveAccount`), bukan diperiksa berkala.
+Backend punya dua goroutine berkala di `cmd/server/main.go`, sengaja
+dengan ticker terpisah karena kadensinya berbeda jauh:
+
+1. **Worker webhook (1 menit)** — mendeteksi invoice yang baru kedaluwarsa
+   dan mengeksekusi retry pengiriman yang jatuh tempo.
+2. **Pengingat kedaluwarsa (1 jam)** — mengirim email (dan Telegram bila
+   customer mengisinya) ke customer yang masa aktifnya tinggal ≤ 7 hari.
+   Pengaturan SMTP/Telegram dibaca ulang dari database tiap putaran; selama
+   host/port/alamat pengirim SMTP belum diisi di Vendor Dashboard, putaran
+   dilewati (dicatat saat status aktif/nonaktif berubah).
+
+Goroutine validasi lisensi 24-jam yang dulu ada (License Server) sudah
+dihapus bersama seluruh platform lisensi lama — status akun sekarang dicek
+langsung ke database tiap request (`requireActiveAccount`), bukan
+diperiksa berkala.
+
+### Pengingat kedaluwarsa ke customer
+
+`internal/notify` (penyusunan pesan + pengiriman SMTP/Telegram) dan
+`internal/reminder` (pekerjaan berkalanya). Konfigurasinya (host, port,
+username, password, alamat pengirim SMTP, token bot Telegram) **disimpan di
+database**, tabel singleton `notification_settings`, diatur di Vendor
+Dashboard > Settings — bukan env var. Password dan token dienkripsi
+`SETTINGS_SECRET_KEY` dan **tidak pernah dikirim balik lewat API**
+(response cuma `smtp_password_set`/`telegram_bot_token_set`); `PUT`
+membedakan field tidak dikirim (biarkan), `""` (hapus), dan isi (ganti).
+`POST /api/v1/vendor/settings/notifications/test` mengirim pesan uji
+memakai pengaturan yang sudah tersimpan.
+
+Dua keputusan yang tidak boleh dibalik diam-diam:
+
+- **Email jalur utama, Telegram cuma tambahan.** Alamat email pasti
+  dimiliki tiap account (kolom wajib); Telegram diisi customer sendiri di
+  halaman `/license` dashboard mereka dan belum tentu ada. Karena itu
+  `NotificationSettings.EmailConfigured()` menuntut SMTP terisi — pengingat yang cuma
+  sampai ke sebagian customer lebih berbahaya daripada tidak ada sama
+  sekali, karena bikin merasa sudah aman.
+- **Dedupe lewat `accounts.expiry_reminder_sent_for`**, yang menyimpan
+  NILAI `expires_at` yang pengingatnya sudah dikirim — bukan "kapan
+  terakhir kirim". Begitu akun diperpanjang, `expires_at` berubah dan
+  pengingat periode berikutnya otomatis terbuka lagi. Kalau diganti jadi
+  timestamp biasa, perpanjangan tidak akan pernah mereset apa pun dan
+  customer tidak pernah diingatkan lagi setelah pengingat pertama.
+
+Ambangnya 7 hari (`reminder.DefaultWithinDays`), sengaja BEDA dari
+`store.WarningThresholdDays` (30 hari) yang dipakai status "expiring" di
+dashboard: status itu pasif (dibaca kalau dibuka) jadi wajar menyala lebih
+awal, sedangkan pengingat aktif menghampiri orang — sebulan sebelumnya
+terlalu dini dan gampang diabaikan saat benar-benar mendesak.
 
 ### Vendor Dashboard
 
@@ -398,7 +443,7 @@ cp .env.local.example .env.local
 npm run dev                        # Akbar yang menjalankan
 ```
 
-Tiga halaman:
+Halaman:
 
 - **Dashboard** (`/`, tujuan redirect setelah login) — ringkasan lintas
   SEMUA account: total/status/account baru minggu ini/total device/total
@@ -412,6 +457,12 @@ Tiga halaman:
   buat account baru + link ke halaman detail (`/accounts/{id}`: renew,
   suspend, revoke).
 - **Audit Log** (`/audit-log`) — riwayat aksi vendor (`LogAudit`).
+- **Transactions** (`/transactions`) dan **Webhooks** (`/webhooks`) —
+  invoice dan riwayat webhook delivery lintas SEMUA account, bisa
+  diekspor CSV.
+- **Settings** (`/settings`) — pengaturan SMTP + bot Telegram untuk
+  pengingat kedaluwarsa (lihat "Pengingat kedaluwarsa ke customer" di
+  atas) dan ganti password vendor.
 
 Warna badge status account (`active`/`expiring`/`expired`/`suspended`/
 `revoked`) disatukan di `src/lib/account-status.ts`, dipakai bersama oleh

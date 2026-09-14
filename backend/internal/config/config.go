@@ -26,6 +26,13 @@ type Config struct {
 	// customer, admin_session), supaya dua jenis sesi ini tidak mungkin
 	// tertukar walau tersimpan di browser yang sama.
 	VendorSessionKey []byte
+	// SettingsSecretKey mengenkripsi kredensial yang diatur vendor lewat
+	// Vendor Dashboard dan disimpan di database (password SMTP, token bot
+	// Telegram -- tabel notification_settings). Kunci kelima, tujuan
+	// kelima: jangan dipakai ulang dengan WebhookSecretKey walau sama-sama
+	// "mengenkripsi kredensial keluar" -- merotasi kunci webhook tidak boleh
+	// ikut membuat password SMTP tidak bisa didekripsi, dan sebaliknya.
+	SettingsSecretKey []byte
 }
 
 // Load membaca dan memvalidasi seluruh konfigurasi. Konfigurasi yang salah
@@ -97,6 +104,20 @@ func Load() (Config, error) {
 			secretbox.KeySize, len(vendorKey))
 	}
 	c.VendorSessionKey = vendorKey
+
+	rawSettings := os.Getenv("SETTINGS_SECRET_KEY")
+	if rawSettings == "" {
+		return Config{}, errors.New("config: SETTINGS_SECRET_KEY wajib diisi")
+	}
+	settingsKey, err := base64.StdEncoding.DecodeString(rawSettings)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: SETTINGS_SECRET_KEY bukan base64 yang sah: %w", err)
+	}
+	if len(settingsKey) != secretbox.KeySize {
+		return Config{}, fmt.Errorf("config: SETTINGS_SECRET_KEY harus %d byte setelah decode, dapat %d",
+			secretbox.KeySize, len(settingsKey))
+	}
+	c.SettingsSecretKey = settingsKey
 
 	return c, nil
 }

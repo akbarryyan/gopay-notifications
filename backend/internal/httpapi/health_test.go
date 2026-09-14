@@ -14,7 +14,7 @@ var fixedNow = time.Unix(1789036200, 0)
 
 func newTestAPI(t *testing.T) http.Handler {
 	t.Helper()
-	return httpapi.New(nil, nil, nil, nil, nil, func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(nil, nil, nil, nil, nil, nil, func() time.Time { return fixedNow }).Handler()
 }
 
 func TestHealthReturnsOKAndServerTime(t *testing.T) {

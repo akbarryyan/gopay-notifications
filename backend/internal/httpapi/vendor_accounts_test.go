@@ -22,7 +22,7 @@ func newAPIWithVendor(t *testing.T) http.Handler {
 	if err := s.UpsertVendorAdmin(context.Background(), "akbar", testVendorPassword); err != nil {
 		t.Fatalf("UpsertVendorAdmin: %v", err)
 	}
-	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(),
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(),
 		func() time.Time { return fixedNow }).Handler()
 }
 

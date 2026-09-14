@@ -74,7 +74,7 @@ func newAPITwoAccounts(t *testing.T) twoAccountsFixture {
 		t.Fatalf("create webhook b: %v", err)
 	}
 
-	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(),
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(),
 		func() time.Time { return fixedNow }).Handler()
 
 	loginAs := func(username string) *http.Cookie {

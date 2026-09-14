@@ -1,11 +1,21 @@
 "use client";
 
-import { AlertTriangle, RotateCw, ShieldCheck, ShieldOff } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, Bell, RotateCw, ShieldCheck, ShieldOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLicense, type LicenseInfo, type LicenseStatus } from "@/lib/api";
+import toast from "react-hot-toast";
+import {
+  ApiError,
+  getLicense,
+  setTelegramChatID,
+  type LicenseInfo,
+  type LicenseStatus,
+} from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
 
@@ -102,6 +112,68 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Pengaturan pengingat kedaluwarsa. Email selalu dipakai (alamatnya
+ * ditentukan saat akun dibuat, tidak bisa diubah sendiri di sini);
+ * Telegram opsional dan diisi customer sendiri.
+ */
+function ReminderSettings({ license, onSaved }: { license: LicenseInfo; onSaved: () => void }) {
+  const [chatID, setChatID] = useState(license.telegram_chat_id ?? "");
+  const [busy, setBusy] = useState(false);
+  const dirty = chatID.trim() !== (license.telegram_chat_id ?? "");
+
+  async function onSave() {
+    setBusy(true);
+    try {
+      await setTelegramChatID(chatID.trim());
+      toast.success(
+        chatID.trim() === "" ? "Pengingat Telegram dicabut." : "Chat ID Telegram disimpan.",
+      );
+      onSaved();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "invalid_payload") {
+        toast.error(err.message);
+      } else {
+        toast.error("Gagal menyimpan chat ID Telegram.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Bell className="size-4 text-muted-foreground" />
+        <h2 className="text-base font-semibold">Pengingat kedaluwarsa</h2>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Kami mengirim pengingat ke <span className="font-medium">{license.email}</span> saat masa
+        aktif tinggal 7 hari. Tambahkan Telegram kalau mau diingatkan di sana juga.
+      </p>
+
+      <div className="mt-4 flex flex-col gap-2 sm:max-w-sm">
+        <Label htmlFor="telegram-chat-id">Telegram chat ID (opsional)</Label>
+        <Input
+          id="telegram-chat-id"
+          value={chatID}
+          onChange={(e) => setChatID(e.target.value)}
+          placeholder="123456789"
+          inputMode="numeric"
+        />
+        <p className="text-xs text-muted-foreground">
+          Berupa angka, bukan username. Kirim pesan apa saja ke bot <code>@userinfobot</code> di
+          Telegram untuk melihat chat ID kamu. Kosongkan untuk berhenti menerima pengingat
+          Telegram.
+        </p>
+        <Button size="sm" className="mt-1 self-start" disabled={busy || !dirty} onClick={onSave}>
+          {busy ? "Menyimpan..." : "Simpan"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function LicensePage() {
   const { data, loading, error, reload } = useApiData(getLicense);
 
@@ -158,6 +230,8 @@ export default function LicensePage() {
               />
             </div>
           </div>
+
+          <ReminderSettings license={data} onSaved={reload} />
         </>
       ) : null}
     </div>

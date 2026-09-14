@@ -220,3 +220,107 @@ func TestCreateAccountUsernameBentrokDitolak(t *testing.T) {
 		t.Fatalf("err = %v, mau ErrAccountUsernameTaken", err)
 	}
 }
+
+func TestAccountsNeedingExpiryReminder(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	mustAccount := func(id string, expiresAt time.Time) {
+		t.Helper()
+		if err := s.CreateAccount(ctx, store.CreateAccountInput{
+			ID: id, BusinessName: id, Email: id + "@uji.test", Username: id,
+			PlaintextPassword: "rahasia123", Plan: "Starter", MaxDevices: 3,
+			ExpiresAt: expiresAt,
+		}); err != nil {
+			t.Fatalf("create %s: %v", id, err)
+		}
+	}
+
+	mustAccount("acc_besok", now.Add(24*time.Hour))        // masuk
+	mustAccount("acc_seminggu", now.Add(6*24*time.Hour))   // masuk
+	mustAccount("acc_sebulan", now.Add(30*24*time.Hour))   // terlalu jauh
+	mustAccount("acc_kedaluwarsa", now.Add(-24*time.Hour)) // sudah lewat
+	mustAccount("acc_suspended", now.Add(2*24*time.Hour))  // disuspend
+	if err := s.SetAccountAdminStatus(ctx, "acc_suspended", "suspended"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+
+	got, err := s.AccountsNeedingExpiryReminder(ctx, now, 7)
+	if err != nil {
+		t.Fatalf("AccountsNeedingExpiryReminder: %v", err)
+	}
+	ids := make([]string, 0, len(got))
+	for _, a := range got {
+		ids = append(ids, a.ID)
+	}
+	if len(ids) != 2 || ids[0] != "acc_besok" || ids[1] != "acc_seminggu" {
+		t.Fatalf("ids = %v, mau [acc_besok acc_seminggu] (terurut expires_at)", ids)
+	}
+}
+
+func TestExpiryReminderTidakDikirimDuaKaliTapiTerbukaLagiSetelahRenew(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	now := time.Now()
+	expiresAt := now.Add(3 * 24 * time.Hour).Truncate(time.Microsecond)
+
+	if err := s.CreateAccount(ctx, store.CreateAccountInput{
+		ID: "acc_1", BusinessName: "Toko", Email: "t@uji.test", Username: "toko",
+		PlaintextPassword: "rahasia123", Plan: "Starter", MaxDevices: 3, ExpiresAt: expiresAt,
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	acc, err := s.GetAccountByID(ctx, "acc_1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if err := s.MarkExpiryReminderSent(ctx, "acc_1", acc.ExpiresAt); err != nil {
+		t.Fatalf("mark: %v", err)
+	}
+
+	got, err := s.AccountsNeedingExpiryReminder(ctx, now, 7)
+	if err != nil {
+		t.Fatalf("query kedua: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got = %+v, mau kosong -- pengingat sudah dikirim untuk periode ini", got)
+	}
+
+	// Setelah diperpanjang, pengingat periode BARU harus terbuka lagi.
+	newExpiry := now.Add(5 * 24 * time.Hour).Truncate(time.Microsecond)
+	if err := s.RenewAccount(ctx, "acc_1", newExpiry); err != nil {
+		t.Fatalf("renew: %v", err)
+	}
+	got, err = s.AccountsNeedingExpiryReminder(ctx, now, 7)
+	if err != nil {
+		t.Fatalf("query setelah renew: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got = %+v, mau 1 -- perpanjangan membuka pengingat periode berikutnya", got)
+	}
+}
+
+func TestSetAccountTelegramChatID(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	seedAccount(t, s, "acc_1")
+
+	chatID := "123456789"
+	if err := s.SetAccountTelegramChatID(ctx, "acc_1", &chatID); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	acc, _ := s.GetAccountByID(ctx, "acc_1")
+	if acc.TelegramChatID == nil || *acc.TelegramChatID != chatID {
+		t.Fatalf("TelegramChatID = %v, mau %q", acc.TelegramChatID, chatID)
+	}
+
+	if err := s.SetAccountTelegramChatID(ctx, "acc_1", nil); err != nil {
+		t.Fatalf("hapus: %v", err)
+	}
+	acc, _ = s.GetAccountByID(ctx, "acc_1")
+	if acc.TelegramChatID != nil {
+		t.Fatalf("TelegramChatID = %v, mau nil setelah dicabut", acc.TelegramChatID)
+	}
+}

@@ -198,6 +198,65 @@ export function changeVendorPassword(
   });
 }
 
+// --- Pengaturan notifikasi (pengingat kedaluwarsa ke customer) ---------------
+
+/**
+ * Backend TIDAK PERNAH mengirim balik password SMTP atau token bot --
+ * cuma `*_set` yang menandakan apakah keduanya sudah tersimpan.
+ */
+export interface NotificationSettings {
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_from: string;
+  smtp_password_set: boolean;
+  telegram_bot_token_set: boolean;
+  email_configured: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+/**
+ * `smtp_password` dan `telegram_bot_token`: jangan disertakan (undefined)
+ * untuk mempertahankan yang tersimpan, "" untuk menghapus, isi untuk
+ * mengganti.
+ */
+export interface SaveNotificationSettingsInput {
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_from: string;
+  smtp_password?: string;
+  telegram_bot_token?: string;
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  const res = await apiFetch<{ success: true; settings: NotificationSettings }>(
+    "/api/v1/vendor/settings/notifications",
+  );
+  return res.settings;
+}
+
+export async function saveNotificationSettings(
+  input: SaveNotificationSettingsInput,
+): Promise<NotificationSettings> {
+  const res = await apiFetch<{ success: true; settings: NotificationSettings }>(
+    "/api/v1/vendor/settings/notifications",
+    { method: "PUT", body: JSON.stringify(input) },
+  );
+  return res.settings;
+}
+
+export function sendTestNotification(
+  channel: "email" | "telegram",
+  to: string,
+): Promise<{ success: true }> {
+  return apiFetch("/api/v1/vendor/settings/notifications/test", {
+    method: "POST",
+    body: JSON.stringify({ channel, to }),
+  });
+}
+
 // --- Transactions (lintas semua account) -------------------------------------
 
 export type InvoiceStatus = "PENDING" | "PAID" | "EXPIRED";
@@ -228,4 +287,42 @@ export async function getTransactions(
   if (filter.to) params.set("to", filter.to);
   const res = await apiFetch<{ invoices: VendorInvoice[] }>(`/api/v1/vendor/transactions?${params}`);
   return res.invoices;
+}
+
+// --- Webhook deliveries (lintas semua account, read-only) --------------------
+
+export type DeliveryStatus = "PENDING" | "RETRYING" | "DELIVERED" | "FAILED";
+
+export interface VendorDelivery {
+  id: string;
+  account_id: string;
+  business_name: string;
+  endpoint_id: string;
+  endpoint_name: string;
+  endpoint_url: string;
+  event: string;
+  invoice_id: string | null;
+  status: DeliveryStatus;
+  attempt: number;
+  next_attempt_at: string | null;
+  http_status: number | null;
+  duration_ms: number | null;
+  created_at: string;
+  delivered_at: string | null;
+}
+
+export async function getWebhookDeliveries(
+  limit: number,
+  offset: number,
+  filter: { q?: string; status?: DeliveryStatus; from?: string; to?: string },
+): Promise<VendorDelivery[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (filter.q) params.set("q", filter.q);
+  if (filter.status) params.set("status", filter.status);
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+  const res = await apiFetch<{ deliveries: VendorDelivery[] }>(
+    `/api/v1/vendor/webhook-deliveries?${params}`,
+  );
+  return res.deliveries;
 }

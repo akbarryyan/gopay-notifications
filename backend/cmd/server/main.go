@@ -13,6 +13,7 @@ import (
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/reminder"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
@@ -36,7 +37,7 @@ func main() {
 	}
 	defer s.Close()
 
-	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, cfg.VendorSessionKey, time.Now)
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, cfg.VendorSessionKey, cfg.SettingsSecretKey, time.Now)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -71,6 +72,44 @@ func main() {
 				if err := api.ProcessDueWebhooks(ctx, time.Now()); err != nil {
 					slog.Error("process due webhooks gagal", "err", err)
 				}
+			}
+		}
+	}()
+
+	// Pengingat kedaluwarsa ke customer. Ticker TERPISAH dari worker
+	// webhook di atas, bukan digabung: kadensinya beda jauh (sekali sejam
+	// vs sekali semenit), dan menumpangkannya ke ticker 1 menit berarti
+	// query pencarian akun jatuh tempo jalan 60x lebih sering tanpa
+	// manfaat -- dedupe-nya ada di database (expiry_reminder_sent_for),
+	// jadi satu jam sekali sudah cukup rapat dan aman terhadap restart.
+	//
+	// Ticker SELALU berjalan; aktif-tidaknya diputuskan tiap putaran dari
+	// pengaturan SMTP di database (diatur lewat Vendor Dashboard), jadi
+	// mengisi/mengubah SMTP langsung berlaku tanpa restart. Job sendiri yang
+	// mencatat saat status aktif/tidak aktif berubah.
+	job := reminder.New(s, reminder.FromSettings(s, cfg.SettingsSecretKey), reminder.DefaultWithinDays)
+	runReminder := func() {
+		sent, err := job.Run(ctx, time.Now())
+		if err != nil {
+			slog.Error("pengingat kedaluwarsa gagal", "err", err)
+			return
+		}
+		if sent > 0 {
+			slog.Info("pengingat kedaluwarsa terkirim", "jumlah", sent)
+		}
+	}
+	reminderTicker := time.NewTicker(1 * time.Hour)
+	defer reminderTicker.Stop()
+	go func() {
+		// Satu putaran langsung saat start, tidak menunggu satu jam pertama
+		// -- supaya status aktif/tidak aktif langsung terlihat di log.
+		runReminder()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-reminderTicker.C:
+				runReminder()
 			}
 		}
 	}()

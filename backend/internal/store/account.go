@@ -46,6 +46,9 @@ type Account struct {
 	ExpiresAt    time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	// TelegramChatID opsional -- diisi customer sendiri di Settings
+	// dashboard mereka. Nil berarti pengingat cuma lewat email.
+	TelegramChatID *string
 }
 
 // VerifyPassword membandingkan password mentah dengan hash tersimpan.
@@ -114,7 +117,7 @@ func (s *Store) CreateAccount(ctx context.Context, in CreateAccountInput) error 
 }
 
 const accountSelectCols = `SELECT id, business_name, email, username, password_hash,
-	plan, max_devices, admin_status, expires_at, created_at, updated_at FROM accounts`
+	plan, max_devices, admin_status, expires_at, created_at, updated_at, telegram_chat_id FROM accounts`
 
 type accountScanner interface {
 	Scan(dest ...any) error
@@ -123,7 +126,8 @@ type accountScanner interface {
 func scanAccount(row accountScanner) (Account, error) {
 	var a Account
 	err := row.Scan(&a.ID, &a.BusinessName, &a.Email, &a.Username, &a.PasswordHash,
-		&a.Plan, &a.MaxDevices, &a.AdminStatus, &a.ExpiresAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Plan, &a.MaxDevices, &a.AdminStatus, &a.ExpiresAt, &a.CreatedAt, &a.UpdatedAt,
+		&a.TelegramChatID)
 	return a, err
 }
 
@@ -201,6 +205,74 @@ func (s *Store) SetAccountAdminStatus(ctx context.Context, id, status string) er
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrAccountNotFound
+	}
+	return nil
+}
+
+// SetAccountTelegramChatID menyimpan (atau menghapus, bila nil) chat id
+// Telegram yang diisi customer sendiri di Settings dashboard mereka.
+func (s *Store) SetAccountTelegramChatID(ctx context.Context, id string, chatID *string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE accounts SET telegram_chat_id = $2, updated_at = now() WHERE id = $1`, id, chatID)
+	if err != nil {
+		return fmt.Errorf("store: set telegram chat id: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrAccountNotFound
+	}
+	return nil
+}
+
+// AccountsNeedingExpiryReminder mengembalikan akun yang perlu diingatkan
+// bahwa masa aktifnya segera berakhir: masih operasional (bukan
+// suspended/revoked), berakhir dalam `withinDays` hari ke depan, dan
+// pengingat untuk NILAI expires_at itu belum pernah dikirim.
+//
+// Perbandingan `expiry_reminder_sent_for IS DISTINCT FROM expires_at`
+// (bukan `<`, bukan IS NULL saja) yang membuat perpanjangan otomatis
+// membuka pengingat periode berikutnya -- lihat alasannya di migrasi
+// 00010_expiry_reminder.sql.
+//
+// Akun yang SUDAH kedaluwarsa tidak ikut: pengingat yang datang setelah
+// layanan berhenti bukan pengingat, cuma pemberitahuan yang terlambat.
+func (s *Store) AccountsNeedingExpiryReminder(ctx context.Context, now time.Time, withinDays int) ([]Account, error) {
+	deadline := now.AddDate(0, 0, withinDays)
+	rows, err := s.pool.Query(ctx,
+		accountSelectCols+`
+		 WHERE admin_status = 'active'
+		   AND expires_at > $1
+		   AND expires_at <= $2
+		   AND expiry_reminder_sent_for IS DISTINCT FROM expires_at
+		 ORDER BY expires_at ASC`, now, deadline)
+	if err != nil {
+		return nil, fmt.Errorf("store: akun yang perlu pengingat kedaluwarsa: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Account, 0)
+	for rows.Next() {
+		a, err := scanAccount(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: scan akun pengingat: %w", err)
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterasi akun pengingat: %w", err)
+	}
+	return out, nil
+}
+
+// MarkExpiryReminderSent menandai pengingat untuk periode `expiresAt`
+// sudah terkirim. `AND expires_at = $2` menjaga dari kasus akun diperpanjang
+// tepat di antara pembacaan dan penandaan: kalau begitu, tidak ada baris
+// yang tersentuh dan pengingat periode baru tetap akan dikirim nanti.
+func (s *Store) MarkExpiryReminderSent(ctx context.Context, id string, expiresAt time.Time) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE accounts SET expiry_reminder_sent_for = $2 WHERE id = $1 AND expires_at = $2`,
+		id, expiresAt)
+	if err != nil {
+		return fmt.Errorf("store: tandai pengingat kedaluwarsa terkirim: %w", err)
 	}
 	return nil
 }

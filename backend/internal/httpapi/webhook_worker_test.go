@@ -39,7 +39,7 @@ func newAPIForWebhookWorker(t *testing.T) (*httpapi.API, string) {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	api := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), func() time.Time { return fixedNow })
+	api := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(), func() time.Time { return fixedNow })
 	return api, rawKey
 }
 

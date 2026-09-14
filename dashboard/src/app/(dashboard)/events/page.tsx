@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { RotateCw, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Download, RotateCw, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,11 +15,27 @@ import {
 } from "@/components/ui/table";
 import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
-import { getEvents, getSources } from "@/lib/api";
+import toast from "react-hot-toast";
+import { getEvents, getSources, type AdminEvent } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateTime, formatRupiah } from "@/lib/format";
+import { downloadCsv, fetchAllPages, toCsv, type CsvColumn } from "@/lib/csv";
 
 const PAGE_SIZE = 50;
+
+// raw_payload sengaja TIDAK ikut diekspor: isinya JSON utuh per baris,
+// yang membuat CSV-nya nyaris tidak bisa dibaca di spreadsheet. Payload
+// mentah tetap bisa dilihat per event lewat baris yang diperluas.
+const CSV_COLUMNS: CsvColumn<AdminEvent>[] = [
+  { label: "Event ID", value: (e) => e.event_id },
+  { label: "Device ID", value: (e) => e.device_id },
+  { label: "Source", value: (e) => e.source },
+  { label: "Title", value: (e) => e.title ?? "" },
+  { label: "Text", value: (e) => e.text ?? "" },
+  { label: "Amount Hint", value: (e) => e.amount_hint ?? "" },
+  { label: "Posted At", value: (e) => e.posted_at },
+  { label: "Received At", value: (e) => e.received_at },
+];
 
 export default function EventsPage() {
   const [offset, setOffset] = useState(0);
@@ -60,14 +76,50 @@ export default function EventsPage() {
   const { data, loading, error, reload } = useApiData(fetcher);
 
   const sourceOptions = (sources.data ?? []).map((s) => ({ value: s.id, label: s.name }));
+  const [exporting, setExporting] = useState(false);
+
+  async function onExport() {
+    setExporting(true);
+    try {
+      const activeFilter = {
+        q: query || undefined,
+        source: source || undefined,
+        from: dateRange.from || undefined,
+        to: dateRange.to || undefined,
+      };
+      const { rows, truncated } = await fetchAllPages((limit, offset) =>
+        getEvents(limit, offset, activeFilter),
+      );
+      if (rows.length === 0) {
+        toast.error("Tidak ada event yang cocok dengan filter ini.");
+        return;
+      }
+      downloadCsv(`events-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows, CSV_COLUMNS));
+      toast.success(
+        truncated
+          ? `${rows.length} event diekspor (dipotong di batas — persempit filternya untuk sisanya).`
+          : `${rows.length} event diekspor.`,
+      );
+    } catch {
+      toast.error("Gagal mengekspor event.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Events</h1>
-        <p className="text-sm text-muted-foreground">
-          Notifikasi pembayaran mentah yang diterima dari perangkat Android, apa adanya.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Events</h1>
+          <p className="text-sm text-muted-foreground">
+            Notifikasi pembayaran mentah yang diterima dari perangkat Android, apa adanya.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" disabled={exporting} onClick={onExport}>
+          <Download className="mr-1.5 size-4" />
+          {exporting ? "Mengekspor..." : "Export CSV"}
+        </Button>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

@@ -16,6 +16,7 @@ type API struct {
 	adminSessionKey     []byte
 	webhookSecretKey    []byte
 	vendorSessionKey    []byte
+	settingsSecretKey   []byte
 	now                 func() time.Time
 	loginThrottle       *loginThrottle
 	vendorLoginThrottle *loginThrottle
@@ -25,7 +26,7 @@ type API struct {
 
 // New membuat API. Parameter now disuntikkan agar test dapat memalsukan jam.
 func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey []byte,
-	vendorSessionKey []byte, now func() time.Time) *API {
+	vendorSessionKey []byte, settingsSecretKey []byte, now func() time.Time) *API {
 	if now == nil {
 		now = time.Now
 	}
@@ -35,6 +36,7 @@ func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey
 		adminSessionKey:     adminSessionKey,
 		webhookSecretKey:    webhookSecretKey,
 		vendorSessionKey:    vendorSessionKey,
+		settingsSecretKey:   settingsSecretKey,
 		now:                 now,
 		loginThrottle:       newLoginThrottle(),
 		vendorLoginThrottle: newLoginThrottle(),
@@ -76,6 +78,7 @@ func (a *API) Handler() http.Handler {
 	// kredensial sampai titik ini. Lihat signup.go.
 	mux.HandleFunc("POST /api/v1/signup", a.handleSignup)
 	mux.Handle("GET /api/v1/admin/license", a.requireAdmin(http.HandlerFunc(a.handleAdminLicense)))
+	mux.Handle("POST /api/v1/admin/account/telegram", a.requireAdmin(http.HandlerFunc(a.handleAdminSetTelegram)))
 	mux.Handle("GET /api/v1/admin/overview",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminOverview))))
 	mux.Handle("GET /api/v1/admin/devices",
@@ -132,12 +135,16 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/vendor/accounts/{accountID}", a.requireVendor(http.HandlerFunc(a.handleVendorGetAccount)))
 	mux.Handle("GET /api/v1/vendor/accounts/{accountID}/devices", a.requireVendor(http.HandlerFunc(a.handleVendorListDevices)))
 	mux.Handle("GET /api/v1/vendor/transactions", a.requireVendor(http.HandlerFunc(a.handleVendorTransactions)))
+	mux.Handle("GET /api/v1/vendor/webhook-deliveries", a.requireVendor(http.HandlerFunc(a.handleVendorWebhookDeliveries)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/renew", a.requireVendor(http.HandlerFunc(a.handleVendorRenewAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/plan", a.requireVendor(http.HandlerFunc(a.handleVendorChangePlan)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/revoke", a.requireVendor(http.HandlerFunc(a.handleVendorRevokeAccount)))
 	mux.Handle("GET /api/v1/vendor/audit-log", a.requireVendor(http.HandlerFunc(a.handleVendorAuditLog)))
 	mux.Handle("POST /api/v1/vendor/me/password", a.requireVendor(http.HandlerFunc(a.handleVendorChangePassword)))
+	mux.Handle("GET /api/v1/vendor/settings/notifications", a.requireVendor(http.HandlerFunc(a.handleVendorGetNotificationSettings)))
+	mux.Handle("PUT /api/v1/vendor/settings/notifications", a.requireVendor(http.HandlerFunc(a.handleVendorSaveNotificationSettings)))
+	mux.Handle("POST /api/v1/vendor/settings/notifications/test", a.requireVendor(http.HandlerFunc(a.handleVendorTestNotification)))
 
 	return mux
 }

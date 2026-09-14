@@ -56,7 +56,7 @@ func newAPIWithAccountState(t *testing.T, st accountState) (h http.Handler, apiK
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 
-	handler := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(),
+	handler := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(),
 		func() time.Time { return fixedNow }).Handler()
 	return handler, rawKey
 }

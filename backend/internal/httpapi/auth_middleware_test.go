@@ -50,6 +50,14 @@ func vendorSessionKey() []byte {
 	return k
 }
 
+func settingsSecretKey() []byte {
+	k := make([]byte, 32)
+	for i := range k {
+		k[i] = byte(i*13 + 5)
+	}
+	return k
+}
+
 // newTestStore membuka koneksi ke database test dan mengosongkan seluruh
 // tabel -- dipakai ulang oleh seluruh test di paket ini.
 func newTestStore(t *testing.T) *store.Store {
@@ -68,7 +76,7 @@ func newTestStore(t *testing.T) *store.Store {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log, notification_settings RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	return s
@@ -101,7 +109,7 @@ func newAPIWithDevice(t *testing.T) http.Handler {
 		t.Fatalf("CreateDevice: %v", err)
 	}
 
-	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), func() time.Time { return fixedNow }).Handler()
+	return httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(), func() time.Time { return fixedNow }).Handler()
 }
 
 // signedRequest membuat request yang sudah ditandatangani dengan benar.

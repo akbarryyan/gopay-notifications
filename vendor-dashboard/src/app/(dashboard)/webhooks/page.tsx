@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, RotateCw, Search } from "lucide-react";
+import { RotateCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,62 +15,34 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import toast from "react-hot-toast";
 import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
-import { getTransactions, type InvoiceStatus, type VendorInvoice } from "@/lib/api";
+import { getWebhookDeliveries, type DeliveryStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
-import { formatDateTime, formatRupiah } from "@/lib/format";
-import { downloadCsv, fetchAllPages, toCsv, type CsvColumn } from "@/lib/csv";
+import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 50;
 
-const STATUS_OPTIONS: { value: InvoiceStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: DeliveryStatus; label: string }[] = [
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "RETRYING", label: "Retrying" },
+  { value: "FAILED", label: "Failed" },
   { value: "PENDING", label: "Pending" },
-  { value: "PAID", label: "Paid" },
-  { value: "EXPIRED", label: "Expired" },
 ];
 
-const TRANSACTION_CSV_COLUMNS: CsvColumn<VendorInvoice>[] = [
-  { label: "Business Name", value: (i) => i.business_name },
-  { label: "External Ref", value: (i) => i.external_ref },
-  { label: "Requested Amount", value: (i) => i.requested_amount },
-  { label: "Unique Amount", value: (i) => i.unique_amount },
-  { label: "Status", value: (i) => i.status },
-  { label: "Created At", value: (i) => i.created_at },
-  { label: "Paid At", value: (i) => i.paid_at ?? "" },
-  { label: "Expires At", value: (i) => i.expires_at },
-];
+const STATUS_BADGE: Record<DeliveryStatus, string> = {
+  DELIVERED: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  RETRYING: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  FAILED: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
+  PENDING: "border-transparent bg-slate-500/15 text-slate-700 dark:text-slate-300",
+};
 
-function StatusBadge({ status }: { status: InvoiceStatus }) {
-  if (status === "PAID") {
-    return (
-      <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-        Paid
-      </Badge>
-    );
-  }
-  if (status === "EXPIRED") {
-    return (
-      <Badge variant="outline" className="text-muted-foreground">
-        Expired
-      </Badge>
-    );
-  }
-  return (
-    <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400">
-      Pending
-    </Badge>
-  );
-}
-
-export default function TransactionsPage() {
+export default function WebhooksPage() {
   const [offset, setOffset] = useState(0);
   const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(rawQuery), 350);
@@ -84,63 +56,26 @@ export default function TransactionsPage() {
 
   const fetcher = useCallback(
     () =>
-      getTransactions(PAGE_SIZE, offset, {
+      getWebhookDeliveries(PAGE_SIZE, offset, {
         q: query || undefined,
-        status: (status || undefined) as InvoiceStatus | undefined,
+        status: (status || undefined) as DeliveryStatus | undefined,
         from: dateRange.from || undefined,
         to: dateRange.to || undefined,
       }),
     [offset, query, status, dateRange.from, dateRange.to],
   );
   const { data, loading, error, reload } = useApiData(fetcher);
-  const hasFilter = query.trim() !== "" || status !== "" || dateRange.from !== "" || dateRange.to !== "";
-
-  async function onExport() {
-    setExporting(true);
-    try {
-      const activeFilter = {
-        q: query || undefined,
-        status: (status || undefined) as InvoiceStatus | undefined,
-        from: dateRange.from || undefined,
-        to: dateRange.to || undefined,
-      };
-
-      const { rows, truncated } = await fetchAllPages((limit, offset) =>
-        getTransactions(limit, offset, activeFilter),
-      );
-
-      if (rows.length === 0) {
-        toast.error("Tidak ada transaksi yang cocok dengan filter ini.");
-        return;
-      }
-
-      downloadCsv(
-        `transactions-${new Date().toISOString().slice(0, 10)}.csv`,
-        toCsv(rows, TRANSACTION_CSV_COLUMNS),
-      );
-      toast.success(
-        truncated
-          ? `${rows.length} transaksi diekspor (dipotong di batas ${rows.length} baris — persempit filternya untuk sisanya).`
-          : `${rows.length} transaksi diekspor.`,
-      );
-    } catch {
-      toast.error("Gagal mengekspor transaksi.");
-    } finally {
-      setExporting(false);
-    }
-  }
+  const hasFilter =
+    query.trim() !== "" || status !== "" || dateRange.from !== "" || dateRange.to !== "";
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Transactions</h1>
-          <p className="text-sm text-muted-foreground">Invoice lintas semua account, terbaru dulu.</p>
-        </div>
-        <Button size="sm" variant="outline" disabled={exporting} onClick={onExport}>
-          <Download className="mr-1.5 size-4" />
-          {exporting ? "Mengekspor..." : "Export CSV"}
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold">Webhooks</h1>
+        <p className="text-sm text-muted-foreground">
+          Riwayat pengiriman webhook lintas semua account — read-only, untuk menelusuri
+          kegagalan tanpa membuka database.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -149,7 +84,7 @@ export default function TransactionsPage() {
           <input
             value={rawQuery}
             onChange={(e) => setRawQuery(e.target.value)}
-            placeholder="Cari nama bisnis atau referensi order..."
+            placeholder="Cari nama bisnis, nama endpoint, atau URL..."
             className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
@@ -166,7 +101,7 @@ export default function TransactionsPage() {
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Tidak dapat memuat transactions</AlertTitle>
+          <AlertTitle>Tidak dapat memuat riwayat webhook</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-4">
             <span>{error}</span>
             <Button size="sm" variant="outline" onClick={reload}>
@@ -190,30 +125,49 @@ export default function TransactionsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Business</TableHead>
-                  <TableHead>Referensi</TableHead>
-                  <TableHead className="text-right">Nominal diminta</TableHead>
+                  <TableHead>Endpoint</TableHead>
+                  <TableHead>Event</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Percobaan</TableHead>
+                  <TableHead className="text-right">HTTP</TableHead>
+                  <TableHead className="text-right">Durasi</TableHead>
                   <TableHead>Dibuat</TableHead>
-                  <TableHead>Dibayar / Kedaluwarsa</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((inv) => (
-                  <TableRow key={inv.id}>
+                {data.map((d) => (
+                  <TableRow key={d.id}>
                     <TableCell>
-                      <Link href={`/accounts/${inv.account_id}`} className="font-medium hover:underline">
-                        {inv.business_name}
+                      <Link
+                        href={`/accounts/${d.account_id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {d.business_name}
                       </Link>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{inv.external_ref}</TableCell>
-                    <TableCell className="text-right">{formatRupiah(inv.requested_amount)}</TableCell>
                     <TableCell>
-                      <StatusBadge status={inv.status} />
+                      <div className="font-medium">{d.endpoint_name}</div>
+                      <div className="max-w-xs truncate font-mono text-xs text-muted-foreground">
+                        {d.endpoint_url}
+                      </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDateTime(inv.created_at)}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {inv.paid_at ? formatDateTime(inv.paid_at) : formatDateTime(inv.expires_at)}
+                    <TableCell className="font-mono text-xs">{d.event}</TableCell>
+                    <TableCell>
+                      <Badge className={STATUS_BADGE[d.status]}>{d.status}</Badge>
+                      {d.status === "RETRYING" && d.next_attempt_at && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Coba lagi {formatDateTime(d.next_attempt_at)}
+                        </p>
+                      )}
                     </TableCell>
+                    <TableCell className="text-right">{d.attempt}</TableCell>
+                    <TableCell className="text-right">
+                      {d.http_status ?? <span className="text-muted-foreground">tidak terhubung</span>}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {d.duration_ms !== null ? `${d.duration_ms}ms` : "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDateTime(d.created_at)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -245,12 +199,14 @@ export default function TransactionsPage() {
       ) : (
         <div className="rounded-2xl border border-dashed p-8 text-center">
           <p className="font-medium">
-            {hasFilter ? "Tidak ada transaksi yang cocok dengan filter ini" : "Belum ada transaksi"}
+            {hasFilter
+              ? "Tidak ada pengiriman yang cocok dengan filter ini"
+              : "Belum ada pengiriman webhook"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {hasFilter
               ? "Coba ubah atau bersihkan filter di atas."
-              : "Transaksi akan muncul di sini begitu ada customer yang membuat invoice."}
+              : "Riwayat akan muncul begitu ada customer yang mendaftarkan endpoint webhook dan invoice-nya lunas/kedaluwarsa."}
           </p>
         </div>
       )}

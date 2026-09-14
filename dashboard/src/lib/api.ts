@@ -409,14 +409,26 @@ export type LicenseStatus = "active" | "expiring" | "expired" | "suspended" | "r
 
 export interface LicenseInfo {
   business_name: string;
+  /** Alamat tujuan pengingat kedaluwarsa. */
+  email: string;
   plan: string;
   max_devices: number;
   expires_at: string;
   days_remaining: number;
   status: LicenseStatus;
+  /** Null berarti pengingat cuma lewat email. */
+  telegram_chat_id: string | null;
 }
 
 export async function getLicense(): Promise<LicenseInfo> {
   const res = await apiFetch<{ license: LicenseInfo }>("/api/v1/admin/license");
   return res.license;
+}
+
+/** String kosong berarti mencabut Telegram (email tetap jalan). */
+export function setTelegramChatID(chatID: string): Promise<{ success: true }> {
+  return apiFetch("/api/v1/admin/account/telegram", {
+    method: "POST",
+    body: JSON.stringify({ telegram_chat_id: chatID }),
+  });
 }

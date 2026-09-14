@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { RotateCw, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Download, RotateCw, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,11 +16,24 @@ import {
 } from "@/components/ui/table";
 import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
-import { getInvoices, type InvoiceStatus } from "@/lib/api";
+import toast from "react-hot-toast";
+import { getInvoices, type AdminInvoice, type InvoiceStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateTime, formatRupiah } from "@/lib/format";
+import { downloadCsv, fetchAllPages, toCsv, type CsvColumn } from "@/lib/csv";
 
 const PAGE_SIZE = 50;
+
+const CSV_COLUMNS: CsvColumn<AdminInvoice>[] = [
+  { label: "External Ref", value: (i) => i.external_ref },
+  { label: "Requested Amount", value: (i) => i.requested_amount },
+  { label: "Unique Amount", value: (i) => i.unique_amount },
+  { label: "Status", value: (i) => i.status },
+  { label: "Created At", value: (i) => i.created_at },
+  { label: "Paid At", value: (i) => i.paid_at ?? "" },
+  { label: "Expires At", value: (i) => i.expires_at },
+  { label: "Matched Event ID", value: (i) => i.matched_event_id ?? "" },
+];
 
 const STATUS_OPTIONS: { value: InvoiceStatus; label: string }[] = [
   { value: "PENDING", label: "Pending" },
@@ -80,14 +93,53 @@ export default function TransactionsPage() {
     [offset, query, status, dateRange.from, dateRange.to],
   );
   const { data, loading, error, reload } = useApiData(fetcher);
+  const [exporting, setExporting] = useState(false);
+
+  async function onExport() {
+    setExporting(true);
+    try {
+      const activeFilter = {
+        q: query || undefined,
+        status: (status || undefined) as InvoiceStatus | undefined,
+        from: dateRange.from || undefined,
+        to: dateRange.to || undefined,
+      };
+      const { rows, truncated } = await fetchAllPages((limit, offset) =>
+        getInvoices(limit, offset, activeFilter),
+      );
+      if (rows.length === 0) {
+        toast.error("Tidak ada transaksi yang cocok dengan filter ini.");
+        return;
+      }
+      downloadCsv(
+        `transactions-${new Date().toISOString().slice(0, 10)}.csv`,
+        toCsv(rows, CSV_COLUMNS),
+      );
+      toast.success(
+        truncated
+          ? `${rows.length} transaksi diekspor (dipotong di batas — persempit filternya untuk sisanya).`
+          : `${rows.length} transaksi diekspor.`,
+      );
+    } catch {
+      toast.error("Gagal mengekspor transaksi.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Transactions</h1>
-        <p className="text-sm text-muted-foreground">
-          Invoice yang dibuat lewat API dan status pencocokannya ke pembayaran yang masuk.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Transactions</h1>
+          <p className="text-sm text-muted-foreground">
+            Invoice yang dibuat lewat API dan status pencocokannya ke pembayaran yang masuk.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" disabled={exporting} onClick={onExport}>
+          <Download className="mr-1.5 size-4" />
+          {exporting ? "Mengekspor..." : "Export CSV"}
+        </Button>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
