@@ -90,7 +90,6 @@ export default function VendorDashboardPage() {
           <OverviewTrendChart data={overview.data.daily} />
         </CardContent>
       </Card>
-go run ./cmd/server
 
       <Card className="gap-0 rounded-2xl border-none py-0 shadow-sm ring-1 ring-border/60">
         <CardHeader className="border-b py-4">
