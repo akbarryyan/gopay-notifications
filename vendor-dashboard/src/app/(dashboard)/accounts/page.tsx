@@ -28,17 +28,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { createAccount, getAccounts, type Account, type AccountPlan } from "@/lib/api";
+import { createAccount, getAccounts, type AccountPlan } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
-
-const STATUS_BADGE: Record<Account["status"], string> = {
-  active: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  expiring: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  expired: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
-  suspended: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
-  revoked: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
-};
+import { STATUS_BADGE } from "@/lib/account-status";
 
 const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 

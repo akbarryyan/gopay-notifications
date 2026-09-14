@@ -122,6 +122,7 @@ func (a *API) Handler() http.Handler {
 	// sendiri. Menggantikan License Server yang dulu terpisah service.
 	mux.HandleFunc("POST /api/v1/vendor/login", a.handleVendorLogin)
 	mux.HandleFunc("POST /api/v1/vendor/logout", a.handleVendorLogout)
+	mux.Handle("GET /api/v1/vendor/overview", a.requireVendor(http.HandlerFunc(a.handleVendorOverview)))
 	mux.Handle("POST /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorCreateAccount)))
 	mux.Handle("GET /api/v1/vendor/accounts", a.requireVendor(http.HandlerFunc(a.handleVendorListAccounts)))
 	mux.Handle("GET /api/v1/vendor/accounts/{accountID}", a.requireVendor(http.HandlerFunc(a.handleVendorGetAccount)))

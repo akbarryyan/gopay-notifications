@@ -90,7 +90,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/" className="text-sm text-muted-foreground hover:underline">
+        <Link href="/accounts" className="text-sm text-muted-foreground hover:underline">
           ← Kembali ke Accounts
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">{data?.business_name ?? "..."}</h1>

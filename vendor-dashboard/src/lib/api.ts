@@ -127,3 +127,32 @@ export async function getAuditLog(): Promise<AuditEntry[]> {
   const res = await apiFetch<{ entries: AuditEntry[] }>("/api/v1/vendor/audit-log");
   return res.entries;
 }
+
+// --- Dashboard (ringkasan lintas account) ------------------------------------
+
+export interface VendorOverview {
+  accounts: {
+    total: number;
+    active: number;
+    expiring: number;
+    expired: number;
+    suspended: number;
+    revoked: number;
+    new_this_week: number;
+  };
+  devices: {
+    total: number;
+  };
+  revenue: {
+    total_paid_rp: number;
+  };
+  /** 14 hari terakhir, hari tertua lebih dulu, lintas SEMUA account. */
+  daily: { date: string; new_accounts: number; paid_amount_rp: number }[];
+  /** Account paling baru dibuat, terbanyak 5 baris -- lihat Accounts untuk daftar lengkap. */
+  recent_accounts: Account[];
+}
+
+export async function getOverview(): Promise<VendorOverview> {
+  const res = await apiFetch<{ overview: VendorOverview }>("/api/v1/vendor/overview");
+  return res.overview;
+}
