@@ -27,9 +27,11 @@ export interface NavItem {
  * docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md,
  * 2026-09-13-webhook-delivery-design.md,
  * 2026-09-13-exception-console-design.md, dan
- * 2026-09-13-license-system-design.md). Logs masih menunggu —
- * menampilkannya sebagai link aktif sekarang berarti membangun halaman
- * untuk data yang bentuknya belum pasti.
+ * 2026-09-13-license-system-design.md). Logs (riwayat aktivitas akun:
+ * login, ganti password, API key, device) sekarang aktif juga, sumbernya
+ * `account_activity_log` -- lingkupnya BEDA dari "Logs" di
+ * docs/dashboard-spec.md (yang membayangkan log teknis SYSTEM/DEVICE/
+ * EVENT/dst); ini log keamanan akun, bukan log troubleshooting.
  */
 export const MONITORING_ITEMS: NavItem[] = [
   { label: "Overview", href: "/overview", icon: LayoutDashboard },
@@ -50,14 +52,6 @@ export const GATEWAY_ITEMS: NavItem[] = [
 
 export const SYSTEM_ITEMS: NavItem[] = [
   { label: "License", href: "/license", icon: ShieldCheck },
+  { label: "Logs", href: "/logs", icon: ScrollText },
   { label: "Settings", href: "/settings", icon: Settings },
-];
-
-/**
- * Ditampilkan, tidak disembunyikan — supaya bentuk akhir produk tetap
- * terlihat (sesuai dashboard-spec §16, pola yang sama dipakai untuk
- * connector DANA/OVO yang belum diimplementasikan).
- */
-export const COMING_SOON_ITEMS: { label: string; icon: LucideIcon }[] = [
-  { label: "Logs", icon: ScrollText },
 ];

@@ -338,6 +338,32 @@ satu per satu: alamat LAN laptop berubah tiap ganti jaringan, dan
 `base-config cleartextTrafficPermitted="false"` ikut memblokir Metro sehingga
 aplikasi gagal start.
 
+#### Pairing lewat QR (swalayan, tanpa ketik manual)
+
+Di halaman Devices (`dashboard/`), dialog "Device dibuat" sekarang juga
+menampilkan QR code (`react-qr-code`) berisi JSON
+`{v, backend_url, device_id, device_secret}` — nilai yang SAMA dengan yang
+sudah ditampilkan untuk disalin manual, cuma dikodekan berbeda. Di
+aplikasi Android, tombol "Scan QR dari Dashboard" di `SettingsScreen`
+(`expo-camera`, `CameraView` + `useCameraPermissions`, plugin config di
+`app.config.ts`) memindai lalu langsung memanggil
+`GopayListener.saveSettings(...)` dan `testConnection()` yang sudah ada —
+**tidak ada perubahan Kotlin sama sekali**, karena jalur penyimpanan
+settings sudah sepenuhnya bisa dikendalikan dari JS sejak awal.
+
+**`backend_url` di QR WAJIB menyertakan `/api/v1`**, persis format nilai
+bawaan per varian di `mobile/src/lib/env.ts` — kode native menempelkan
+`/events`/`/health`/dst APA ADANYA di belakang `backendUrl`
+(`Uploader.kt`), tidak pernah menyisipkan `/api/v1` sendiri. Dashboard
+membangunnya dari `window.location.origin + "/api/v1"`. Salah taruh
+akhiran ini membuat QR **tampak berhasil dipindai** tapi Test Connection
+gagal — jebakan yang sudah pernah kena sekali di sesi yang menulis fitur
+ini, sebelum sempat diuji ke HP.
+
+QR memuat Device Secret mentah — sama sensitifnya dengan nilai yang sudah
+ditampilkan untuk disalin manual, bukan celah baru; UI menandainya jangan
+di-screenshot/dibagikan.
+
 ### Dashboard
 
 Next.js 16 (App Router) + Tailwind v4 + shadcn/ui (base-ui, bukan Radix —
@@ -360,9 +386,9 @@ hanya memeriksa keberadaan cookie untuk mencegah kedipan halaman kosong —
 validitas sesi sesungguhnya selalu diputuskan backend lewat `requireAdmin`.
 
 Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
-API Keys, Webhooks, Exceptions, License, Settings (profil dengan verifikasi
-email, ganti password, hubungkan Telegram), dan API Docs. Logs ditampilkan
-di sidebar sebagai "Segera", non-aktif.
+API Keys, Webhooks, Exceptions, License, Logs (riwayat aktivitas akun),
+Settings (profil dengan verifikasi email, ganti password, hubungkan
+Telegram), dan API Docs.
 
 **API Docs (`/api-docs`)** adalah dokumentasi integrasi untuk customer:
 autentikasi API key, `POST`/`GET /api/v1/invoices`, payload dan tanda
@@ -559,6 +585,27 @@ Ambangnya 7 hari (`reminder.DefaultWithinDays`), sengaja BEDA dari
 dashboard: status itu pasif (dibaca kalau dibuka) jadi wajar menyala lebih
 awal, sedangkan pengingat aktif menghampiri orang — sebulan sebelumnya
 terlalu dini dan gampang diabaikan saat benar-benar mendesak.
+
+### Logs (riwayat aktivitas akun)
+
+`account_activity_log` (migrasi 00016) mencatat 8 jenis aktivitas:
+`login_success`, `login_failed`, `password_changed`, `password_reset`,
+`api_key_created`, `api_key_revoked`, `device_added`, `device_deleted` —
+lewat `a.logActivity(r, accountID, action, metadata)`
+(`internal/httpapi/activity_log.go`), dipanggil dari handler yang
+bersangkutan setelah aksinya berhasil. Gagal mencatat TIDAK menggagalkan
+aksinya (pola sama dengan `LogAudit`/`notify.Deliver`).
+
+`GET /api/v1/admin/activity` SELALU di-scope satu account dari sesi —
+**beda** dari `GET /vendor/notification-log` (Vendor Dashboard, sengaja
+lintas account). Halaman `/logs` di Customer Dashboard, dulu "Segera" di
+sidebar, sekarang aktif.
+
+Lingkupnya sengaja BEDA dari "Logs" di `docs/dashboard-spec.md` (draf lama
+membayangkan log teknis kategori SYSTEM/DEVICE/EVENT/WEBHOOK/LICENSE/AUTH
+untuk troubleshooting) — yang dibangun ini log KEAMANAN akun untuk
+customer sendiri ("curiga ada akses yang bukan dari saya"), permintaan
+langsung Akbar yang lebih berguna daripada log teknis mentah.
 
 ### Vendor: kirim link reset password untuk customer yang terkunci
 

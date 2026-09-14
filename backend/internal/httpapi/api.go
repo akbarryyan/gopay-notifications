@@ -125,6 +125,7 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/admin/account", a.requireAdmin(http.HandlerFunc(a.handleAdminUpdateAccount)))
 	mux.Handle("POST /api/v1/admin/account/password", a.requireAdmin(http.HandlerFunc(a.handleAdminChangePassword)))
 	mux.Handle("POST /api/v1/admin/account/email/resend", a.requireAdmin(http.HandlerFunc(a.handleAdminResendVerificationEmail)))
+	mux.Handle("GET /api/v1/admin/activity", a.requireAdmin(http.HandlerFunc(a.handleAdminActivityLog)))
 	mux.Handle("POST /api/v1/admin/account/telegram", a.requireAdmin(http.HandlerFunc(a.handleAdminSetTelegram)))
 	mux.Handle("POST /api/v1/admin/account/telegram/link", a.requireAdmin(http.HandlerFunc(a.handleAdminTelegramLink)))
 	mux.Handle("GET /api/v1/admin/overview",

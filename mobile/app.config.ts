@@ -62,6 +62,17 @@ const config: ExpoConfig = {
     // Menyuntikkan NotificationListenerService ke AndroidManifest.
     './plugins/withGopayListener',
     [
+      'expo-camera',
+      {
+        cameraPermission: 'Dipakai untuk memindai QR pairing dari Dashboard.',
+        // Tidak butuh audio sama sekali -- recordAudioAndroid: false
+        // membuat plugin TIDAK menambahkan izin RECORD_AUDIO ke manifest,
+        // yang tidak pernah dipakai di sini.
+        recordAudioAndroid: false,
+        barcodeScannerEnabled: true,
+      },
+    ],
+    [
       'expo-build-properties',
       {
         android: {

@@ -494,6 +494,40 @@ export function resendVerificationEmail(): Promise<{ success: true; already_veri
   return apiFetch("/api/v1/admin/account/email/resend", { method: "POST" });
 }
 
+// --- Logs (riwayat aktivitas akun) -------------------------------------
+
+export type ActivityAction =
+  | "login_success"
+  | "login_failed"
+  | "password_changed"
+  | "password_reset"
+  | "api_key_created"
+  | "api_key_revoked"
+  | "device_added"
+  | "device_deleted";
+
+export interface ActivityEntry {
+  id: number;
+  action: ActivityAction;
+  ip_address: string | null;
+  user_agent: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export async function getActivityLog(
+  limit: number,
+  offset: number,
+  filter: { action?: ActivityAction[]; from?: string; to?: string },
+): Promise<ActivityEntry[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (filter.action && filter.action.length > 0) params.set("action", filter.action.join(","));
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+  const res = await apiFetch<{ activity: ActivityEntry[] }>(`/api/v1/admin/activity?${params}`);
+  return res.activity;
+}
+
 /** Sesi lain ikut dikeluarkan; sesi yang sedang dipakai diperbarui backend. */
 export function changePassword(
   currentPassword: string,

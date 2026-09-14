@@ -68,6 +68,7 @@ func (a *API) handleAdminCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+	a.logActivity(r, accountID, store.ActivityAPIKeyCreated, map[string]any{"name": req.Name})
 
 	writeJSON(w, http.StatusCreated, createAPIKeyResponse{
 		apiKeyJSON: apiKeyJSON{ID: id, Name: req.Name, CreatedAt: a.now().Format(time.RFC3339)},
@@ -112,5 +113,6 @@ func (a *API) handleAdminRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+	a.logActivity(r, accountID, store.ActivityAPIKeyRevoked, map[string]any{"id": id})
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }

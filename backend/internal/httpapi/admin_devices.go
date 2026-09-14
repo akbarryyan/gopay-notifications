@@ -151,6 +151,7 @@ func (a *API) handleAdminCreateDevice(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+	a.logActivity(r, accountID, store.ActivityDeviceAdded, map[string]any{"device_id": deviceID, "name": req.Name})
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"success": true, "device_id": deviceID, "device_secret": secretB64,
@@ -185,6 +186,7 @@ func (a *API) handleAdminDeleteDevice(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+	a.logActivity(r, accountID, store.ActivityDeviceDeleted, map[string]any{"device_id": deviceID})
 
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }

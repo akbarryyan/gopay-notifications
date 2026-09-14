@@ -73,12 +73,14 @@ func (a *API) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 
 	if !acc.VerifyPassword(req.Password) {
 		a.loginThrottle.RecordFailure(ip, a.now())
+		a.logActivity(r, acc.ID, store.ActivityLoginFailed, nil)
 		a.writeError(w, http.StatusUnauthorized, "invalid_credentials", "username atau password salah")
 		return
 	}
 	a.loginThrottle.RecordSuccess(ip)
 
 	a.setAdminSessionCookie(w, r, acc.ID)
+	a.logActivity(r, acc.ID, store.ActivityLoginSuccess, nil)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 

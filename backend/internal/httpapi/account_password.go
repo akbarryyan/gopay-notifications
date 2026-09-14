@@ -174,6 +174,7 @@ func (a *API) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	a.logActivity(r, acc.ID, store.ActivityPasswordReset, nil)
 	a.notifyPasswordChanged(acc, true)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }

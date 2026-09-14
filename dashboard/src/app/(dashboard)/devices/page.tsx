@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, Copy, Plus, RotateCw, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Copy, Plus, QrCode, RotateCw, Search } from "lucide-react";
+import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +63,14 @@ export default function DevicesPage() {
     device_secret: string;
   } | null>(null);
   const [copiedField, setCopiedField] = useState<"id" | "secret" | null>(null);
+
+  // window.location tidak ada saat prerender -- diisi setelah mount, pola
+  // sama dengan alamat contoh di halaman API Docs.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+  }, []);
 
   // Devices sudah diambil seutuhnya (tidak berpaginasi di backend), jadi
   // pencarian dan filter status cukup dilakukan di sisi klien atas data yang
@@ -266,12 +275,14 @@ export default function DevicesPage() {
       ) : (
         <div className="rounded-2xl border border-dashed p-8 text-center">
           <p className="font-medium">
-            {query || status ? "Tidak ada device yang cocok dengan filter ini" : "Belum ada device terhubung"}
+            {query || status
+              ? "Tidak ada device yang cocok dengan filter ini"
+              : "Belum ada device terhubung"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {query || status
               ? "Coba ubah atau bersihkan filter di atas."
-              : "Klik \"Tambah Device\" untuk membuat Device ID + Secret, lalu isikan ke layar Pengaturan aplikasi Android Bridge untuk mulai menerima event pembayaran."}
+              : 'Klik "Tambah Device" untuk membuat Device ID + Secret, lalu isikan ke layar Pengaturan aplikasi Android Bridge untuk mulai menerima event pembayaran.'}
           </p>
         </div>
       )}
@@ -304,15 +315,49 @@ export default function DevicesPage() {
       </AlertDialog>
 
       {/* Device ID + Secret -- tampil satu kali saja, sama pola API key */}
-      <AlertDialog open={createdDevice !== null} onOpenChange={(open) => !open && setCreatedDevice(null)}>
+      <AlertDialog
+        open={createdDevice !== null}
+        onOpenChange={(open) => !open && setCreatedDevice(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Device &ldquo;{createdDevice?.name}&rdquo; dibuat</AlertDialogTitle>
             <AlertDialogDescription>
-              Salin dua nilai ini ke Settings aplikasi Android sekarang — secret{" "}
+              Beres dalam sekali pindai — atau salin manual ke Settings aplikasi Android. Secret{" "}
               <strong>tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {createdDevice && origin && (
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-muted/30 p-4">
+              <div className="rounded-lg bg-white p-3">
+                <QRCode
+                  value={JSON.stringify({
+                    v: 1,
+                    // Aplikasi Android menyimpan backendUrl APA ADANYA lalu
+                    // menempelkan "/events", "/health", dst di belakangnya
+                    // (lihat Uploader.kt) -- jadi harus sudah menyertakan
+                    // "/api/v1", sama seperti nilai bawaan per varian di
+                    // mobile/src/lib/env.ts. Tanpa akhiran ini, kode QR
+                    // tampak berhasil dipindai tapi Test Connection gagal
+                    // dengan 404.
+                    backend_url: `${origin}/api/v1`,
+                    device_id: createdDevice.device_id,
+                    device_secret: createdDevice.device_secret,
+                  })}
+                  size={168}
+                />
+              </div>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <QrCode className="size-3.5" />
+                Buka aplikasi Android Bridge → Pengaturan → &ldquo;Scan QR dari Dashboard&rdquo;
+              </p>
+              <p className="text-center text-xs text-destructive">
+                QR ini memuat Device Secret -- jangan screenshot atau bagikan ke orang lain.
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 py-2">
             <div className="flex flex-col gap-1.5">
               <Label>Device ID</Label>
@@ -326,7 +371,11 @@ export default function DevicesPage() {
                   size="icon"
                   onClick={() => createdDevice && copyDeviceField("id", createdDevice.device_id)}
                 >
-                  {copiedField === "id" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copiedField === "id" ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -344,7 +393,11 @@ export default function DevicesPage() {
                     createdDevice && copyDeviceField("secret", createdDevice.device_secret)
                   }
                 >
-                  {copiedField === "secret" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copiedField === "secret" ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -357,7 +410,10 @@ export default function DevicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pendingToggle !== null} onOpenChange={(open) => !open && setPendingToggle(null)}>
+      <AlertDialog
+        open={pendingToggle !== null}
+        onOpenChange={(open) => !open && setPendingToggle(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -378,7 +434,10 @@ export default function DevicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus device permanen?</AlertDialogTitle>

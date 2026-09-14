@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  COMING_SOON_ITEMS,
   GATEWAY_ITEMS,
   INTEGRATION_ITEMS,
   MONITORING_ITEMS,
@@ -106,26 +105,6 @@ export function SidebarNav({
           collapsed={collapsed}
           onNavigate={onNavigate}
         />
-      ))}
-      {COMING_SOON_ITEMS.map((item) => (
-        <div
-          key={item.label}
-          title={collapsed ? `${item.label} — belum tersedia` : "Belum tersedia"}
-          className={cn(
-            "flex cursor-not-allowed items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-sidebar-foreground/30",
-            collapsed && "justify-center px-2",
-          )}
-        >
-          <item.icon className="size-4 shrink-0" />
-          {!collapsed && (
-            <>
-              <span className="flex-1">{item.label}</span>
-              <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sidebar-foreground/50">
-                Segera
-              </span>
-            </>
-          )}
-        </div>
       ))}
     </nav>
   );

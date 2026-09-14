@@ -949,3 +949,62 @@ Permintaan langsung Akbar lewat chat.
 ### Keseluruhan suite
 
 `make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (29.2s), `notify`, `reminder`, `secretbox`, `store` (14.5s), `telegram`, `telegrambot`.
+
+---
+
+## 22. Halaman Logs (riwayat aktivitas akun) di Customer Dashboard
+
+Permintaan langsung Akbar lewat chat. Menu "Logs" yang sebelumnya bertanda
+"Segera" sekarang aktif, isinya riwayat aktivitas keamanan akun (login,
+ganti password, API key, device) — beda dari "Logs" di
+`docs/dashboard-spec.md` yang membayangkan log teknis untuk troubleshooting;
+lihat catatan penyimpangan di CLAUDE.md §"Logs (riwayat aktivitas akun)".
+
+**Ringkasan:** `PASS` 6 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Tercatat per account, tidak bocor lintas account | `PASS` | `TestLogActivityDanListActivityLog`, `TestActivityLogTidakBocorLintasAccount` — lulus |
+| Login berhasil dan login gagal (password salah) tercatat dengan alamat IP; username tidak dikenal tidak menghasilkan baris (tidak ada account untuk dilekatkan) | `PASS` | `TestActivityLogMencatatLoginBerhasilDanGagal` — lulus |
+| Ganti password (Settings), reset password (lupa password), buat/cabut API key, tambah/hapus device semuanya tercatat dengan metadata yang relevan, urutan terbaru dulu | `PASS` | `TestActivityLogMencatatGantiPasswordApiKeyDanDevice` — lulus |
+| `GET /api/v1/admin/activity`: filter jenis aktivitas dan rentang tanggal, jenis tidak dikenal → 400, wajib sesi | `PASS` | `TestActivityLogMencatatGantiPasswordApiKeyDanDevice` (bagian filter), `TestActivityLogButuhSesi`, `TestListActivityLogFilterTanggal` — lulus |
+| Migrasi `00016` bisa di-rollback dan diterapkan ulang | `PASS` | `goose down` lalu `goose up`: `OK 00016_account_activity_log.sql` dua kali, `successfully migrated database to version: 16` |
+| Halaman `/logs` aktif di sidebar System (bukan lagi "Segera"), dengan filter jenis aktivitas dan rentang tanggal | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih; route `/logs` ter-generate |
+| Tampilan halaman di browser | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev` |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (30.5s), `notify`, `reminder`, `secretbox`, `store` (14.8s), `telegram`, `telegrambot`.
+
+---
+
+## 23. Pairing HP lewat QR code
+
+Permintaan langsung Akbar lewat chat. Dashboard menampilkan QR saat device
+baru dibuat; aplikasi Android memindainya dan mengisi Backend URL/Device
+ID/Device Secret otomatis, menggantikan ketik manual. **Tidak ada
+perubahan Kotlin** — jalur penyimpanan settings (`saveSettings`) sudah bisa
+dikendalikan sepenuhnya dari JS sejak sebelumnya, QR cuma cara baru mengisi
+nilai yang sama.
+
+**Ringkasan:** `PASS` 3 · `NEEDS-DEVICE` 3 · `PENDING` 0
+
+| Butir | Status | Bukti |
+|---|---|---|
+| QR berisi `backend_url` (dengan akhiran `/api/v1`, format sama dengan nilai bawaan varian di `mobile/src/lib/env.ts`), `device_id`, `device_secret` — nilai sama persis dengan yang ditampilkan untuk disalin manual | `PASS` | Tinjauan kode terhadap `Uploader.kt` (`cfg.backendUrl + "/events"`, tanpa menyisipkan `/api/v1` sendiri) — ditemukan dan diperbaiki SEBELUM sempat diuji ke HP: draf pertama QR memakai `window.location.origin` tanpa akhiran, yang akan lolos scan tapi Test Connection gagal 404 |
+| Dashboard: dialog "Device dibuat" menampilkan QR + peringatan jangan screenshot; `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih | `PASS` | Build bersih setelah `npm install react-qr-code` (2 paket ditambahkan, 0 kerentanan) |
+| Tidak ada regresi di backend (fitur ini murni frontend + mobile) | `PASS` | `make test`: seluruh 10 paket `ok`, sama seperti sebelum perubahan ini |
+| Izin kamera diminta dan diberikan di HP sungguhan, `CameraView` menampilkan preview | `NEEDS-DEVICE` | Butuh `npx expo prebuild --platform android --clean` (plugin `expo-camera` baru) lalu `npx expo run:android` |
+| QR dari dashboard sungguhan berhasil dipindai, tersimpan, dan Test Connection berhasil ("Terhubung sebagai ...") | `NEEDS-DEVICE` | Sama seperti di atas — perlu HP + backend + akun customer sungguhan |
+| QR yang salah/rusak (bukan JSON, field kurang) diam-diam diabaikan, tidak membuat aplikasi crash | `NEEDS-DEVICE` | Kode `parsePairingPayload` menangani lewat `try/catch` + pengecekan tipe, tapi belum diuji perilakunya di kamera sungguhan |
+
+### Yang perlu dilakukan sebelum uji di HP
+
+1. `cd mobile && npx expo install expo-camera` (bukan `npm install` manual — command ini mengunci versi yang cocok dengan Expo SDK 57 yang terpasang).
+2. `npx expo prebuild --platform android --clean` — wajib karena plugin `expo-camera` baru ditambahkan ke `app.config.ts` (menyuntikkan izin `CAMERA` ke manifest).
+3. `npx expo run:android`.
+4. Di HP: Pengaturan → "Scan QR dari Dashboard" → izinkan kamera → arahkan ke QR di halaman Devices dashboard (buka di laptop/HP lain) → pastikan muncul "Terhubung sebagai ...".
+
+### Keseluruhan suite
+
+`make test` (backend, tidak berubah oleh fitur ini): `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (30.2s), `notify`, `reminder`, `secretbox`, `store` (14.7s), `telegram`, `telegrambot`.

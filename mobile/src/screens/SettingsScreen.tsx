@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import GopayListener from '../../modules/gopay-listener'
+import { QrScannerModal, type PairingPayload } from '../components/QrScannerModal'
 
 const PESAN_ERROR: Record<string, string> = {
   belum_dikonfigurasi: 'Backend URL, Device ID, dan Device Secret harus diisi lebih dulu.',
@@ -19,6 +20,7 @@ export default function SettingsScreen() {
   const [packages, setPackages] = useState(awal.monitoredPackages.join(', '))
   const [keywords, setKeywords] = useState(awal.ignoreKeywords.join(', '))
   const [punyaSecret, setPunyaSecret] = useState(awal.hasDeviceSecret)
+  const [scannerVisible, setScannerVisible] = useState(false)
 
   const daftarPackage = packages.split(',').map((s) => s.trim()).filter(Boolean)
   const duaSumberGoPay =
@@ -48,6 +50,31 @@ export default function SettingsScreen() {
     Alert.alert('Gagal', PESAN_ERROR[hasil.error ?? ''] ?? `Kesalahan: ${hasil.error}`)
   }
 
+  // Menyimpan lalu langsung menguji koneksi -- pindai QR berarti pengguna
+  // mengharapkan hasilnya "sudah tersambung", bukan sekadar "sudah tersalin".
+  async function onScanned(payload: PairingPayload) {
+    setScannerVisible(false)
+    GopayListener.saveSettings({
+      backendUrl: payload.backendUrl,
+      deviceId: payload.deviceId,
+      deviceSecret: payload.deviceSecret,
+    })
+    setBackendUrl(payload.backendUrl)
+    setDeviceId(payload.deviceId)
+    setDeviceSecret('')
+    setPunyaSecret(true)
+
+    const hasil = await GopayListener.testConnection()
+    if (hasil.ok) {
+      Alert.alert('Terhubung', `Pairing berhasil sebagai ${hasil.deviceName}.`)
+    } else {
+      Alert.alert(
+        'Tersimpan, tapi belum terhubung',
+        PESAN_ERROR[hasil.error ?? ''] ?? `Kesalahan: ${hasil.error}`,
+      )
+    }
+  }
+
   function hapusRiwayat() {
     Alert.alert('Hapus semua riwayat?', 'Event yang belum terkirim ikut terhapus.', [
       { text: 'Batal', style: 'cancel' },
@@ -64,6 +91,26 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
+      <TouchableOpacity style={styles.tombolQr} onPress={() => setScannerVisible(true)}>
+        <Text style={styles.tombolQrTeks}>📷 Scan QR dari Dashboard</Text>
+      </TouchableOpacity>
+      <Text style={styles.bantuan}>
+        Cara tercepat dan paling akurat -- Backend URL, Device ID, dan Device Secret terisi
+        otomatis dari QR yang tampil saat kamu membuat device baru di Dashboard.
+      </Text>
+
+      <View style={styles.pemisahAtau}>
+        <View style={styles.garisAtau} />
+        <Text style={styles.teksAtau}>atau isi manual</Text>
+        <View style={styles.garisAtau} />
+      </View>
+
+      <QrScannerModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onScanned={onScanned}
+      />
+
       <Text style={styles.label}>Backend URL</Text>
       <TextInput
         style={styles.input}
@@ -176,6 +223,16 @@ const styles = StyleSheet.create({
   },
   tombolSekunderTeks: { fontSize: 15 },
   pemisah: { height: 24 },
+  tombolQr: {
+    backgroundColor: '#0f766e',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  tombolQrTeks: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  pemisahAtau: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
+  garisAtau: { flex: 1, height: 1, backgroundColor: '#e5e7eb' },
+  teksAtau: { fontSize: 12, color: '#9ca3af' },
   tombolBahaya: {
     borderWidth: 1,
     borderColor: '#fecaca',

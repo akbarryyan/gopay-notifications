@@ -238,6 +238,7 @@ func (a *API) handleAdminChangePassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	a.setAdminSessionCookie(w, r, accountID)
+	a.logActivity(r, accountID, store.ActivityPasswordChanged, nil)
 	a.notifyPasswordChanged(acc, false)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
