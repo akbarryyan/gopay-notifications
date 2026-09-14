@@ -730,3 +730,70 @@ iteratif langsung dari Akbar lewat chat, diverifikasi manual olehnya di
 ### Catatan cakupan
 
 Tidak ada butir `NEEDS-DEVICE` di bagian ini — seluruhnya halaman web (Next.js) dan backend Go yang bisa diverifikasi penuh dari mesin development lewat build otomatis + `npm run dev` manual oleh Akbar sendiri, tanpa HP atau VPS. Deploy pivot akun multi-tenant ke VPS produksi (§15) dan uji ketahanan HP semalaman (M6) masih `NEEDS-DEVICE` seperti sebelumnya, tidak berubah oleh pekerjaan di bagian ini.
+
+---
+
+## 17. Notifikasi ke customer: pengingat kedaluwarsa, peringatan HP offline, riwayat notifikasi
+
+Permintaan iteratif langsung dari Akbar lewat chat (tanpa spec tertulis
+tersendiri): pengingat akun mendekati kedaluwarsa, pengaturan SMTP/bot
+Telegram yang disimpan di database lewat Vendor Dashboard, peringatan HP
+bridge offline/kembali online, dan halaman riwayat notifikasi di Vendor
+Dashboard. Batch sebelumnya (riwayat webhook lintas account, export CSV
+Customer Dashboard) ikut dicatat di 17d.
+
+**Ringkasan:** `PASS` 13 · `FAIL` 0 · `NEEDS-DEVICE` 3 · `PENDING` 0
+
+### 17a. Pengingat kedaluwarsa + pengaturan notifikasi di database
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Akun aktif yang berakhir ≤ 7 hari dikirimi pengingat sekali per nilai `expires_at`; perpanjangan membuka pengingat periode berikutnya | `PASS` | `TestAccountsNeedingExpiryReminder`, `TestExpiryReminderTidakDikirimDuaKaliTapiTerbukaLagiSetelahRenew` — lulus |
+| Satu akun gagal tidak menghentikan sisanya; yang gagal tidak ditandai; Telegram gagal setelah email terkirim tetap dihitung terkirim | `PASS` | `TestRunSatuAkunGagalTidakMenghentikanSisanya`, `TestRunTelegramGagalTetapDianggapTerkirim`, `TestRunGagalMenandaiTidakDihitungTerkirim` — lulus |
+| Customer mengisi/menghapus chat id Telegram sendiri (angka saja) di `/license` | `PASS` | `TestAdminSetTelegramChatID`, `TestAdminHapusTelegramChatID`, `TestAdminSetTelegramUsernameDitolak`, `TestAdminSetTelegramButuhSesi`, `TestSetAccountTelegramChatID` — lulus |
+| SMTP host/port/username/password/pengirim + token bot tersimpan di `notification_settings`; password & token terenkripsi `SETTINGS_SECRET_KEY`, tidak tersimpan plaintext, kunci salah gagal didekripsi | `PASS` | `TestSaveNotificationSettingsRoundtripDanTerenkripsi`, `TestGetNotificationSettingsKunciSalahGagal`, `TestGetNotificationSettingsBelumPernahDisimpan` — lulus |
+| API tidak pernah mengembalikan password/token; field tidak dikirim = biarkan, `""` = hapus; validasi port/pengirim/token; wajib sesi vendor | `PASS` | `TestVendorNotificationSettingsSimpanTanpaMembocorkanKredensial`, `TestSaveNotificationSettingsNilMempertahankanKosongMenghapus`, `TestVendorNotificationSettingsValidasi`, `TestVendorNotificationSettingsButuhSesiVendor`, `TestVendorTestNotificationBelumDikonfigurasi` — lulus |
+| Pengaturan dibaca ulang tiap putaran (berlaku tanpa restart); putaran dilewati selama SMTP kosong | `PASS` | `TestRunMembacaPengaturanTiapPutaran`, `TestRunDilewatiBilaSMTPBelumDikonfigurasi` — lulus |
+| Email dan Telegram uji benar-benar sampai lewat SMTP/bot sungguhan | `NEEDS-DEVICE` | Butuh kredensial SMTP + token bot asli. Langkah: isi Vendor Dashboard > Settings, kirim email uji dan Telegram uji, cek kotak masuk dan halaman Notifications |
+
+### 17b. Peringatan HP offline / kembali online
+
+| Butir | Status | Bukti |
+|---|---|---|
+| HP dianggap perlu diperingatkan bila heartbeat > 45 menit (sama dengan `StatusOf`), ≤ 24 jam (HP basi dilewati), device enabled, account aktif & belum kedaluwarsa, belum diperingatkan untuk `heartbeat_at` itu; PENDING dilewati | `PASS` | `TestDevicesNeedingOfflineAlert` — lulus |
+| Heartbeat baru setelah peringatan → pemberitahuan kembali online sekali, lalu offline berikutnya membuka peringatan baru | `PASS` | `TestDevicesRecoveredFromOfflineLaluBisaOfflineLagi` — lulus |
+| Job: kirim offline + online, gagal kirim tidak ditandai (dicoba lagi 5 menit kemudian), dilewati selama SMTP kosong | `PASS` | `TestRunMengabarkanOfflineDanOnline`, `TestRunGagalKirimTidakDitandai`, `TestRunDilewatiBilaSMTPBelumDikonfigurasi` (paket `devicealert`) — lulus |
+| Isi pesan menyebut nama HP & bisnis, jam dalam WIB | `PASS` | `TestPesanStatusHPMemakaiJamWIB` — lulus |
+| HP sungguhan dimatikan > 45 menit → email peringatan sampai; dinyalakan lagi → email kembali online sampai | `NEEDS-DEVICE` | Butuh HP + SMTP asli + backend berjalan. Langkah: matikan internet HP bridge, tunggu ±50 menit, cek email & halaman Notifications; nyalakan lagi, tunggu ≤ 5 menit setelah heartbeat berikutnya |
+
+### 17c. Riwayat notifikasi (Vendor Dashboard `/notifications`)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Setiap percobaan kirim dicatat per channel (email & Telegram baris terpisah) beserta alasan gagal; email gagal → Telegram tidak dicoba | `PASS` | `TestDeliverEmailDanTelegramDicatatTerpisah`, `TestDeliverEmailGagalTelegramTidakDicoba`, `TestDeliverTelegramGagalMengembalikanTelegramError`, `TestDeliverTanpaChatIDAtauTokenBotCumaEmail` — lulus |
+| `GET /api/v1/vendor/notification-log` lintas account dengan filter jenis/channel/status/pencarian/tanggal, nilai filter tak dikenal → 400, wajib sesi vendor | `PASS` | `TestNotificationLogCatatDanFilter`, `TestVendorNotificationLog` — lulus |
+| Migrasi `00012` bisa di-rollback dan diterapkan ulang | `PASS` | `goose down` lalu `goose up` di `gopay_test`: `OK 00012_device_offline_alert_and_notification_log.sql` dua kali, `successfully migrated database to version: 12` |
+| Halaman `/notifications` dan kartu Settings tampil benar di browser | `NEEDS-DEVICE` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih (route `/notifications` ter-generate); tampilan menunggu dicek Akbar di `npm run dev` |
+
+### 17d. Riwayat webhook lintas account + export CSV Customer Dashboard
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `GET /api/v1/vendor/webhook-deliveries` lintas account, filter status, wajib sesi vendor | `PASS` | `TestVendorWebhookDeliveriesButuhSesiVendor`, `TestVendorWebhookDeliveriesLintasAccount`, `TestVendorWebhookDeliveriesFilterStatus`, `TestVendorWebhookDeliveriesStatusTidakDikenalDitolak` — lulus; halaman diverifikasi manual Akbar ("riwayat webhook delivery lintas account, export csv di customer dashboard sudah aman") |
+| Export CSV Transactions/Events di Customer Dashboard (paginasi 1000/halaman) | `PASS` | Diverifikasi manual Akbar di `npm run dev` (kutipan di atas) |
+
+### Keseluruhan suite
+
+`make test` setelah seluruh perubahan di bagian ini:
+
+```
+OK   00012_device_offline_alert_and_notification_log.sql
+ok  	.../internal/auth
+ok  	.../internal/connector
+ok  	.../internal/devicealert
+ok  	.../internal/httpapi	22.764s
+ok  	.../internal/notify
+ok  	.../internal/reminder
+ok  	.../internal/secretbox
+ok  	.../internal/store	11.029s
+```

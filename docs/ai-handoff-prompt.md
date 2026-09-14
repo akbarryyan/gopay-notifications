@@ -220,11 +220,20 @@ selesai (spec docs/superpowers/specs/2026-09-13-landing-signup-design.md)
 — Overview yang dulu di `/` sekarang di `/overview`. Grafik tren Overview
 sudah biaxial (Recharts): jumlah event vs nominal lunas per hari.
 
-`vendor-dashboard/` (Next.js terpisah, cuma Akbar) sekarang tiga halaman:
-Dashboard (`/`, ringkasan lintas SEMUA account + grafik biaxial account
-baru vs pendapatan, lewat `GET /api/v1/vendor/overview` yang baru),
-Accounts (`/accounts`, dulu di `/`), Audit Log. Sidebar collapsible-nya
-sekarang disamakan polanya dengan `AppShell` di `dashboard/`.
+`vendor-dashboard/` (Next.js terpisah, cuma Akbar): Dashboard (`/`,
+ringkasan lintas SEMUA account lewat `GET /api/v1/vendor/overview`),
+Accounts (`/accounts` + detail: renew/plan/suspend/revoke/device),
+Transactions dan Webhooks (lintas account, export CSV), Notifications
+(riwayat email/Telegram ke customer), Audit Log, Settings (SMTP + bot
+Telegram yang disimpan terenkripsi di database, ganti password vendor).
+
+Notifikasi ke customer (qa-report.md §17): pengingat akun ≤ 7 hari
+sebelum kedaluwarsa (job 1 jam, `internal/reminder`) dan peringatan HP
+bridge offline > 45 menit / kembali online (job 5 menit,
+`internal/devicealert`), lewat email + Telegram opsional. Konfigurasinya
+di tabel `notification_settings` (kunci kelima `SETTINGS_SECRET_KEY`),
+setiap percobaan kirim tercatat di `notification_log`. Pengiriman
+sungguhan lewat SMTP/bot asli masih NEEDS-DEVICE.
 
 `cmd/seedtool` (baru) mengisi `gopay_dev` dengan banyak account +
 device/invoice/event/API key/webhook sekaligus lewat `Store` yang sama
@@ -234,8 +243,8 @@ kelihatan terisi wajar, bukan kosong.
 Belum: uji ketahanan semalaman di ColorOS (M6), deploy pivot akun
 multi-tenant ke VPS produksi (3 item NEEDS-DEVICE di qa-report.md §15 —
 sudah diimplementasikan dan lulus `make test` lokal, tinggal deploy
-nyata), dan sisa sub-project pivot: fase 3-5 (penyesuaian lanjutan
-Customer Dashboard — swalayan tambah device — dan mobile bridge).
+nyata), dan sisa sub-project pivot: mobile bridge. Tambah device swalayan
+di Customer Dashboard sudah ada.
 
 Periksa docs/qa/qa-report.md untuk angka pasti, dan git log untuk keputusan
 terbaru beserta alasannya. Pesan commit di repo ini sengaja panjang dan memuat

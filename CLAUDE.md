@@ -376,7 +376,7 @@ Telegram yang diatur vendor dan disimpan di tabel `notification_settings`
 — sengaja beda dari `WEBHOOK_SECRET_KEY` supaya rotasi salah satunya tidak
 merusak yang lain).
 
-Backend punya dua goroutine berkala di `cmd/server/main.go`, sengaja
+Backend punya tiga goroutine berkala di `cmd/server/main.go`, sengaja
 dengan ticker terpisah karena kadensinya berbeda jauh:
 
 1. **Worker webhook (1 menit)** — mendeteksi invoice yang baru kedaluwarsa
@@ -386,6 +386,9 @@ dengan ticker terpisah karena kadensinya berbeda jauh:
    Pengaturan SMTP/Telegram dibaca ulang dari database tiap putaran; selama
    host/port/alamat pengirim SMTP belum diisi di Vendor Dashboard, putaran
    dilewati (dicatat saat status aktif/nonaktif berubah).
+3. **Peringatan HP offline (5 menit)** — `internal/devicealert`: mengabari
+   customer saat HP bridge tidak mengirim heartbeat > 45 menit, lalu sekali
+   lagi saat kembali online. Memakai pengaturan SMTP/Telegram yang sama.
 
 Goroutine validasi lisensi 24-jam yang dulu ada (License Server) sudah
 dihapus bersama seluruh platform lisensi lama — status akun sekarang dicek
@@ -404,6 +407,22 @@ Dashboard > Settings — bukan env var. Password dan token dienkripsi
 membedakan field tidak dikirim (biarkan), `""` (hapus), dan isi (ganti).
 `POST /api/v1/vendor/settings/notifications/test` mengirim pesan uji
 memakai pengaturan yang sudah tersimpan.
+
+Pengiriman selalu lewat `notify.Deliver`, yang mencatat **setiap
+percobaan per channel** ke tabel `notification_log` (email dan Telegram
+baris terpisah, beserta alasan gagal) — dilihat vendor di halaman
+Notifications (`GET /api/v1/vendor/notification-log`). Email gagal berarti
+Telegram tidak dicoba sama sekali, supaya customer tidak menerima Telegram
+berulang tiap putaran selama email terus gagal.
+
+Peringatan HP offline (`internal/devicealert`) memakai pola dedupe yang
+sama dengan pengingat: `devices.offline_alert_for` menyimpan NILAI
+`heartbeat_at` saat peringatan dikirim. Heartbeat baru → `heartbeat_at`
+melewati nilai itu → pemberitahuan "kembali online" lalu kolom
+dikosongkan. HP yang heartbeat terakhirnya lebih tua dari 24 jam
+(`store.OfflineAlertWindow`) sengaja dilewati, supaya mengaktifkan SMTP
+tidak langsung memborbardir customer dengan peringatan HP lama yang sudah
+berminggu-minggu tidak dipakai.
 
 Dua keputusan yang tidak boleh dibalik diam-diam:
 
@@ -460,8 +479,11 @@ Halaman:
 - **Transactions** (`/transactions`) dan **Webhooks** (`/webhooks`) —
   invoice dan riwayat webhook delivery lintas SEMUA account, bisa
   diekspor CSV.
+- **Notifications** (`/notifications`) — riwayat email/Telegram yang
+  dikirim ke customer (pengingat kedaluwarsa, HP offline/online, pesan
+  uji), per channel, dengan alasan gagal.
 - **Settings** (`/settings`) — pengaturan SMTP + bot Telegram untuk
-  pengingat kedaluwarsa (lihat "Pengingat kedaluwarsa ke customer" di
+  notifikasi ke customer (lihat "Pengingat kedaluwarsa ke customer" di
   atas) dan ganti password vendor.
 
 Warna badge status account (`active`/`expiring`/`expired`/`suspended`/

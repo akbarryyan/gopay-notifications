@@ -28,18 +28,12 @@ const DefaultWithinDays = 7
 type Store interface {
 	AccountsNeedingExpiryReminder(ctx context.Context, now time.Time, withinDays int) ([]store.Account, error)
 	MarkExpiryReminderSent(ctx context.Context, id string, expiresAt time.Time) error
+	notify.Logger
 }
-
-// SenderFactory menyiapkan pengirim untuk SATU putaran. Dipanggil ulang
-// tiap putaran (bukan sekali saat start) supaya perubahan pengaturan SMTP/
-// Telegram di Vendor Dashboard langsung berlaku tanpa restart backend.
-// enabled=false berarti jalur utama (email) belum dikonfigurasi dan putaran
-// ini dilewati.
-type SenderFactory func(ctx context.Context) (sender notify.Sender, enabled bool, err error)
 
 type Job struct {
 	store      Store
-	newSender  SenderFactory
+	newSender  notify.SenderFactory
 	withinDays int
 
 	// lastEnabled mencatat status putaran sebelumnya, supaya "pengingat
@@ -48,30 +42,7 @@ type Job struct {
 	lastEnabled *bool
 }
 
-// FromSettings adalah SenderFactory produksi: membaca pengaturan dari
-// database (didekripsi dengan key) tiap putaran.
-func FromSettings(s interface {
-	GetNotificationSettings(ctx context.Context, key []byte) (store.NotificationSettings, error)
-}, key []byte) SenderFactory {
-	return func(ctx context.Context) (notify.Sender, bool, error) {
-		settings, err := s.GetNotificationSettings(ctx, key)
-		if err != nil {
-			return nil, false, err
-		}
-		if !settings.EmailConfigured() {
-			return nil, false, nil
-		}
-		return notify.New(notify.SMTPConfig{
-			Host:     settings.SMTPHost,
-			Port:     settings.SMTPPort,
-			Username: settings.SMTPUsername,
-			Password: settings.SMTPPassword,
-			From:     settings.SMTPFrom,
-		}, settings.TelegramBotToken), true, nil
-	}
-}
-
-func New(s Store, newSender SenderFactory, withinDays int) *Job {
+func New(s Store, newSender notify.SenderFactory, withinDays int) *Job {
 	if withinDays <= 0 {
 		withinDays = DefaultWithinDays
 	}
@@ -106,11 +77,13 @@ func (j *Job) Run(ctx context.Context, now time.Time) (sent int, err error) {
 			Email:        acc.Email,
 			ExpiresAt:    acc.ExpiresAt,
 		}
+		to := notify.Recipient{Email: acc.Email}
 		if acc.TelegramChatID != nil {
-			r.TelegramChatID = *acc.TelegramChatID
+			to.TelegramChatID = *acc.TelegramChatID
 		}
-
-		sendErr := sender.SendExpiryReminder(ctx, r, now)
+		accountID := acc.ID
+		sendErr := notify.Deliver(ctx, sender, j.store, to, r.Message(now),
+			notify.LogMeta{Kind: store.NotificationKindExpiryReminder, AccountID: &accountID})
 
 		// Telegram gagal sementara email sudah terkirim tetap dihitung
 		// terkirim -- kalau tidak, pengingat yang emailnya sudah sampai

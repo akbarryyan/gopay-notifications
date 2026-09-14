@@ -73,3 +73,8 @@ func (r ExpiryReminder) TelegramText(now time.Time) string {
 		"Akun Payment Bridge %s berakhir %s (%s). Perpanjang sebelum pengiriman event berhenti.",
 		r.BusinessName, r.sisaHariFrasa(now), r.ExpiresAt.Format("2 January 2006"))
 }
+
+// Message menyatukan ketiga bentuk pengingat untuk Deliver.
+func (r ExpiryReminder) Message(now time.Time) Message {
+	return Message{Subject: r.EmailSubject(now), EmailBody: r.EmailBody(now), TelegramText: r.TelegramText(now)}
+}

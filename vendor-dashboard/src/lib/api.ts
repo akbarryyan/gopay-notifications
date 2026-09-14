@@ -326,3 +326,47 @@ export async function getWebhookDeliveries(
   );
   return res.deliveries;
 }
+
+// --- Riwayat notifikasi ke customer (lintas semua account, read-only) --------
+
+export type NotificationKind = "expiry_reminder" | "device_offline" | "device_online" | "test";
+export type NotificationChannel = "email" | "telegram";
+export type NotificationStatus = "sent" | "failed";
+
+export interface NotificationLogEntry {
+  id: number;
+  /** null untuk pesan uji dari halaman Settings. */
+  account_id: string | null;
+  business_name: string | null;
+  device_id: string | null;
+  device_name: string | null;
+  kind: NotificationKind;
+  channel: NotificationChannel;
+  recipient: string;
+  subject: string;
+  status: NotificationStatus;
+  error: string | null;
+  created_at: string;
+}
+
+export async function getNotificationLog(
+  limit: number,
+  offset: number,
+  filter: {
+    q?: string;
+    kind?: NotificationKind;
+    channel?: NotificationChannel;
+    status?: NotificationStatus;
+    from?: string;
+    to?: string;
+  },
+): Promise<NotificationLogEntry[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  for (const [k, v] of Object.entries(filter)) {
+    if (v) params.set(k, v);
+  }
+  const res = await apiFetch<{ notifications: NotificationLogEntry[] }>(
+    `/api/v1/vendor/notification-log?${params}`,
+  );
+  return res.notifications;
+}

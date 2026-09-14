@@ -15,6 +15,7 @@ type fakeStore struct {
 	accounts []store.Account
 	marked   []string
 	markErr  error
+	logged   []store.NotificationLogEntry
 }
 
 func (f *fakeStore) AccountsNeedingExpiryReminder(_ context.Context, _ time.Time, _ int) ([]store.Account, error) {
@@ -29,20 +30,37 @@ func (f *fakeStore) MarkExpiryReminderSent(_ context.Context, id string, _ time.
 	return nil
 }
 
-type fakeSender struct {
-	sent   []notify.ExpiryReminder
-	errFor map[string]error // per email
-}
-
-func (f *fakeSender) SendExpiryReminder(_ context.Context, r notify.ExpiryReminder, _ time.Time) error {
-	if err, ok := f.errFor[r.Email]; ok {
-		return err
-	}
-	f.sent = append(f.sent, r)
+func (f *fakeStore) LogNotification(_ context.Context, e store.NotificationLogEntry) error {
+	f.logged = append(f.logged, e)
 	return nil
 }
 
-func staticSender(s notify.Sender) reminder.SenderFactory {
+type fakeSender struct {
+	sent        []string         // email tujuan yang berhasil
+	telegramFor []string         // chat id yang berhasil
+	errFor      map[string]error // per email
+	tgErr       error
+}
+
+func (f *fakeSender) SendEmail(_ context.Context, to, _, _ string) error {
+	if err, ok := f.errFor[to]; ok {
+		return err
+	}
+	f.sent = append(f.sent, to)
+	return nil
+}
+
+func (f *fakeSender) SendTelegram(_ context.Context, chatID, _ string) error {
+	if f.tgErr != nil {
+		return f.tgErr
+	}
+	f.telegramFor = append(f.telegramFor, chatID)
+	return nil
+}
+
+func (f *fakeSender) TelegramEnabled() bool { return true }
+
+func staticSender(s notify.Sender) notify.SenderFactory {
 	return func(context.Context) (notify.Sender, bool, error) { return s, true, nil }
 }
 
@@ -71,8 +89,17 @@ func TestRunMengirimDanMenandaiSemuaAkun(t *testing.T) {
 	if len(st.marked) != 2 {
 		t.Fatalf("marked = %v, mau dua akun ditandai", st.marked)
 	}
-	if sender.sent[1].TelegramChatID != chatID {
-		t.Fatalf("TelegramChatID = %q, mau diteruskan ke sender", sender.sent[1].TelegramChatID)
+	if len(sender.telegramFor) != 1 || sender.telegramFor[0] != chatID {
+		t.Fatalf("telegram = %v, mau cuma ke %s", sender.telegramFor, chatID)
+	}
+	// 2 email + 1 telegram, semuanya tercatat sebagai expiry_reminder.
+	if len(st.logged) != 3 {
+		t.Fatalf("riwayat = %d baris, mau 3", len(st.logged))
+	}
+	for _, e := range st.logged {
+		if e.Kind != store.NotificationKindExpiryReminder || e.AccountID == nil || e.Status != store.NotificationStatusSent {
+			t.Fatalf("baris riwayat = %+v, mau expiry_reminder terkirim dengan account_id", e)
+		}
 	}
 }
 
@@ -102,9 +129,7 @@ func TestRunTelegramGagalTetapDianggapTerkirim(t *testing.T) {
 	// Email sudah terkirim, cuma Telegram yang gagal -- kalau ini dianggap
 	// gagal total, pengingat yang emailnya sudah sampai akan dikirim ulang
 	// terus tiap putaran.
-	sender := &fakeSender{errFor: map[string]error{
-		"a@t.test": &notify.TelegramError{Err: errors.New("bot api 400")},
-	}}
+	sender := &fakeSender{tgErr: errors.New("bot api 400")}
 
 	sent, err := reminder.New(st, staticSender(sender), 7).Run(context.Background(), time.Now())
 	if err != nil {

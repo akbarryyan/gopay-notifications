@@ -25,10 +25,16 @@ type SMTPConfig struct {
 	From     string
 }
 
-// Sender mengirim satu pengingat. Dipisah jadi interface supaya pekerjaan
-// berkala bisa diuji tanpa benar-benar menyentuh SMTP atau Telegram.
+// Sender adalah jalur kirim per channel. Dipisah jadi interface supaya
+// pekerjaan berkala bisa diuji tanpa benar-benar menyentuh SMTP atau
+// Telegram. Urutan kirim, pencatatan riwayat, dan aturan "Telegram cuma
+// tambahan" ada di Deliver, bukan di sini.
 type Sender interface {
-	SendExpiryReminder(ctx context.Context, r ExpiryReminder, now time.Time) error
+	SendEmail(ctx context.Context, to, subject, body string) error
+	SendTelegram(ctx context.Context, chatID, text string) error
+	// TelegramEnabled false berarti token bot belum diisi -- Telegram
+	// dilewati tanpa dicatat sebagai gagal.
+	TelegramEnabled() bool
 }
 
 // smtpTimeout membatasi SELURUH percakapan SMTP (dial sampai QUIT), bukan
@@ -36,8 +42,7 @@ type Sender interface {
 // menggantung pekerjaan pengingat atau request "kirim uji" selamanya.
 const smtpTimeout = 30 * time.Second
 
-// Notifier mengirim email (selalu) dan Telegram (kalau token bot terisi
-// DAN customer mengisi chat id-nya).
+// Notifier adalah Sender sungguhan: SMTP + Bot API Telegram.
 type Notifier struct {
 	smtp       SMTPConfig
 	botToken   string
@@ -52,53 +57,39 @@ func New(smtpCfg SMTPConfig, telegramBotToken string) *Notifier {
 	}
 }
 
-// SendExpiryReminder mengirim email lebih dulu. Kegagalan Telegram TIDAK
-// membuat pengingat dianggap gagal: email adalah jalur utama yang pasti
-// dimiliki semua customer, sedangkan Telegram cuma tambahan -- menganggap
-// keseluruhan gagal gara-gara Telegram error akan membuat pengingat yang
-// emailnya sudah terkirim dikirim ulang terus-menerus.
-func (n *Notifier) SendExpiryReminder(ctx context.Context, r ExpiryReminder, now time.Time) error {
-	if err := n.sendEmail(ctx, r.Email, r.EmailSubject(now), r.EmailBody(now)); err != nil {
-		return fmt.Errorf("notify: kirim email ke %s: %w", r.Email, err)
-	}
-	if n.botToken != "" && r.TelegramChatID != "" {
-		if err := n.sendTelegram(ctx, r.TelegramChatID, r.TelegramText(now)); err != nil {
-			return &TelegramError{Err: err}
-		}
-	}
-	return nil
-}
+func (n *Notifier) TelegramEnabled() bool { return n.botToken != "" }
 
-// SendTestEmail dipakai tombol "kirim email uji" di Vendor Dashboard --
-// supaya konfigurasi SMTP yang salah ketahuan saat disimpan, bukan saat
-// customer pertama sudah tinggal 7 hari dari kedaluwarsa.
+// TestEmailSubject dan pesan uji lainnya dipakai tombol "kirim uji" di
+// Vendor Dashboard -- supaya konfigurasi yang salah ketahuan saat disimpan,
+// bukan saat customer pertama sudah perlu diingatkan.
+const TestEmailSubject = "Email uji Payment Bridge"
+
+const testEmailBody = "Ini email uji dari pengaturan notifikasi Vendor Dashboard.\n\n" +
+	"Kalau email ini sampai, konfigurasi SMTP sudah benar dan notifikasi " +
+	"ke customer akan terkirim lewat jalur yang sama.\n"
+
+// TestTelegramText adalah isi pesan uji Telegram.
+const TestTelegramText = "Pesan uji dari Payment Bridge — token bot Telegram sudah benar."
+
 func (n *Notifier) SendTestEmail(ctx context.Context, to string) error {
-	return n.sendEmail(ctx, to,
-		"Email uji Payment Bridge",
-		"Ini email uji dari pengaturan notifikasi Vendor Dashboard.\n\n"+
-			"Kalau email ini sampai, konfigurasi SMTP sudah benar dan pengingat "+
-			"kedaluwarsa ke customer akan terkirim lewat jalur yang sama.\n")
+	return n.SendEmail(ctx, to, TestEmailSubject, testEmailBody)
 }
 
-// SendTestTelegram pasangan SendTestEmail untuk token bot Telegram.
 func (n *Notifier) SendTestTelegram(ctx context.Context, chatID string) error {
-	if n.botToken == "" {
-		return fmt.Errorf("token bot telegram belum diisi")
-	}
-	return n.sendTelegram(ctx, chatID,
-		"Pesan uji dari Payment Bridge — token bot Telegram sudah benar.")
+	return n.SendTelegram(ctx, chatID, TestTelegramText)
 }
 
 // TelegramError menandai kegagalan yang HANYA menyentuh jalur Telegram --
 // emailnya sudah terkirim. Pemanggil memakai ini untuk memutuskan tetap
-// menandai pengingat sebagai terkirim (dan cuma mencatat peringatan),
-// bukan mencoba ulang seluruhnya.
+// menganggap notifikasi terkirim (dan cuma mencatat peringatan), bukan
+// mencoba ulang seluruhnya.
 type TelegramError struct{ Err error }
 
 func (e *TelegramError) Error() string { return "notify: kirim telegram: " + e.Err.Error() }
 func (e *TelegramError) Unwrap() error { return e.Err }
 
-func (n *Notifier) sendEmail(ctx context.Context, to, subject, body string) error {
+// SendEmail mengirim satu email teks polos.
+func (n *Notifier) SendEmail(ctx context.Context, to, subject, body string) error {
 	addr := net.JoinHostPort(n.smtp.Host, fmt.Sprint(n.smtp.Port))
 	deadline := time.Now().Add(smtpTimeout)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
@@ -194,7 +185,11 @@ func buildRFC822(from, to, subject, body string) []byte {
 	return b.Bytes()
 }
 
-func (n *Notifier) sendTelegram(ctx context.Context, chatID, text string) error {
+// SendTelegram mengirim satu pesan lewat Bot API.
+func (n *Notifier) SendTelegram(ctx context.Context, chatID, text string) error {
+	if n.botToken == "" {
+		return fmt.Errorf("token bot telegram belum diisi")
+	}
 	payload, err := json.Marshal(map[string]string{"chat_id": chatID, "text": text})
 	if err != nil {
 		return err

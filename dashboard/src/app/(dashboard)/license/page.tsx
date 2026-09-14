@@ -113,9 +113,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Pengaturan pengingat kedaluwarsa. Email selalu dipakai (alamatnya
- * ditentukan saat akun dibuat, tidak bisa diubah sendiri di sini);
- * Telegram opsional dan diisi customer sendiri.
+ * Kontak notifikasi: pengingat kedaluwarsa dan peringatan HP offline/kembali
+ * online. Email selalu dipakai (alamatnya ditentukan saat akun dibuat, tidak
+ * bisa diubah sendiri di sini); Telegram opsional dan diisi customer sendiri.
  */
 function ReminderSettings({ license, onSaved }: { license: LicenseInfo; onSaved: () => void }) {
   const [chatID, setChatID] = useState(license.telegram_chat_id ?? "");
@@ -127,7 +127,7 @@ function ReminderSettings({ license, onSaved }: { license: LicenseInfo; onSaved:
     try {
       await setTelegramChatID(chatID.trim());
       toast.success(
-        chatID.trim() === "" ? "Pengingat Telegram dicabut." : "Chat ID Telegram disimpan.",
+        chatID.trim() === "" ? "Notifikasi Telegram dimatikan." : "Chat ID Telegram disimpan.",
       );
       onSaved();
     } catch (err) {
@@ -145,11 +145,12 @@ function ReminderSettings({ license, onSaved }: { license: LicenseInfo; onSaved:
     <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
       <div className="flex items-center gap-2">
         <Bell className="size-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Pengingat kedaluwarsa</h2>
+        <h2 className="text-base font-semibold">Notifikasi</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Kami mengirim pengingat ke <span className="font-medium">{license.email}</span> saat masa
-        aktif tinggal 7 hari. Tambahkan Telegram kalau mau diingatkan di sana juga.
+        Kami mengabari <span className="font-medium">{license.email}</span> saat masa aktif tinggal
+        7 hari, dan saat HP berhenti mengirim kabar lebih dari 45 menit (serta saat kembali online).
+        Tambahkan Telegram kalau mau dikabari di sana juga.
       </p>
 
       <div className="mt-4 flex flex-col gap-2 sm:max-w-sm">
@@ -163,7 +164,7 @@ function ReminderSettings({ license, onSaved }: { license: LicenseInfo; onSaved:
         />
         <p className="text-xs text-muted-foreground">
           Berupa angka, bukan username. Kirim pesan apa saja ke bot <code>@userinfobot</code> di
-          Telegram untuk melihat chat ID kamu. Kosongkan untuk berhenti menerima pengingat
+          Telegram untuk melihat chat ID kamu. Kosongkan untuk berhenti menerima notifikasi
           Telegram.
         </p>
         <Button size="sm" className="mt-1 self-start" disabled={busy || !dirty} onClick={onSave}>

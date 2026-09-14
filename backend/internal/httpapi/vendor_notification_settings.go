@@ -186,6 +186,7 @@ func (a *API) handleVendorTestNotification(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		err = notifier.SendTestEmail(ctx, req.To)
+		notify.Record(ctx, a.store, notify.LogMeta{Kind: store.NotificationKindTest}, "email", req.To, notify.TestEmailSubject, err)
 	case "telegram":
 		if settings.TelegramBotToken == "" {
 			a.writeError(w, http.StatusBadRequest, "not_configured", "token bot Telegram belum disimpan")
@@ -196,6 +197,7 @@ func (a *API) handleVendorTestNotification(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		err = notifier.SendTestTelegram(ctx, req.To)
+		notify.Record(ctx, a.store, notify.LogMeta{Kind: store.NotificationKindTest}, "telegram", req.To, "Pesan uji Telegram", err)
 	default:
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", `channel harus "email" atau "telegram"`)
 		return

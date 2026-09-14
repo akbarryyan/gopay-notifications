@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { Eye, EyeOff, Mail, Send } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,7 @@ export function NotificationSettingsCard() {
     <Card className="rounded-2xl border-none shadow-sm ring-1 ring-border/60">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-base">Notifikasi Pengingat Kedaluwarsa</CardTitle>
+          <CardTitle className="text-base">Notifikasi ke Customer</CardTitle>
           {saved.email_configured ? (
             <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
               Aktif
@@ -165,8 +166,13 @@ export function NotificationSettingsCard() {
           )}
         </div>
         <CardDescription>
-          Email dikirim ke customer yang masa aktifnya tinggal 7 hari atau kurang, plus Telegram
-          bila customer mengisi chat id-nya. Pengingat baru berjalan setelah SMTP diisi.
+          Pengingat saat masa aktif tinggal 7 hari dan peringatan saat HP customer offline/kembali
+          online. Dikirim lewat email, plus Telegram bila customer mengisi chat id-nya. Baru
+          berjalan setelah SMTP diisi; riwayatnya ada di halaman{" "}
+          <Link href="/notifications" className="underline underline-offset-4">
+            Notifications
+          </Link>
+          .
           {saved.updated_at && (
             <>
               {" "}

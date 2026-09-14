@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/config"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/devicealert"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/httpapi"
+	"github.com/akbarryyan/gopay-notifications/backend/internal/notify"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/reminder"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
@@ -87,7 +89,8 @@ func main() {
 	// pengaturan SMTP di database (diatur lewat Vendor Dashboard), jadi
 	// mengisi/mengubah SMTP langsung berlaku tanpa restart. Job sendiri yang
 	// mencatat saat status aktif/tidak aktif berubah.
-	job := reminder.New(s, reminder.FromSettings(s, cfg.SettingsSecretKey), reminder.DefaultWithinDays)
+	senderFactory := notify.FromSettings(s, cfg.SettingsSecretKey)
+	job := reminder.New(s, senderFactory, reminder.DefaultWithinDays)
 	runReminder := func() {
 		sent, err := job.Run(ctx, time.Now())
 		if err != nil {
@@ -110,6 +113,35 @@ func main() {
 				return
 			case <-reminderTicker.C:
 				runReminder()
+			}
+		}
+	}()
+
+	// Peringatan HP offline/kembali online ke customer. Ticker sendiri lagi:
+	// 5 menit, karena yang ditunggu customer adalah kabar secepatnya bahwa
+	// pembayaran berhenti tercatat -- sejam terlalu lambat, semenit tidak
+	// ada gunanya dibanding toleransi heartbeat 45 menit. Dedupe-nya di
+	// devices.offline_alert_for, jadi aman terhadap restart.
+	alertJob := devicealert.New(s, senderFactory)
+	runDeviceAlert := func() {
+		res, err := alertJob.Run(ctx, time.Now())
+		if err != nil {
+			slog.Error("peringatan status HP gagal", "err", err)
+			return
+		}
+		if res.Offline > 0 || res.Online > 0 {
+			slog.Info("peringatan status HP terkirim", "offline", res.Offline, "online", res.Online)
+		}
+	}
+	deviceAlertTicker := time.NewTicker(devicealert.Interval)
+	defer deviceAlertTicker.Stop()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-deviceAlertTicker.C:
+				runDeviceAlert()
 			}
 		}
 	}()
