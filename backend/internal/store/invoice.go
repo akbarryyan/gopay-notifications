@@ -315,3 +315,65 @@ func (s *Store) ListInvoices(ctx context.Context, accountID string, limit, offse
 	}
 	return out, nil
 }
+
+// VendorInvoice menambahkan nama bisnis pemiliknya ke Invoice -- dipakai
+// halaman Transactions lintas-account di Vendor Dashboard, supaya vendor
+// tahu invoice ini milik customer yang mana tanpa query terpisah per baris.
+type VendorInvoice struct {
+	Invoice
+	BusinessName string
+}
+
+// ListAllInvoices adalah versi ListInvoices TANPA filter account_id --
+// sengaja lintas SEMUA account, beda dari ListInvoices yang selalu
+// di-scope satu account (dipakai Customer Dashboard). Filter status/query/
+// tanggal yang sama tetap berlaku, cuma dimensi account-nya yang dibuka.
+func (s *Store) ListAllInvoices(ctx context.Context, limit, offset int, filter InvoiceFilter) ([]VendorInvoice, error) {
+	query := `SELECT i.id, i.account_id, i.external_ref, i.requested_amount, i.unique_amount,
+	                 i.status, i.matched_event_id, i.created_at, i.expires_at, i.paid_at,
+	                 a.business_name
+	          FROM invoices i
+	          JOIN accounts a ON a.id = i.account_id
+	          WHERE 1 = 1`
+	var args []any
+	arg := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+
+	if len(filter.Statuses) > 0 {
+		query += " AND i.status = ANY(" + arg(filter.Statuses) + ")"
+	}
+	if filter.Query != "" {
+		query += " AND (i.external_ref ILIKE " + arg("%"+filter.Query+"%") +
+			" OR a.business_name ILIKE " + arg("%"+filter.Query+"%") + ")"
+	}
+	if filter.From != nil {
+		query += " AND i.created_at >= " + arg(*filter.From)
+	}
+	if filter.To != nil {
+		query += " AND i.created_at <= " + arg(*filter.To)
+	}
+	query += " ORDER BY i.created_at DESC, i.id DESC LIMIT " + arg(limit) + " OFFSET " + arg(offset)
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: list all invoices: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]VendorInvoice, 0)
+	for rows.Next() {
+		var v VendorInvoice
+		err := rows.Scan(&v.ID, &v.AccountID, &v.ExternalRef, &v.RequestedAmount, &v.UniqueAmount,
+			&v.Status, &v.MatchedEventID, &v.CreatedAt, &v.ExpiresAt, &v.PaidAt, &v.BusinessName)
+		if err != nil {
+			return nil, fmt.Errorf("store: scan vendor invoice: %w", err)
+		}
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterasi vendor invoices: %w", err)
+	}
+	return out, nil
+}

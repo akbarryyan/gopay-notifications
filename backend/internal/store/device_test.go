@@ -180,3 +180,57 @@ func TestSetDeviceEnabledMilikSendiri(t *testing.T) {
 		t.Fatal("device seharusnya disabled")
 	}
 }
+
+func TestDeleteDeviceTanpaRiwayatBerhasil(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	seedAccount(t, s, "acc_a")
+	mustCreateDevice(t, s, "acc_a", "dev_a1", "HP A1")
+
+	if err := s.DeleteDevice(ctx, "acc_a", "dev_a1"); err != nil {
+		t.Fatalf("delete device: %v", err)
+	}
+	if _, err := s.GetDevice(ctx, encKey(), "dev_a1"); !errors.Is(err, store.ErrDeviceNotFound) {
+		t.Fatalf("err = %v, mau ErrDeviceNotFound setelah dihapus", err)
+	}
+}
+
+func TestDeleteDeviceDenganRiwayatDitolak(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	seedAccount(t, s, "acc_1") // sampleEvent() hardcode account_id "acc_1"/device_id "dev_01ABC"
+	mustCreateDevice(t, s, "acc_1", "dev_01ABC", "HP Terpakai")
+	if _, err := s.InsertEvent(ctx, sampleEvent("evt_riwayat")); err != nil {
+		t.Fatalf("insert event: %v", err)
+	}
+
+	err := s.DeleteDevice(ctx, "acc_1", "dev_01ABC")
+	if !errors.Is(err, store.ErrDeviceHasEvents) {
+		t.Fatalf("err = %v, mau ErrDeviceHasEvents", err)
+	}
+	// Device tetap ada -- DeleteDevice yang ditolak tidak boleh menghapus
+	// apa pun.
+	if _, err := s.GetDevice(ctx, encKey(), "dev_01ABC"); err != nil {
+		t.Fatalf("device seharusnya masih ada: %v", err)
+	}
+}
+
+func TestDeleteDeviceTidakDitemukan(t *testing.T) {
+	s := testStore(t)
+	err := s.DeleteDevice(context.Background(), "acc_1", "tidak-ada")
+	if !errors.Is(err, store.ErrDeviceNotFound) {
+		t.Fatalf("err = %v, mau ErrDeviceNotFound", err)
+	}
+}
+
+func TestDeleteDeviceMilikAkunLainDitolak(t *testing.T) {
+	s := testStore(t)
+	seedAccount(t, s, "acc_a")
+	seedAccount(t, s, "acc_b")
+	mustCreateDevice(t, s, "acc_a", "dev_a1", "HP A1")
+
+	err := s.DeleteDevice(context.Background(), "acc_b", "dev_a1")
+	if !errors.Is(err, store.ErrDeviceNotFound) {
+		t.Fatalf("err = %v, mau ErrDeviceNotFound (device milik akun lain)", err)
+	}
+}

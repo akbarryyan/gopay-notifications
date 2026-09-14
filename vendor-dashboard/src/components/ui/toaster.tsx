@@ -18,9 +18,9 @@ import { Toaster as HotToaster } from "react-hot-toast";
 export function Toaster() {
   return (
     <HotToaster
-      position="bottom-right"
+      position="top-right"
       toastOptions={{
-        duration: 4000,
+        duration: 5000,
         style: {
           background: "var(--popover)",
           color: "var(--popover-foreground)",

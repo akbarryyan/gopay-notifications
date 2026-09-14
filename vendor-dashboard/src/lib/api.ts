@@ -185,3 +185,47 @@ export async function getAccountDevices(accountId: string): Promise<Device[]> {
   );
   return res.devices;
 }
+
+// --- Settings (vendor sendiri) ------------------------------------------------
+
+export function changeVendorPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ success: true }> {
+  return apiFetch("/api/v1/vendor/me/password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+// --- Transactions (lintas semua account) -------------------------------------
+
+export type InvoiceStatus = "PENDING" | "PAID" | "EXPIRED";
+
+export interface VendorInvoice {
+  id: string;
+  account_id: string;
+  business_name: string;
+  external_ref: string;
+  requested_amount: number;
+  unique_amount: number;
+  status: InvoiceStatus;
+  matched_event_id: string | null;
+  created_at: string;
+  expires_at: string;
+  paid_at: string | null;
+}
+
+export async function getTransactions(
+  limit: number,
+  offset: number,
+  filter: { q?: string; status?: InvoiceStatus; from?: string; to?: string },
+): Promise<VendorInvoice[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (filter.q) params.set("q", filter.q);
+  if (filter.status) params.set("status", filter.status);
+  if (filter.from) params.set("from", filter.from);
+  if (filter.to) params.set("to", filter.to);
+  const res = await apiFetch<{ invoices: VendorInvoice[] }>(`/api/v1/vendor/transactions?${params}`);
+  return res.invoices;
+}

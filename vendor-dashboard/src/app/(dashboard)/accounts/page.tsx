@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, RotateCw, Search, Users, Check, Copy } from "lucide-react";
+import { Download, Plus, RotateCw, Search, Users, Check, Copy } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,18 @@ import { createAccount, getAccounts, type Account, type AccountPlan, type Accoun
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
 import { STATUS_BADGE } from "@/lib/account-status";
+import { downloadCsv, toCsv, type CsvColumn } from "@/lib/csv";
+
+const ACCOUNT_CSV_COLUMNS: CsvColumn<Account>[] = [
+  { label: "Business Name", value: (a) => a.business_name },
+  { label: "Username", value: (a) => a.username },
+  { label: "Email", value: (a) => a.email },
+  { label: "Plan", value: (a) => a.plan },
+  { label: "Status", value: (a) => a.status },
+  { label: "Max Devices", value: (a) => (a.max_devices < 0 ? "Unlimited" : a.max_devices) },
+  { label: "Created At", value: (a) => a.created_at },
+  { label: "Expires At", value: (a) => a.expires_at },
+];
 
 const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 
@@ -157,10 +169,24 @@ function AccountsPageInner() {
             Seluruh customer Payment Bridge (hosted).
           </p>
         </div>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="mr-1.5 size-4" />
-          Buat akun
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={filtered.length === 0}
+            onClick={() => {
+              downloadCsv(`accounts-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(filtered, ACCOUNT_CSV_COLUMNS));
+              toast.success(`${filtered.length} akun diekspor.`);
+            }}
+          >
+            <Download className="mr-1.5 size-4" />
+            Export CSV
+          </Button>
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="mr-1.5 size-4" />
+            Buat akun
+          </Button>
+        </div>
       </div>
 
       {error && (

@@ -157,6 +157,38 @@ func (a *API) handleAdminCreateDevice(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleAdminDeleteDevice menghapus device permanen -- membebaskan slot
+// kuota, beda dari PATCH .../enabled yang cuma menonaktifkan (device tetap
+// ada, tetap terhitung ke max_devices). Ditolak 409 kalau device ini sudah
+// punya riwayat event (lihat store.ErrDeviceHasEvents) -- nonaktifkan saja
+// untuk device yang sudah pernah dipakai.
+func (a *API) handleAdminDeleteDevice(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
+	deviceID := r.PathValue("deviceID")
+	if deviceID == "" {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "device id tidak valid")
+		return
+	}
+
+	err := a.store.DeleteDevice(r.Context(), accountID, deviceID)
+	if errors.Is(err, store.ErrDeviceNotFound) {
+		a.writeError(w, http.StatusNotFound, "not_found", "device tidak ditemukan")
+		return
+	}
+	if errors.Is(err, store.ErrDeviceHasEvents) {
+		a.writeError(w, http.StatusConflict, "device_has_events",
+			"device ini sudah punya riwayat event -- nonaktifkan saja, tidak bisa dihapus")
+		return
+	}
+	if err != nil {
+		slog.Error("delete device gagal", "device_id", deviceID, "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
 type setDeviceEnabledRequest struct {
 	Enabled bool `json:"enabled"`
 }

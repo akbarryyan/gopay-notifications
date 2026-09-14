@@ -31,6 +31,7 @@ import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import {
   ApiError,
   createDevice,
+  deleteDevice,
   getDevices,
   setDeviceEnabled,
   type AdminDevice,
@@ -49,6 +50,7 @@ const STATUS_OPTIONS: { value: DeviceStatus; label: string }[] = [
 export default function DevicesPage() {
   const { data, loading, error, reload } = useApiData(getDevices);
   const [pendingToggle, setPendingToggle] = useState<AdminDevice | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AdminDevice | null>(null);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -129,6 +131,25 @@ export default function DevicesPage() {
     } finally {
       setBusy(false);
       setPendingToggle(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setBusy(true);
+    try {
+      await deleteDevice(pendingDelete.device_id);
+      toast.success(`${pendingDelete.name} dihapus.`);
+      reload();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "device_has_events") {
+        toast.error("Device ini sudah punya riwayat event — nonaktifkan saja, tidak bisa dihapus.");
+      } else {
+        toast.error("Gagal menghapus device.");
+      }
+    } finally {
+      setBusy(false);
+      setPendingDelete(null);
     }
   }
 
@@ -224,13 +245,18 @@ export default function DevicesPage() {
                     {d.pending_count ?? 0} pending · {d.failed_count ?? 0} gagal
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant={d.enabled ? "outline" : "default"}
-                      onClick={() => setPendingToggle(d)}
-                    >
-                      {d.enabled ? "Nonaktifkan" : "Aktifkan"}
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant={d.enabled ? "outline" : "default"}
+                        onClick={() => setPendingToggle(d)}
+                      >
+                        {d.enabled ? "Nonaktifkan" : "Aktifkan"}
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => setPendingDelete(d)}>
+                        Hapus
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -347,6 +373,23 @@ export default function DevicesPage() {
             <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={confirmToggle} disabled={busy}>
               {pendingToggle?.enabled ? "Nonaktifkan" : "Aktifkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus device permanen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`"${pendingDelete?.name}" akan dihapus permanen dan slot kuota device-nya bebas -- tidak bisa dibatalkan. Kalau device ini pernah mengirim event, hapus akan ditolak (nonaktifkan saja untuk device yang sudah pernah dipakai).`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={busy}>
+              Hapus
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

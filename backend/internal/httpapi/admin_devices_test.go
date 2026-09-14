@@ -184,6 +184,77 @@ func TestAdminCreateDeviceKuotaHabisDitolak(t *testing.T) {
 	}
 }
 
+func adminDelete(t *testing.T, h http.Handler, cookie *http.Cookie, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
+	req.AddCookie(cookie)
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestAdminDeleteDeviceTanpaRiwayatBerhasil(t *testing.T) {
+	h := newAPIWithAdmin(t)
+	cookie := loginAsAdmin(t, h)
+
+	created := adminPost(t, h, cookie, "/api/v1/admin/devices", `{"name":"HP Baru"}`)
+	var body struct {
+		DeviceID string `json:"device_id"`
+	}
+	json.Unmarshal(created.Body.Bytes(), &body)
+
+	rec := adminDelete(t, h, cookie, "/api/v1/admin/devices/"+body.DeviceID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (body=%s)", rec.Code, rec.Body.String())
+	}
+
+	list := adminGet(t, h, cookie, "/api/v1/admin/devices")
+	var listBody struct {
+		Devices []struct{} `json:"devices"`
+	}
+	json.Unmarshal(list.Body.Bytes(), &listBody)
+	if len(listBody.Devices) != 0 {
+		t.Fatalf("devices = %+v, mau kosong setelah dihapus", listBody.Devices)
+	}
+}
+
+func TestAdminDeleteDeviceDenganRiwayatDitolak(t *testing.T) {
+	h := newAPIWithAdmin(t)
+	cookie := loginAsAdmin(t, h)
+	// seedRawDevice memakai account_id "acc_1", sama dengan account bawaan
+	// newAPIWithAdmin -- sampleEvent() (paket store_test) tidak dipakai di
+	// sini, jadi event disisipkan langsung lewat store dengan device_id
+	// yang sama.
+	seedRawDevice(t, "dev_riwayat", "HP Lama")
+
+	url := os.Getenv("TEST_DATABASE_URL")
+	s, err := store.New(context.Background(), url)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	defer s.Close()
+	title := "Pembayaran QRIS statis diterima"
+	if _, err := s.InsertEvent(context.Background(), store.Event{
+		EventID: "evt_riwayat", AccountID: "acc_1", DeviceID: "dev_riwayat",
+		Source: "gopay", PackageName: "com.gojek.gopaymerchant", Title: &title,
+		PostedAt: fixedNow, ReceivedAt: fixedNow, RawPayload: []byte(`{}`),
+	}); err != nil {
+		t.Fatalf("insert event: %v", err)
+	}
+
+	rec := adminDelete(t, h, cookie, "/api/v1/admin/devices/dev_riwayat")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, mau 409 (body=%s)", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Error string `json:"error"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &errBody)
+	if errBody.Error != "device_has_events" {
+		t.Fatalf("error = %q, mau device_has_events", errBody.Error)
+	}
+}
+
 func TestAdminSetDeviceEnabledDeviceTakDikenal(t *testing.T) {
 	h := newAPIWithAdmin(t)
 	cookie := loginAsAdmin(t, h)

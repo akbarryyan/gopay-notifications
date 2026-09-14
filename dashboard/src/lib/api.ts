@@ -147,6 +147,10 @@ export function createDevice(
   });
 }
 
+export function deleteDevice(deviceId: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}`, { method: "DELETE" });
+}
+
 // --- Events ------------------------------------------------------------
 
 export interface AdminEvent {

@@ -118,6 +118,40 @@ func (s *Store) ListDevices(ctx context.Context, accountID string) ([]Device, er
 	return out, nil
 }
 
+// ErrDeviceHasEvents dikembalikan DeleteDevice bila device ini pernah
+// mengirim minimal satu event -- riwayat notification_events adalah jejak
+// pembayaran, tidak boleh diam-diam ikut hilang gara-gara device-nya
+// dihapus (notification_events.device_id punya foreign key ke devices
+// TANPA ON DELETE CASCADE, sengaja begitu sejak migrasi awal).
+var ErrDeviceHasEvents = errors.New("store: device punya riwayat event, nonaktifkan saja")
+
+// DeleteDevice menghapus device permanen -- cuma boleh untuk device yang
+// belum pernah mengirim event sama sekali (baru dibuat lalu tidak jadi
+// dipakai, atau salah bikin). Device yang sudah punya riwayat wajib
+// dinonaktifkan (SetDeviceEnabled), bukan dihapus, supaya jejak
+// pembayarannya tetap utuh.
+func (s *Store) DeleteDevice(ctx context.Context, accountID, deviceID string) error {
+	var hasEvents bool
+	if err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM notification_events WHERE device_id = $1)`, deviceID).
+		Scan(&hasEvents); err != nil {
+		return fmt.Errorf("store: cek riwayat event device: %w", err)
+	}
+	if hasEvents {
+		return ErrDeviceHasEvents
+	}
+
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM devices WHERE device_id = $1 AND account_id = $2`, deviceID, accountID)
+	if err != nil {
+		return fmt.Errorf("store: delete device: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrDeviceNotFound
+	}
+	return nil
+}
+
 // SetDeviceEnabled mengaktifkan atau menonaktifkan device dari dashboard.
 // Mengembalikan ErrDeviceNotFound juga kalau device ada tapi milik account
 // lain -- pemanggil tidak boleh bisa membedakan "tidak ada" dari "bukan
