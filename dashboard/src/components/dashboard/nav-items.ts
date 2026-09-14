@@ -26,7 +26,7 @@ export interface NavItem {
  * docs/superpowers/specs/2026-09-12-invoice-nominal-matching-design.md,
  * 2026-09-13-webhook-delivery-design.md,
  * 2026-09-13-exception-console-design.md, dan
- * 2026-09-13-license-system-design.md). Settings dan Logs masih menunggu —
+ * 2026-09-13-license-system-design.md). Logs masih menunggu —
  * menampilkannya sebagai link aktif sekarang berarti membangun halaman
  * untuk data yang bentuknya belum pasti.
  */
@@ -48,6 +48,7 @@ export const GATEWAY_ITEMS: NavItem[] = [
 
 export const SYSTEM_ITEMS: NavItem[] = [
   { label: "License", href: "/license", icon: ShieldCheck },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 /**
@@ -57,5 +58,4 @@ export const SYSTEM_ITEMS: NavItem[] = [
  */
 export const COMING_SOON_ITEMS: { label: string; icon: LucideIcon }[] = [
   { label: "Logs", icon: ScrollText },
-  { label: "Settings", icon: Settings },
 ];

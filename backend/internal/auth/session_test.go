@@ -85,3 +85,16 @@ func TestSessionTokenDuaSubjectBerbeda(t *testing.T) {
 		t.Fatalf("tokenB: subject=%q ok=%v, mau acc_b/true", subjectB, ok)
 	}
 }
+
+func TestSessionIssuedAtDariMasaBerlaku(t *testing.T) {
+	issued := time.Unix(1789036200, 0)
+	token := auth.NewSessionToken([]byte("kunci"), issued, "acc_1")
+
+	got, ok := auth.SessionIssuedAt(token)
+	if !ok || !got.Equal(issued) {
+		t.Fatalf("SessionIssuedAt = %v, %v; mau %v", got, ok, issued)
+	}
+	if _, ok := auth.SessionIssuedAt("rusak"); ok {
+		t.Fatal("token rusak dianggap sah")
+	}
+}

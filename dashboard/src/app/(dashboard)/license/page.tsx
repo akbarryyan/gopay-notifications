@@ -1,21 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Bell, RotateCw, ShieldCheck, ShieldOff } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, RotateCw, ShieldCheck, ShieldOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import toast from "react-hot-toast";
-import {
-  ApiError,
-  getLicense,
-  setTelegramChatID,
-  type LicenseInfo,
-  type LicenseStatus,
-} from "@/lib/api";
+import { getLicense, type LicenseInfo, type LicenseStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
 
@@ -81,8 +72,8 @@ function InactiveBanner({ license }: { license: LicenseInfo }) {
       <AlertTriangle className="size-4" />
       <AlertTitle>{STATUS_LABEL[license.status]}</AlertTitle>
       <AlertDescription>
-        {INACTIVE_EXPLANATION[license.status]} Hubungi penyedia layanan kamu untuk memperbaiki
-        akun ini.
+        {INACTIVE_EXPLANATION[license.status]} Hubungi penyedia layanan kamu untuk memperbaiki akun
+        ini.
       </AlertDescription>
     </Alert>
   );
@@ -108,69 +99,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between border-b border-border/50 py-3 last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
       <span className="text-sm font-medium">{value}</span>
-    </div>
-  );
-}
-
-/**
- * Kontak notifikasi: pengingat kedaluwarsa dan peringatan HP offline/kembali
- * online. Email selalu dipakai (alamatnya ditentukan saat akun dibuat, tidak
- * bisa diubah sendiri di sini); Telegram opsional dan diisi customer sendiri.
- */
-function ReminderSettings({ license, onSaved }: { license: LicenseInfo; onSaved: () => void }) {
-  const [chatID, setChatID] = useState(license.telegram_chat_id ?? "");
-  const [busy, setBusy] = useState(false);
-  const dirty = chatID.trim() !== (license.telegram_chat_id ?? "");
-
-  async function onSave() {
-    setBusy(true);
-    try {
-      await setTelegramChatID(chatID.trim());
-      toast.success(
-        chatID.trim() === "" ? "Notifikasi Telegram dimatikan." : "Chat ID Telegram disimpan.",
-      );
-      onSaved();
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "invalid_payload") {
-        toast.error(err.message);
-      } else {
-        toast.error("Gagal menyimpan chat ID Telegram.");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Bell className="size-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Notifikasi</h2>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Kami mengabari <span className="font-medium">{license.email}</span> saat masa aktif tinggal
-        7 hari, dan saat HP berhenti mengirim kabar lebih dari 45 menit (serta saat kembali online).
-        Tambahkan Telegram kalau mau dikabari di sana juga.
-      </p>
-
-      <div className="mt-4 flex flex-col gap-2 sm:max-w-sm">
-        <Label htmlFor="telegram-chat-id">Telegram chat ID (opsional)</Label>
-        <Input
-          id="telegram-chat-id"
-          value={chatID}
-          onChange={(e) => setChatID(e.target.value)}
-          placeholder="123456789"
-          inputMode="numeric"
-        />
-        <p className="text-xs text-muted-foreground">
-          Berupa angka, bukan username. Kirim pesan apa saja ke bot <code>@userinfobot</code> di
-          Telegram untuk melihat chat ID kamu. Kosongkan untuk berhenti menerima notifikasi
-          Telegram.
-        </p>
-        <Button size="sm" className="mt-1 self-start" disabled={busy || !dirty} onClick={onSave}>
-          {busy ? "Menyimpan..." : "Simpan"}
-        </Button>
-      </div>
     </div>
   );
 }
@@ -232,7 +160,18 @@ export default function LicensePage() {
             </div>
           </div>
 
-          <ReminderSettings license={data} onSaved={reload} />
+          <p className="text-sm text-muted-foreground">
+            Pengingat masa aktif dikirim ke{" "}
+            <span className="font-medium text-foreground">{data.email}</span>. Ubah email atau
+            tambahkan Telegram di{" "}
+            <Link
+              href="/settings"
+              className="font-medium text-foreground underline underline-offset-4"
+            >
+              Settings
+            </Link>
+            .
+          </p>
         </>
       ) : null}
     </div>

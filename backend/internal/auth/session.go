@@ -66,3 +66,27 @@ func VerifySessionToken(key []byte, token string, now time.Time) (subject string
 	}
 	return subj, true
 }
+
+// SessionIssuedAt menurunkan waktu penerbitan token dari masa berlakunya
+// (expiry - SessionDuration), dibulatkan ke detik. Dipakai menolak sesi
+// yang terbit sebelum password diganti. Token HARUS sudah lolos
+// VerifySessionToken -- fungsi ini tidak memeriksa tanda tangan.
+//
+// Kalau SessionDuration diubah, token lama yang masih beredar akan
+// terbaca terbit di waktu yang bergeser sebesar selisihnya -- dampaknya
+// cuma sesi itu dianggap sedikit lebih tua/muda, bukan celah.
+func SessionIssuedAt(token string) (time.Time, bool) {
+	idx := strings.LastIndex(token, ".")
+	if idx < 0 {
+		return time.Time{}, false
+	}
+	_, expiryRaw, found := strings.Cut(token[:idx], ":")
+	if !found {
+		return time.Time{}, false
+	}
+	expiry, err := strconv.ParseInt(expiryRaw, 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(expiry, 0).Add(-SessionDuration), true
+}

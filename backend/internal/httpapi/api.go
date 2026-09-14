@@ -21,7 +21,16 @@ type API struct {
 	loginThrottle       *loginThrottle
 	vendorLoginThrottle *loginThrottle
 	signupThrottle      *loginThrottle
-	webhookHTTPClient   *http.Client
+	// passwordResetThrottle membatasi permintaan email reset per IP;
+	// passwordChangeThrottle membatasi tebakan password saat ini per account
+	// (sesi yang dicuri tidak boleh bisa menebak password tanpa batas).
+	passwordResetThrottle  *loginThrottle
+	passwordChangeThrottle *loginThrottle
+	webhookHTTPClient      *http.Client
+	dashboardURL           string
+	// background menjalankan pengiriman email di luar request. Lihat
+	// handleForgotPassword untuk alasannya.
+	background func(func())
 }
 
 // New membuat API. Parameter now disuntikkan agar test dapat memalsukan jam.
@@ -31,20 +40,30 @@ func New(s *store.Store, encKey []byte, adminSessionKey []byte, webhookSecretKey
 		now = time.Now
 	}
 	return &API{
-		store:               s,
-		encKey:              encKey,
-		adminSessionKey:     adminSessionKey,
-		webhookSecretKey:    webhookSecretKey,
-		vendorSessionKey:    vendorSessionKey,
-		settingsSecretKey:   settingsSecretKey,
-		now:                 now,
-		loginThrottle:       newLoginThrottle(),
-		vendorLoginThrottle: newLoginThrottle(),
-		signupThrottle:      newLoginThrottle(),
+		store:                  s,
+		encKey:                 encKey,
+		adminSessionKey:        adminSessionKey,
+		webhookSecretKey:       webhookSecretKey,
+		vendorSessionKey:       vendorSessionKey,
+		settingsSecretKey:      settingsSecretKey,
+		now:                    now,
+		loginThrottle:          newLoginThrottle(),
+		vendorLoginThrottle:    newLoginThrottle(),
+		signupThrottle:         newLoginThrottle(),
+		passwordResetThrottle:  newLoginThrottle(),
+		passwordChangeThrottle: newLoginThrottle(),
+		background:             func(f func()) { go f() },
 		// Timeout 10 detik sesuai spec §3.1 — server merchant yang lambat
 		// tidak boleh menahan worker webhook lebih lama dari itu.
 		webhookHTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
+}
+
+// WithDashboardURL mengisi alamat publik Customer Dashboard untuk link di
+// email reset password. Tanpa ini, lupa password menjawab "belum tersedia".
+func (a *API) WithDashboardURL(u string) *API {
+	a.dashboardURL = u
+	return a
 }
 
 func (a *API) Handler() http.Handler {
@@ -77,7 +96,17 @@ func (a *API) Handler() http.Handler {
 	// (bukan sesi, API key, atau HMAC) -- calon customer belum punya
 	// kredensial sampai titik ini. Lihat signup.go.
 	mux.HandleFunc("POST /api/v1/signup", a.handleSignup)
+	// Lupa password: juga tanpa auth, dengan alasan yang sama. Lihat
+	// account_password.go.
+	mux.HandleFunc("POST /api/v1/password/forgot", a.handleForgotPassword)
+	mux.HandleFunc("POST /api/v1/password/reset", a.handleResetPassword)
 	mux.Handle("GET /api/v1/admin/license", a.requireAdmin(http.HandlerFunc(a.handleAdminLicense)))
+	// Settings akun: SENGAJA tanpa requireActiveAccount, sama seperti
+	// /license -- account yang kedaluwarsa tetap harus bisa mengganti
+	// password dan memperbarui kontaknya.
+	mux.Handle("GET /api/v1/admin/account", a.requireAdmin(http.HandlerFunc(a.handleAdminGetAccount)))
+	mux.Handle("PATCH /api/v1/admin/account", a.requireAdmin(http.HandlerFunc(a.handleAdminUpdateAccount)))
+	mux.Handle("POST /api/v1/admin/account/password", a.requireAdmin(http.HandlerFunc(a.handleAdminChangePassword)))
 	mux.Handle("POST /api/v1/admin/account/telegram", a.requireAdmin(http.HandlerFunc(a.handleAdminSetTelegram)))
 	mux.Handle("GET /api/v1/admin/overview",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminOverview))))

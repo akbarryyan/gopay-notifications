@@ -11,10 +11,12 @@ import (
 
 var (
 	validNotificationKinds = map[string]bool{
-		store.NotificationKindExpiryReminder: true,
-		store.NotificationKindDeviceOffline:  true,
-		store.NotificationKindDeviceOnline:   true,
-		store.NotificationKindTest:           true,
+		store.NotificationKindExpiryReminder:  true,
+		store.NotificationKindDeviceOffline:   true,
+		store.NotificationKindDeviceOnline:    true,
+		store.NotificationKindTest:            true,
+		store.NotificationKindPasswordReset:   true,
+		store.NotificationKindPasswordChanged: true,
 	}
 	validNotificationStatuses = map[string]bool{
 		store.NotificationStatusSent:   true,

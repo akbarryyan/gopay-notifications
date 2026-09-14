@@ -11,9 +11,11 @@ import type { NextRequest } from "next/server";
  * kedipan halaman kosong sebelum redirect ke /login.
  *
  * "/" dan "/register" SENGAJA publik (landing page + form signup) --
- * berbeda dari seluruh path lain di sini yang wajib sesi.
+ * berbeda dari seluruh path lain di sini yang wajib sesi. Begitu juga
+ * "/forgot-password" dan "/reset-password": orang yang lupa password
+ * memang tidak punya sesi.
  */
-const PUBLIC_PATHS = new Set(["/", "/register", "/login"]);
+const PUBLIC_PATHS = new Set(["/", "/register", "/login", "/forgot-password", "/reset-password"]);
 
 export function proxy(request: NextRequest) {
   const hasSession = request.cookies.has("admin_session");

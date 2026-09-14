@@ -797,3 +797,51 @@ ok  	.../internal/reminder
 ok  	.../internal/secretbox
 ok  	.../internal/store	11.029s
 ```
+
+---
+
+## 18. Password customer: lupa password lewat email + halaman Settings
+
+Permintaan langsung Akbar lewat chat (tanpa spec tertulis tersendiri):
+reset password lewat email dan halaman Settings di Customer Dashboard
+(profil, ganti password, chat id Telegram yang dipindah dari `/license`).
+
+**Ringkasan:** `PASS` 11 · `FAIL` 0 · `NEEDS-DEVICE` 2 · `PENDING` 0
+
+### 18a. Lupa password / reset lewat email
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Fitur menjawab `503 not_available` bila `DASHBOARD_URL` atau SMTP belum diisi | `PASS` | `TestForgotPasswordBelumTersedia` (2 subtest) — lulus |
+| Jawaban identik untuk email terdaftar dan tidak terdaftar; token cuma dibuat untuk email terdaftar (tidak peka huruf besar); email dikirim di background dan tercatat di `notification_log` sebagai `password_reset` tanpa isi pesan | `PASS` | `TestForgotPasswordJawabanSamaUntukEmailTerdaftarDanTidak`, `TestGetAccountByEmailTidakPekaHurufBesar` — lulus |
+| Maksimal satu email reset per account per 2 menit; maksimal 5 permintaan per IP per 15 menit | `PASS` | `TestForgotPasswordJawabanSamaUntukEmailTerdaftarDanTidak` (bagian cooldown), `TestForgotPasswordDibatasiPerIP` — lulus |
+| Token disimpan sebagai hash, berlaku 30 menit, sekali pakai, permintaan baru membatalkan link lama | `PASS` | `TestResetPasswordWithTokenSekaliPakai`, `TestResetPasswordTokenKedaluwarsaDanTokenLamaDigantikan` — lulus |
+| Reset berhasil: password lama tidak bisa login, password baru bisa, sesi yang terbit sebelum reset ditolak 401, token dipakai ulang → `400 invalid_token` | `PASS` | `TestResetPasswordMenggantiPasswordDanMencabutSesiLama` — lulus |
+| Waktu terbit sesi diturunkan dari expiry token | `PASS` | `TestSessionIssuedAtDariMasaBerlaku` — lulus |
+| Migrasi `00013` bisa di-rollback dan diterapkan ulang | `PASS` | `goose down` lalu `goose up` di `gopay_test`: `OK 00013_password_reset.sql`, `successfully migrated database to version: 13` |
+| Email reset sungguhan sampai, link membuka `/reset-password`, password baru bisa dipakai login | `NEEDS-DEVICE` | Butuh SMTP asli + `DASHBOARD_URL`. Langkah: `/login` → "Lupa password?" → isi email account → buka link di email → simpan password baru → login |
+
+### 18b. Settings Customer Dashboard
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Ganti password: password saat ini wajib benar, sesi lain dan sesi lama dicabut, cookie sesi yang dipakai diterbitkan ulang; token reset yang tertinggal ikut dibatalkan | `PASS` | `TestAdminChangePassword`, `TestChangeAccountPasswordMembatalkanTokenReset` — lulus |
+| Tebakan password saat ini dibatasi 5 per account per 15 menit (tetap 429 walau tebakan ke-6 benar) | `PASS` | `TestAdminChangePasswordDibatasiPerAccount` — lulus |
+| Profil: ganti nama bisnis tanpa password; ganti email wajib password saat ini; email tidak valid → 400; email dipakai akun lain → 409 | `PASS` | `TestAdminAccountProfile`, `TestUpdateAccountProfile` — lulus |
+| Halaman `/settings`, `/forgot-password`, `/reset-password`, link "Lupa password?" di `/login`, Settings aktif di sidebar | `NEEDS-DEVICE` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih (ketiga route ter-generate); tampilan menunggu dicek Akbar di `npm run dev` |
+
+### Keseluruhan suite
+
+`make test` setelah seluruh perubahan di bagian ini:
+
+```
+OK   00013_password_reset.sql
+ok  	.../internal/auth
+ok  	.../internal/connector
+ok  	.../internal/devicealert
+ok  	.../internal/httpapi	24.846s
+ok  	.../internal/notify
+ok  	.../internal/reminder
+ok  	.../internal/secretbox
+ok  	.../internal/store	12.461s
+```

@@ -211,9 +211,9 @@ total**, bukan diperluas — jangan bingung dengan dokumen SUPERSEDED yang
 masih menjelaskannya untuk konteks sejarah. Detail lengkap: bagian
 "Sistem akun multi-tenant" di CLAUDE.md.
 
-Dashboard customer Next.js (folder dashboard/) sudah punya delapan halaman
+Dashboard customer Next.js (folder dashboard/) sudah punya sembilan halaman
 dengan data sungguhan — Overview, Devices, Events, Transactions, API Keys,
-Webhooks, Exceptions, License — plus login dan gerbang navigasi. `/` sudah
+Webhooks, Exceptions, License, Settings — plus login dan gerbang navigasi. `/` sudah
 jadi landing page publik dan `/register` form signup swalayan (plan
 Starter, trial 3 hari, langsung aktif) sejak sub-project #2+#6 dari pivot
 selesai (spec docs/superpowers/specs/2026-09-13-landing-signup-design.md)
@@ -234,6 +234,12 @@ bridge offline > 45 menit / kembali online (job 5 menit,
 di tabel `notification_settings` (kunci kelima `SETTINGS_SECRET_KEY`),
 setiap percobaan kirim tercatat di `notification_log`. Pengiriman
 sungguhan lewat SMTP/bot asli masih NEEDS-DEVICE.
+
+Customer Dashboard punya halaman Settings (profil, ganti password, chat id
+Telegram) dan lupa password lewat email (`/forgot-password`,
+`/reset-password`, butuh env `DASHBOARD_URL` + SMTP) — qa-report.md §18.
+Ganti/reset password mencabut semua sesi lama lewat
+`accounts.password_changed_at`.
 
 `cmd/seedtool` (baru) mengisi `gopay_dev` dengan banyak account +
 device/invoice/event/API key/webhook sekaligus lewat `Store` yang sama

@@ -55,7 +55,7 @@ gateway ini, itu perluasan di luar keempat fase itu, bukan bagian dari
 salah satunya.
 
 Dashboard mencakup halaman yang datanya sungguhan ada: Overview, Devices,
-Events, Transactions, API Keys, Webhooks, Exceptions, License. Settings dan
+Events, Transactions, API Keys, Webhooks, Exceptions, License, Settings.
 Logs ditampilkan di sidebar sebagai "Segera" (non-aktif).
 
 **PIVOT ARSITEKTUR (2026-09-13):** produk ini berubah dari self-hosted
@@ -334,8 +334,44 @@ hanya memeriksa keberadaan cookie untuk mencegah kedipan halaman kosong —
 validitas sesi sesungguhnya selalu diputuskan backend lewat `requireAdmin`.
 
 Halaman yang datanya sungguhan ada: Overview, Devices, Events, Transactions,
-API Keys, Webhooks, Exceptions, License. Sisanya (Settings, Logs)
-ditampilkan di sidebar sebagai "Segera", non-aktif.
+API Keys, Webhooks, Exceptions, License, Settings (profil, ganti password,
+chat id Telegram). Logs ditampilkan di sidebar sebagai "Segera", non-aktif.
+
+### Password customer: reset lewat email dan ganti dari Settings
+
+`/forgot-password` dan `/reset-password` publik (dikecualikan di
+`proxy.ts`), backend `POST /api/v1/password/forgot` dan `/reset`. Butuh
+`DASHBOARD_URL` di env backend (alamat publik dashboard untuk link di
+email) **dan** SMTP terisi di Vendor Dashboard; kalau salah satu kosong,
+lupa password menjawab `503 not_available`.
+
+Keputusan yang tidak boleh dibalik diam-diam:
+
+- **Jawaban "lupa password" identik untuk email terdaftar maupun tidak,
+  dan email dikirim di background.** Mengirim di dalam request membuat
+  email terdaftar menjawab beberapa detik lebih lambat (percakapan SMTP)
+  — cukup untuk mengetahui email mana yang punya akun.
+- **Link reset memakai `DASHBOARD_URL` dari config, tidak pernah dari
+  header Host/Origin**, dan token di fragment (`#token=`), bukan query
+  string — fragment tidak pernah sampai ke server, jadi tidak tercatat di
+  log akses Caddy/Next. Halaman reset menghapusnya dari address bar
+  setelah dibaca.
+- **Token disimpan sebagai SHA-256** (`password_reset_tokens`), berlaku
+  30 menit, sekali pakai; permintaan baru membatalkan link sebelumnya;
+  maksimal satu email per account per 2 menit (selain batas per IP).
+- **Ganti/reset password mencabut semua sesi lama.** Sesi customer
+  stateless, jadi `requireAdmin` menolak token yang terbit sebelum
+  `accounts.password_changed_at` (waktu terbit diturunkan dari expiry
+  token, `auth.SessionIssuedAt`). Ganti password dari Settings
+  menerbitkan ulang cookie sesi yang sedang dipakai supaya yang mengganti
+  tidak ikut ter-logout.
+- **Ganti email wajib password saat ini** — email adalah tujuan link
+  reset, sesi yang dicuri tidak boleh cukup untuk memindahkannya.
+- Setiap reset/ganti password mengirim pemberitahuan ke pemilik akun
+  (`password_changed`, email + Telegram); email reset sendiri
+  (`password_reset`) **cuma email**, tidak pernah ke Telegram karena
+  berisi link yang setara kunci akun. Keduanya tercatat di
+  `notification_log` tanpa isi pesannya.
 
 Grafik tren di Overview (`EventsTrendChart`) pakai Recharts, biaxial —
 sumbu kiri jumlah event, sumbu kanan total nominal invoice yang lunas
@@ -428,7 +464,7 @@ Dua keputusan yang tidak boleh dibalik diam-diam:
 
 - **Email jalur utama, Telegram cuma tambahan.** Alamat email pasti
   dimiliki tiap account (kolom wajib); Telegram diisi customer sendiri di
-  halaman `/license` dashboard mereka dan belum tentu ada. Karena itu
+  halaman `/settings` dashboard mereka dan belum tentu ada. Karena itu
   `NotificationSettings.EmailConfigured()` menuntut SMTP terisi — pengingat yang cuma
   sampai ke sebagian customer lebih berbahaya daripada tidak ada sama
   sekali, karena bikin merasa sudah aman.

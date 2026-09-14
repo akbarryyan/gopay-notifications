@@ -80,6 +80,25 @@ export function signup(input: {
   });
 }
 
+/**
+ * Selalu sukses untuk email terdaftar maupun tidak -- backend sengaja tidak
+ * membedakannya. Gagal cuma untuk `not_available` (fitur belum diaktifkan)
+ * dan `too_many_attempts`.
+ */
+export function forgotPassword(email: string): Promise<{ success: true }> {
+  return apiFetch("/api/v1/password/forgot", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<{ success: true }> {
+  return apiFetch("/api/v1/password/reset", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
+
 // --- Overview ------------------------------------------------------------
 
 export interface OverviewResponse {
@@ -430,5 +449,43 @@ export function setTelegramChatID(chatID: string): Promise<{ success: true }> {
   return apiFetch("/api/v1/admin/account/telegram", {
     method: "POST",
     body: JSON.stringify({ telegram_chat_id: chatID }),
+  });
+}
+
+// --- Settings akun -----------------------------------------------------
+
+export interface AccountProfile {
+  username: string;
+  business_name: string;
+  email: string;
+  telegram_chat_id: string | null;
+}
+
+export async function getAccountProfile(): Promise<AccountProfile> {
+  const res = await apiFetch<{ account: AccountProfile }>("/api/v1/admin/account");
+  return res.account;
+}
+
+/** `current_password` wajib bila email diganti. */
+export async function updateAccountProfile(input: {
+  business_name: string;
+  email: string;
+  current_password?: string;
+}): Promise<AccountProfile> {
+  const res = await apiFetch<{ account: AccountProfile }>("/api/v1/admin/account", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return res.account;
+}
+
+/** Sesi lain ikut dikeluarkan; sesi yang sedang dipakai diperbarui backend. */
+export function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ success: true }> {
+  return apiFetch("/api/v1/admin/account/password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
 }

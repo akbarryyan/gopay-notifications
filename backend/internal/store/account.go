@@ -49,6 +49,9 @@ type Account struct {
 	// TelegramChatID opsional -- diisi customer sendiri di Settings
 	// dashboard mereka. Nil berarti pengingat cuma lewat email.
 	TelegramChatID *string
+	// PasswordChangedAt nil berarti password belum pernah diganti sejak
+	// account dibuat. Sesi yang diterbitkan sebelum waktu ini ditolak.
+	PasswordChangedAt *time.Time
 }
 
 // VerifyPassword membandingkan password mentah dengan hash tersimpan.
@@ -117,7 +120,7 @@ func (s *Store) CreateAccount(ctx context.Context, in CreateAccountInput) error 
 }
 
 const accountSelectCols = `SELECT id, business_name, email, username, password_hash,
-	plan, max_devices, admin_status, expires_at, created_at, updated_at, telegram_chat_id FROM accounts`
+	plan, max_devices, admin_status, expires_at, created_at, updated_at, telegram_chat_id, password_changed_at FROM accounts`
 
 type accountScanner interface {
 	Scan(dest ...any) error
@@ -127,7 +130,7 @@ func scanAccount(row accountScanner) (Account, error) {
 	var a Account
 	err := row.Scan(&a.ID, &a.BusinessName, &a.Email, &a.Username, &a.PasswordHash,
 		&a.Plan, &a.MaxDevices, &a.AdminStatus, &a.ExpiresAt, &a.CreatedAt, &a.UpdatedAt,
-		&a.TelegramChatID)
+		&a.TelegramChatID, &a.PasswordChangedAt)
 	return a, err
 }
 

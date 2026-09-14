@@ -39,7 +39,11 @@ func main() {
 	}
 	defer s.Close()
 
-	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, cfg.VendorSessionKey, cfg.SettingsSecretKey, time.Now)
+	api := httpapi.New(s, cfg.DeviceSecretKey, cfg.AdminSessionKey, cfg.WebhookSecretKey, cfg.VendorSessionKey, cfg.SettingsSecretKey, time.Now).
+		WithDashboardURL(cfg.DashboardURL)
+	if cfg.DashboardURL == "" {
+		slog.Warn("DASHBOARD_URL kosong -- lupa password lewat email tidak tersedia")
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

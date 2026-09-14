@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/auth"
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
@@ -77,7 +78,15 @@ func (a *API) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	a.loginThrottle.RecordSuccess(ip)
 
-	token := auth.NewSessionToken(a.adminSessionKey, a.now(), acc.ID)
+	a.setAdminSessionCookie(w, r, acc.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// setAdminSessionCookie menerbitkan sesi baru -- dipakai login, signup,
+// dan ganti password (supaya yang mengganti tetap login sementara sesi
+// lain dicabut).
+func (a *API) setAdminSessionCookie(w http.ResponseWriter, r *http.Request, accountID string) {
+	token := auth.NewSessionToken(a.adminSessionKey, a.now(), accountID)
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    token,
@@ -87,8 +96,6 @@ func (a *API) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(auth.SessionDuration.Seconds()),
 	})
-
-	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
 // handleAdminLogout menghapus cookie sesi.
@@ -116,6 +123,23 @@ func (a *API) requireAdmin(next http.Handler) http.Handler {
 		accountID, ok := auth.VerifySessionToken(a.adminSessionKey, cookie.Value, a.now())
 		if !ok {
 			a.writeError(w, http.StatusUnauthorized, "unauthenticated", "sesi tidak valid atau kedaluwarsa")
+			return
+		}
+
+		// Sesi stateless tidak bisa dicabut satu per satu, jadi setelah
+		// password diganti/di-reset, setiap token yang terbit SEBELUM itu
+		// ditolak -- termasuk sesi yang mungkin dicuri, yang justru jadi
+		// alasan orang mengganti password. Dibandingkan per detik karena
+		// waktu terbit token cuma presisi detik.
+		if acc, err := a.store.GetAccountByID(r.Context(), accountID); err == nil && acc.PasswordChangedAt != nil {
+			issuedAt, _ := auth.SessionIssuedAt(cookie.Value)
+			if issuedAt.Before(acc.PasswordChangedAt.Truncate(time.Second)) {
+				a.writeError(w, http.StatusUnauthorized, "unauthenticated", "sesi berakhir karena password diganti")
+				return
+			}
+		} else if err != nil && !errors.Is(err, store.ErrAccountNotFound) {
+			slog.Error("cek sesi account gagal", "err", err)
+			a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 			return
 		}
 

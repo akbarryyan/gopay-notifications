@@ -329,7 +329,13 @@ export async function getWebhookDeliveries(
 
 // --- Riwayat notifikasi ke customer (lintas semua account, read-only) --------
 
-export type NotificationKind = "expiry_reminder" | "device_offline" | "device_online" | "test";
+export type NotificationKind =
+  | "expiry_reminder"
+  | "device_offline"
+  | "device_online"
+  | "password_reset"
+  | "password_changed"
+  | "test";
 export type NotificationChannel = "email" | "telegram";
 export type NotificationStatus = "sent" | "failed";
 

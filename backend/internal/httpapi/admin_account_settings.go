@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
@@ -73,4 +74,149 @@ func isTelegramChatID(s string) bool {
 		}
 	}
 	return true
+}
+
+type accountProfileJSON struct {
+	Username       string  `json:"username"`
+	BusinessName   string  `json:"business_name"`
+	Email          string  `json:"email"`
+	TelegramChatID *string `json:"telegram_chat_id"`
+}
+
+// handleAdminGetAccount melayani halaman Settings Customer Dashboard.
+func (a *API) handleAdminGetAccount(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
+	acc, err := a.store.GetAccountByID(r.Context(), accountID)
+	if errors.Is(err, store.ErrAccountNotFound) {
+		a.writeError(w, http.StatusNotFound, "not_found", "akun tidak ditemukan")
+		return
+	}
+	if err != nil {
+		slog.Error("ambil account gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "account": accountProfileJSON{
+		Username: acc.Username, BusinessName: acc.BusinessName, Email: acc.Email, TelegramChatID: acc.TelegramChatID,
+	}})
+}
+
+type updateAccountRequest struct {
+	BusinessName string `json:"business_name"`
+	Email        string `json:"email"`
+	// CurrentPassword wajib HANYA bila email berubah. Email adalah tujuan
+	// link reset password -- sesi yang dicuri tidak boleh cukup untuk
+	// memindahkannya ke alamat penyerang lalu mengambil alih akun lewat
+	// "lupa password".
+	CurrentPassword string `json:"current_password"`
+}
+
+func (a *API) handleAdminUpdateAccount(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
+
+	var req updateAccountRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
+		return
+	}
+	businessName := strings.TrimSpace(req.BusinessName)
+	email := strings.TrimSpace(req.Email)
+	if businessName == "" || email == "" {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "nama bisnis dan email wajib diisi")
+		return
+	}
+	if !isEmailAddress(email) {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "format email tidak valid")
+		return
+	}
+
+	acc, err := a.store.GetAccountByID(r.Context(), accountID)
+	if err != nil {
+		slog.Error("ambil account gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+
+	if !strings.EqualFold(email, acc.Email) {
+		if !a.passwordChangeThrottle.Allowed(accountID, a.now()) {
+			a.writeError(w, http.StatusTooManyRequests, "too_many_attempts", "terlalu banyak percobaan, coba lagi nanti")
+			return
+		}
+		if !acc.VerifyPassword(req.CurrentPassword) {
+			a.passwordChangeThrottle.RecordFailure(accountID, a.now())
+			a.writeError(w, http.StatusUnauthorized, "invalid_credentials", "password saat ini salah")
+			return
+		}
+	}
+
+	err = a.store.UpdateAccountProfile(r.Context(), accountID, businessName, email)
+	if errors.Is(err, store.ErrAccountEmailTaken) {
+		a.writeError(w, http.StatusConflict, "email_taken", "email sudah dipakai akun lain")
+		return
+	}
+	if err != nil {
+		slog.Error("ubah profil account gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "account": accountProfileJSON{
+		Username: acc.Username, BusinessName: businessName, Email: email, TelegramChatID: acc.TelegramChatID,
+	}})
+}
+
+type changeAccountPasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// handleAdminChangePassword mengganti password dari Settings. Password saat
+// ini wajib benar (dengan batas percobaan per account), seluruh sesi lain
+// dicabut lewat password_changed_at, dan sesi yang sedang dipakai langsung
+// diterbitkan ulang supaya yang mengganti tidak ikut ter-logout.
+func (a *API) handleAdminChangePassword(w http.ResponseWriter, r *http.Request) {
+	accountID, _ := AccountFromContext(r.Context())
+
+	var req changeAccountPasswordRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
+		return
+	}
+	if len(req.NewPassword) < minPasswordLen {
+		a.writeError(w, http.StatusBadRequest, "invalid_payload", "password baru minimal 8 karakter")
+		return
+	}
+	if !a.passwordChangeThrottle.Allowed(accountID, a.now()) {
+		a.writeError(w, http.StatusTooManyRequests, "too_many_attempts", "terlalu banyak percobaan, coba lagi nanti")
+		return
+	}
+
+	acc, err := a.store.GetAccountByID(r.Context(), accountID)
+	if err != nil {
+		slog.Error("ambil account gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	if !acc.VerifyPassword(req.CurrentPassword) {
+		a.passwordChangeThrottle.RecordFailure(accountID, a.now())
+		a.writeError(w, http.StatusUnauthorized, "invalid_credentials", "password saat ini salah")
+		return
+	}
+	a.passwordChangeThrottle.RecordSuccess(accountID)
+
+	if err := a.store.ChangeAccountPassword(r.Context(), accountID, req.NewPassword, a.now()); err != nil {
+		slog.Error("ganti password account gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+
+	a.setAdminSessionCookie(w, r, accountID)
+	a.notifyPasswordChanged(acc, false)
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// isEmailAddress menerima alamat polos saja ("a@b.c"), bukan bentuk
+// "Nama <a@b.c>" yang juga lolos mail.ParseAddress.
+func isEmailAddress(s string) bool {
+	addr, err := mail.ParseAddress(s)
+	return err == nil && addr.Address == s && strings.Contains(s[strings.LastIndex(s, "@"):], ".")
 }

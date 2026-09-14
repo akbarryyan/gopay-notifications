@@ -32,6 +32,8 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   expiry_reminder: "Pengingat kedaluwarsa",
   device_offline: "HP offline",
   device_online: "HP kembali online",
+  password_reset: "Link reset password",
+  password_changed: "Password diganti",
   test: "Pesan uji",
 };
 
@@ -39,6 +41,8 @@ const KIND_BADGE: Record<NotificationKind, string> = {
   expiry_reminder: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
   device_offline: "border-transparent bg-red-500/15 text-red-700 dark:text-red-400",
   device_online: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  password_reset: "border-transparent bg-sky-500/15 text-sky-700 dark:text-sky-400",
+  password_changed: "border-transparent bg-sky-500/15 text-sky-700 dark:text-sky-400",
   test: "border-transparent bg-slate-500/15 text-slate-700 dark:text-slate-300",
 };
 
@@ -104,7 +108,7 @@ export default function NotificationsPage() {
           <h1 className="text-2xl font-semibold">Notifications</h1>
           <p className="text-sm text-muted-foreground">
             Riwayat email dan Telegram yang dikirim ke customer — pengingat kedaluwarsa, HP
-            offline/online, dan pesan uji. Satu baris per channel.
+            offline/online, reset/ganti password, dan pesan uji. Satu baris per channel.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={reload} disabled={loading}>

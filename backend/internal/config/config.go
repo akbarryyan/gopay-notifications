@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/akbarryyan/gopay-notifications/backend/internal/secretbox"
 )
@@ -33,6 +35,15 @@ type Config struct {
 	// "mengenkripsi kredensial keluar" -- merotasi kunci webhook tidak boleh
 	// ikut membuat password SMTP tidak bisa didekripsi, dan sebaliknya.
 	SettingsSecretKey []byte
+	// DashboardURL adalah alamat publik Customer Dashboard (tanpa "/" di
+	// akhir), dipakai menyusun link di email reset password. Opsional:
+	// kosong berarti fitur lupa password menjawab "belum tersedia".
+	//
+	// SENGAJA dari konfigurasi, tidak pernah dari header Host/Origin
+	// request: kalau diambil dari request, penyerang bisa meminta reset
+	// untuk email korban dengan Host palsu, dan korban menerima link asli
+	// berisi token yang mengarah ke domain penyerang.
+	DashboardURL string
 }
 
 // Load membaca dan memvalidasi seluruh konfigurasi. Konfigurasi yang salah
@@ -118,6 +129,14 @@ func Load() (Config, error) {
 			secretbox.KeySize, len(settingsKey))
 	}
 	c.SettingsSecretKey = settingsKey
+
+	if raw := strings.TrimRight(strings.TrimSpace(os.Getenv("DASHBOARD_URL")), "/"); raw != "" {
+		u, err := url.Parse(raw)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return Config{}, fmt.Errorf("config: DASHBOARD_URL harus URL http(s) lengkap, mis. https://whuzpay.com, dapat %q", raw)
+		}
+		c.DashboardURL = raw
+	}
 
 	return c, nil
 }
