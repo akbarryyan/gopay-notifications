@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Zap } from "lucide-react";
 import { SectionGrid } from "./section-grid";
@@ -82,31 +85,65 @@ export function DashboardPreviewSection() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Pricing                                                                */
+/* Pricing -- data dari GET /api/v1/pricing-plans (diatur vendor lewat     */
+/* halaman Plans di Vendor Dashboard), bukan lagi array tetap di sini.     */
+/* Layout/styling kartu SENGAJA dipertahankan persis sama.                */
 /* ---------------------------------------------------------------------- */
 
-const PLANS = [
-  {
-    name: "Starter",
-    desc: "Untuk usaha kecil yang baru mulai.",
-    devices: "3 device",
-    highlight: false,
-  },
-  {
-    name: "Business",
-    desc: "Untuk operasional yang sedang berkembang.",
-    devices: "10 device",
-    highlight: true,
-  },
-  {
-    name: "Enterprise",
-    desc: "Untuk kebutuhan volume tinggi.",
-    devices: "Device tanpa batas",
-    highlight: false,
-  },
-];
+interface PublicPlan {
+  name: string;
+  price_label: string;
+  price_period: string;
+  description: string;
+  device_label: string;
+  features: string[];
+  highlighted: boolean;
+}
+
+function PricingCardSkeleton({ highlight }: { highlight?: boolean }) {
+  return (
+    <div
+      className={
+        highlight
+          ? "flex animate-pulse flex-col rounded-2xl bg-slate-900/5 p-6 ring-1 ring-slate-900/6"
+          : "flex animate-pulse flex-col rounded-2xl bg-slate-100 p-6"
+      }
+    >
+      <div className="h-5 w-24 rounded bg-slate-200" />
+      <div className="mt-2 h-4 w-40 rounded bg-slate-200" />
+      <div className="mt-6 h-4 w-20 rounded bg-slate-200" />
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="h-3 w-full rounded bg-slate-200" />
+        <div className="h-3 w-full rounded bg-slate-200" />
+        <div className="h-3 w-2/3 rounded bg-slate-200" />
+      </div>
+      <div className="mt-6 h-10 rounded-lg bg-slate-200" />
+    </div>
+  );
+}
 
 export function PricingSection() {
+  // window/fetch tidak boleh berjalan saat prerender -- null berarti belum
+  // selesai dimuat sama sekali (beda dari [] yang berarti vendor memang
+  // belum mengaktifkan plan apa pun), jadi tiga keadaan ini dibedakan
+  // dengan jelas di bawah: loading / kosong / terisi.
+  const [plans, setPlans] = useState<PublicPlan[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/v1/pricing-plans")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("gagal"))))
+      .then((data: { plans: PublicPlan[] }) => {
+        if (!cancelled) setPlans(data.plans);
+      })
+      .catch(() => {
+        if (!cancelled) setPlans([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section id="harga" className="relative bg-white py-16 sm:py-20">
       <SectionGrid />
@@ -117,60 +154,93 @@ export function PricingSection() {
             Satu paket untuk tiap skala usaha.
           </h2>
         </div>
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.name}
-              className={
-                plan.highlight
-                  ? "relative flex flex-col overflow-hidden rounded-2xl bg-slate-900 p-6 text-white shadow-xl shadow-slate-900/20 ring-1 ring-slate-900/10 transition-transform duration-300 hover:-translate-y-4 sm:-translate-y-3"
-                  : "flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5 hover:ring-slate-900/10"
-              }
-            >
-              {plan.highlight && (
-                <>
-                  <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-teal-400" />
-                  <span className="mb-2 w-fit rounded-md bg-teal-400/15 px-2.5 py-1 text-xs font-semibold text-teal-300 ring-1 ring-teal-400/20">
-                    Direkomendasikan
-                  </span>
-                </>
-              )}
-              <p className={`text-lg font-semibold ${plan.highlight ? "text-white" : "text-slate-900"}`}>
-                {plan.name}
-              </p>
-              <p className={`text-sm ${plan.highlight ? "text-white/70" : "text-slate-500"}`}>
-                {plan.desc}
-              </p>
-              <p className={`mt-4 text-sm font-medium ${plan.highlight ? "text-white" : "text-slate-900"}`}>
-                {plan.devices}
-              </p>
-              <ul className={`mt-4 flex flex-col gap-2 text-sm ${plan.highlight ? "text-white/80" : "text-slate-500"}`}>
-                <li className="flex items-center gap-2">
-                  <Check className={`size-4 ${plan.highlight ? "text-teal-300" : "text-teal-700"}`} />
-                  Webhook & retry
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className={`size-4 ${plan.highlight ? "text-teal-300" : "text-teal-700"}`} />
-                  Dashboard realtime
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className={`size-4 ${plan.highlight ? "text-teal-300" : "text-teal-700"}`} />
-                  Konsol pengecualian
-                </li>
-              </ul>
-              <Link
-                href="/register"
+        {plans === null ? (
+          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+            <PricingCardSkeleton />
+            <PricingCardSkeleton highlight />
+            <PricingCardSkeleton />
+          </div>
+        ) : plans.length === 0 ? (
+          <p className="mt-12 text-center text-sm text-slate-500">
+            Info paket sedang disiapkan. Hubungi kami untuk detail harga terbaru.
+          </p>
+        ) : (
+          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+            {plans.map((plan) => (
+              <div
+                key={plan.name}
                 className={
-                  plan.highlight
-                    ? "mt-6 flex h-10 items-center justify-center rounded-lg bg-teal-400 text-sm font-semibold text-slate-900 transition-all duration-200 hover:bg-teal-300 active:scale-[0.97]"
-                    : "mt-6 flex h-10 items-center justify-center rounded-lg text-sm font-medium text-slate-700 ring-1 ring-slate-900/10 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
+                  plan.highlighted
+                    ? "relative flex flex-col overflow-hidden rounded-2xl bg-slate-900 p-6 text-white shadow-xl shadow-slate-900/20 ring-1 ring-slate-900/10 transition-transform duration-300 hover:-translate-y-4 sm:-translate-y-3"
+                    : "flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/5 hover:ring-slate-900/10"
                 }
               >
-                Mulai Gratis 3 Hari
-              </Link>
-            </div>
-          ))}
-        </div>
+                {plan.highlighted && (
+                  <>
+                    <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-teal-400" />
+                    <span className="mb-2 w-fit rounded-md bg-teal-400/15 px-2.5 py-1 text-xs font-semibold text-teal-300 ring-1 ring-teal-400/20">
+                      Direkomendasikan
+                    </span>
+                  </>
+                )}
+                <p
+                  className={`text-lg font-semibold ${plan.highlighted ? "text-white" : "text-slate-900"}`}
+                >
+                  {plan.name}
+                </p>
+                {plan.description && (
+                  <p className={`text-sm ${plan.highlighted ? "text-white/70" : "text-slate-500"}`}>
+                    {plan.description}
+                  </p>
+                )}
+                {plan.price_label && (
+                  <p
+                    className={`mt-4 text-3xl font-semibold ${plan.highlighted ? "text-white" : "text-slate-900"}`}
+                  >
+                    {plan.price_label}
+                    {plan.price_period && (
+                      <span
+                        className={`text-sm font-normal ${plan.highlighted ? "text-white/60" : "text-slate-400"}`}
+                      >
+                        {" "}
+                        {plan.price_period}
+                      </span>
+                    )}
+                  </p>
+                )}
+                <p
+                  className={`mt-4 text-sm font-medium ${plan.highlighted ? "text-white" : "text-slate-900"}`}
+                >
+                  {plan.device_label}
+                </p>
+                {plan.features.length > 0 && (
+                  <ul
+                    className={`mt-4 flex flex-col gap-2 text-sm ${plan.highlighted ? "text-white/80" : "text-slate-500"}`}
+                  >
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2">
+                        <Check
+                          className={`size-4 shrink-0 ${plan.highlighted ? "text-teal-300" : "text-teal-700"}`}
+                        />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link
+                  href="/register"
+                  className={
+                    plan.highlighted
+                      ? "mt-6 flex h-10 items-center justify-center rounded-lg bg-teal-400 text-sm font-semibold text-slate-900 transition-all duration-200 hover:bg-teal-300 active:scale-[0.97]"
+                      : "mt-6 flex h-10 items-center justify-center rounded-lg text-sm font-medium text-slate-700 ring-1 ring-slate-900/10 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
+                  }
+                >
+                  Mulai Gratis 3 Hari
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
         <p className="mt-8 text-center text-sm text-slate-500">
           Butuh paket khusus?{" "}
           <a href="#" className="font-medium text-slate-900 hover:underline">
@@ -273,8 +343,8 @@ export function FinalCtaSection() {
           Hubungkan pembayaran ke sistem yang sudah kamu pakai.
         </h2>
         <p className="text-white/60">
-          Mulai bangun alur kerja pembayaran yang lebih otomatis, dengan
-          infrastruktur yang sudah kami siapkan.
+          Mulai bangun alur kerja pembayaran yang lebih otomatis, dengan infrastruktur yang sudah
+          kami siapkan.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
@@ -314,8 +384,7 @@ export function LandingFooter() {
               Payment Bridge
             </div>
             <p className="max-w-xs text-sm text-slate-500">
-              Notifikasi pembayaran GoPay, otomatis jadi event dan webhook ke
-              sistem bisnismu.
+              Notifikasi pembayaran GoPay, otomatis jadi event dan webhook ke sistem bisnismu.
             </p>
           </div>
 
@@ -324,27 +393,43 @@ export function LandingFooter() {
               <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
                 Produk
               </p>
-              <a href="#fitur" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
+              <a
+                href="#fitur"
+                className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900"
+              >
                 Fitur
               </a>
-              <a href="#cara-kerja" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
+              <a
+                href="#cara-kerja"
+                className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900"
+              >
                 Cara Kerja
               </a>
-              <a href="#harga" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
+              <a
+                href="#harga"
+                className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900"
+              >
                 Harga
               </a>
-              <a href="#faq" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
+              <a
+                href="#faq"
+                className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900"
+              >
                 FAQ
               </a>
             </div>
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
-                Akun
-              </p>
-              <Link href="/login" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
+              <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Akun</p>
+              <Link
+                href="/login"
+                className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900"
+              >
                 Masuk
               </Link>
-              <Link href="/register" className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900">
+              <Link
+                href="/register"
+                className="text-sm text-slate-500 transition-colors duration-200 hover:text-slate-900"
+              >
                 Daftar
               </Link>
             </div>

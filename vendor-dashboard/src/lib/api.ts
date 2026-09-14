@@ -59,7 +59,9 @@ export function logout(): Promise<{ success: true }> {
 
 // --- Accounts --------------------------------------------------------------
 
-export type AccountPlan = "Starter" | "Business" | "Enterprise";
+// Sejak fitur Plans (vendor bisa menambah/mengubah paket sendiri), nama
+// plan tidak lagi terbatas ke tiga nilai tetap -- lihat Plan di bawah.
+export type AccountPlan = string;
 export type AccountStatus = "active" | "expired" | "suspended" | "revoked";
 
 export interface Account {
@@ -395,4 +397,64 @@ export async function getNotificationLog(
     `/api/v1/vendor/notification-log?${params}`,
   );
   return res.notifications;
+}
+
+// --- Plans (paket -- dipakai dropdown Accounts DAN section Harga landing page) --
+
+export interface Plan {
+  id: string;
+  name: string;
+  max_devices: number;
+  price_label: string;
+  price_period: string;
+  description: string;
+  features: string[];
+  highlighted: boolean;
+  visible: boolean;
+  sort_order: number;
+  updated_at: string;
+}
+
+export async function getPlans(): Promise<Plan[]> {
+  const res = await apiFetch<{ plans: Plan[] }>("/api/v1/vendor/plans");
+  return res.plans;
+}
+
+export interface PlanInput {
+  name: string;
+  max_devices: number;
+  unlimited: boolean;
+  price_label: string;
+  price_period: string;
+  description: string;
+  features: string[];
+  highlighted: boolean;
+  visible: boolean;
+}
+
+export async function createPlan(input: PlanInput): Promise<Plan> {
+  const res = await apiFetch<{ plan: Plan }>("/api/v1/vendor/plans", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return res.plan;
+}
+
+export async function updatePlan(id: string, input: PlanInput): Promise<Plan> {
+  const res = await apiFetch<{ plan: Plan }>(`/api/v1/vendor/plans/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return res.plan;
+}
+
+export function deletePlan(id: string): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/plans/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function movePlan(id: string, direction: "up" | "down"): Promise<{ success: true }> {
+  return apiFetch(`/api/v1/vendor/plans/${encodeURIComponent(id)}/move`, {
+    method: "POST",
+    body: JSON.stringify({ direction }),
+  });
 }

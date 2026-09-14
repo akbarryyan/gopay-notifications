@@ -31,7 +31,7 @@ import {
 import toast from "react-hot-toast";
 import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
-import { createAccount, getAccounts, type Account, type AccountPlan, type AccountStatus } from "@/lib/api";
+import { createAccount, getAccounts, getPlans, type Account, type AccountStatus } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly } from "@/lib/format";
 import { STATUS_BADGE } from "@/lib/account-status";
@@ -47,8 +47,6 @@ const ACCOUNT_CSV_COLUMNS: CsvColumn<Account>[] = [
   { label: "Created At", value: (a) => a.created_at },
   { label: "Expires At", value: (a) => a.expires_at },
 ];
-
-const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 
 const STATUS_OPTIONS: { value: AccountStatus; label: string }[] = [
   { value: "active", label: "Active" },
@@ -98,6 +96,12 @@ export default function AccountsPage() {
 
 function AccountsPageInner() {
   const { data, loading, error, reload } = useApiData(getAccounts);
+  // Nama plan yang bisa dipilih saat membuat account -- dinamis dari
+  // halaman Plans, bukan lagi tiga nilai tetap. Sengaja SEMUA plan,
+  // termasuk yang disembunyikan dari landing page (visible=false) --
+  // vendor tetap boleh memakainya untuk account, cuma tidak dipromosikan
+  // ke publik.
+  const plans = useApiData(getPlans);
   const searchParams = useSearchParams();
   // Diisi dari ?status=... (mis. link "Kedaluwarsa" di Dashboard) --
   // lazy initializer, bukan efek, supaya tidak berkedip kosong dulu sebelum
@@ -109,13 +113,19 @@ function AccountsPageInner() {
     () => (data ?? []).filter((acc) => matchesFilters(acc, query, status, dateRange)),
     [data, query, status, dateRange],
   );
-  const hasFilter = query.trim() !== "" || status !== "" || dateRange.from !== "" || dateRange.to !== "";
+  const hasFilter =
+    query.trim() !== "" || status !== "" || dateRange.from !== "" || dateRange.to !== "";
 
   const [creating, setCreating] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [plan, setPlan] = useState<AccountPlan>("Business");
+  const [plan, setPlan] = useState("");
+  // Plan yang sungguhan dipakai: pilihan vendor kalau sudah menyentuh
+  // dropdown, atau plan pertama yang ada begitu daftarnya selesai dimuat --
+  // tanpa ini, submit pertama sebelum vendor mengubah dropdown akan
+  // mengirim plan kosong walau tampilannya sudah menunjukkan plan pertama.
+  const effectivePlan = plan || plans.data?.[0]?.name || "";
   const [expiresAt, setExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<{ username: string; password: string } | null>(null);
@@ -125,19 +135,20 @@ function AccountsPageInner() {
     setBusinessName("");
     setEmail("");
     setUsername("");
-    setPlan("Business");
+    setPlan("");
     setExpiresAt("");
   }
 
   async function onCreate() {
-    if (!businessName.trim() || !email.trim() || !username.trim() || !expiresAt) return;
+    if (!businessName.trim() || !email.trim() || !username.trim() || !expiresAt || !effectivePlan)
+      return;
     setBusy(true);
     try {
       const res = await createAccount({
         business_name: businessName.trim(),
         email: email.trim(),
         username: username.trim(),
-        plan,
+        plan: effectivePlan,
         expires_at: expiresAt,
       });
       toast.success(`Akun "${businessName.trim()}" dibuat.`);
@@ -164,9 +175,7 @@ function AccountsPageInner() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Accounts</h1>
-          <p className="text-sm text-muted-foreground">
-            Seluruh customer Payment Bridge (hosted).
-          </p>
+          <p className="text-sm text-muted-foreground">Seluruh customer Payment Bridge (hosted).</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -174,7 +183,10 @@ function AccountsPageInner() {
             variant="outline"
             disabled={filtered.length === 0}
             onClick={() => {
-              downloadCsv(`accounts-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(filtered, ACCOUNT_CSV_COLUMNS));
+              downloadCsv(
+                `accounts-${new Date().toISOString().slice(0, 10)}.csv`,
+                toCsv(filtered, ACCOUNT_CSV_COLUMNS),
+              );
               toast.success(`${filtered.length} akun diekspor.`);
             }}
           >
@@ -287,8 +299,8 @@ function AccountsPageInner() {
           <AlertDialogHeader>
             <AlertDialogTitle>Buat akun baru</AlertDialogTitle>
             <AlertDialogDescription>
-              Password awal akan ditampilkan sekali setelah dibuat — catat sebelum
-              menutup dialog itu.
+              Password awal akan ditampilkan sekali setelah dibuat — catat sebelum menutup dialog
+              itu.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex flex-col gap-3 py-2">
@@ -325,15 +337,19 @@ function AccountsPageInner() {
               <Label htmlFor="plan">Plan</Label>
               <select
                 id="plan"
-                value={plan}
-                onChange={(e) => setPlan(e.target.value as AccountPlan)}
+                value={effectivePlan}
+                onChange={(e) => setPlan(e.target.value)}
                 className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
               >
-                {PLANS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
+                {plans.data?.length ? (
+                  plans.data.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Belum ada plan -- buat dulu di halaman Plans</option>
+                )}
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -350,7 +366,14 @@ function AccountsPageInner() {
             <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
             <AlertDialogAction
               onClick={onCreate}
-              disabled={busy || !businessName.trim() || !email.trim() || !username.trim() || !expiresAt}
+              disabled={
+                busy ||
+                !businessName.trim() ||
+                !email.trim() ||
+                !username.trim() ||
+                !expiresAt ||
+                !effectivePlan
+              }
             >
               Buat
             </AlertDialogAction>
@@ -363,8 +386,8 @@ function AccountsPageInner() {
           <AlertDialogHeader>
             <AlertDialogTitle>Akun berhasil dibuat</AlertDialogTitle>
             <AlertDialogDescription>
-              Password ini cuma tampil sekarang — kirim ke customer lewat kanal
-              vendor sendiri, tidak bisa dilihat lagi setelah dialog ini ditutup.
+              Password ini cuma tampil sekarang — kirim ke customer lewat kanal vendor sendiri,
+              tidak bisa dilihat lagi setelah dialog ini ditutup.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {reveal && (

@@ -13,15 +13,6 @@ import (
 	"github.com/akbarryyan/gopay-notifications/backend/internal/store"
 )
 
-// planPresets memetakan nama plan ke max_devices default (§9 spec MVP --
-// entitlement lain di docs/license-spec.md §17 ditunda, belum ada
-// fiturnya). -1 berarti unlimited.
-var planPresets = map[string]int{
-	"Starter":    3,
-	"Business":   10,
-	"Enterprise": -1,
-}
-
 type accountVendorJSON struct {
 	ID            string `json:"id"`
 	BusinessName  string `json:"business_name"`
@@ -92,9 +83,14 @@ func (a *API) handleVendorCreateAccount(w http.ResponseWriter, r *http.Request) 
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "business_name, email, dan username wajib diisi")
 		return
 	}
-	maxDevices, ok := planPresets[req.Plan]
-	if !ok {
-		a.writeError(w, http.StatusBadRequest, "invalid_plan", "plan harus salah satu: Starter, Business, Enterprise")
+	plan, err := a.store.GetPlanByName(r.Context(), req.Plan)
+	if errors.Is(err, store.ErrPlanNotFound) {
+		a.writeError(w, http.StatusBadRequest, "invalid_plan", "plan tidak dikenal -- kelola daftar plan di halaman Plans")
+		return
+	}
+	if err != nil {
+		slog.Error("ambil plan gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
 	expiresAt, err := time.Parse(dateOnlyLayout, req.ExpiresAt)
@@ -117,7 +113,7 @@ func (a *API) handleVendorCreateAccount(w http.ResponseWriter, r *http.Request) 
 
 	err = a.store.CreateAccount(r.Context(), store.CreateAccountInput{
 		ID: id, BusinessName: req.BusinessName, Email: req.Email, Username: req.Username,
-		PlaintextPassword: password, Plan: req.Plan, MaxDevices: maxDevices, ExpiresAt: expiresAt,
+		PlaintextPassword: password, Plan: req.Plan, MaxDevices: plan.MaxDevices, ExpiresAt: expiresAt,
 	})
 	if errors.Is(err, store.ErrAccountEmailTaken) {
 		a.writeError(w, http.StatusConflict, "email_taken", "email sudah dipakai akun lain")
@@ -214,10 +210,10 @@ type changePlanRequest struct {
 }
 
 // handleVendorChangePlan mengubah plan akun yang sudah ada (upgrade/
-// downgrade) -- max_devices ikut menyesuaikan dari planPresets, sama
-// pemetaan yang dipakai handleVendorCreateAccount. Tidak menyentuh
-// expires_at atau admin_status sama sekali; renew/suspend/revoke tetap
-// endpoint terpisah.
+// downgrade) -- max_devices ikut menyesuaikan sesuai plan tujuan (tabel
+// plans, dikelola vendor di halaman Plans), sama pemetaan yang dipakai
+// handleVendorCreateAccount. Tidak menyentuh expires_at atau admin_status
+// sama sekali; renew/suspend/revoke tetap endpoint terpisah.
 func (a *API) handleVendorChangePlan(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("accountID")
 	var req changePlanRequest
@@ -225,12 +221,17 @@ func (a *API) handleVendorChangePlan(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusBadRequest, "invalid_payload", "JSON tidak dapat dibaca")
 		return
 	}
-	maxDevices, ok := planPresets[req.Plan]
-	if !ok {
-		a.writeError(w, http.StatusBadRequest, "invalid_plan", "plan harus salah satu: Starter, Business, Enterprise")
+	plan, err := a.store.GetPlanByName(r.Context(), req.Plan)
+	if errors.Is(err, store.ErrPlanNotFound) {
+		a.writeError(w, http.StatusBadRequest, "invalid_plan", "plan tidak dikenal -- kelola daftar plan di halaman Plans")
 		return
 	}
-	if err := a.store.SetAccountPlan(r.Context(), id, req.Plan, maxDevices); errors.Is(err, store.ErrAccountNotFound) {
+	if err != nil {
+		slog.Error("ambil plan gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+	if err := a.store.SetAccountPlan(r.Context(), id, req.Plan, plan.MaxDevices); errors.Is(err, store.ErrAccountNotFound) {
 		a.writeError(w, http.StatusNotFound, "not_found", "account tidak ditemukan")
 		return
 	} else if err != nil {

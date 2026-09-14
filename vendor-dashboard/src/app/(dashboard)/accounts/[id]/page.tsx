@@ -34,17 +34,15 @@ import {
   changeAccountPlan,
   getAccount,
   getAccountDevices,
+  getPlans,
   renewAccount,
   revokeAccount,
   sendPasswordReset,
   suspendAccount,
-  type AccountPlan,
 } from "@/lib/api";
 import { useApiData } from "@/lib/use-api-data";
 import { formatDateOnly, formatDateTime } from "@/lib/format";
 import { STATUS_BADGE } from "@/lib/account-status";
-
-const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 
 export default function AccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -52,11 +50,18 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   const { data, loading, error, reload } = useApiData(fetcher);
   const devicesFetcher = useCallback(() => getAccountDevices(id), [id]);
   const devices = useApiData(devicesFetcher);
+  const plans = useApiData(getPlans);
 
   const [renewing, setRenewing] = useState(false);
   const [newExpiresAt, setNewExpiresAt] = useState("");
   const [changingPlan, setChangingPlan] = useState(false);
-  const [newPlan, setNewPlan] = useState<AccountPlan>("Starter");
+  const [newPlan, setNewPlan] = useState("");
+  // Nama plan account ini sendiri SELALU jadi pilihan, walau sudah dihapus
+  // dari halaman Plans -- supaya dialog tidak diam-diam melompat ke plan
+  // lain begitu dibuka.
+  const planOptions = data
+    ? Array.from(new Set([data.plan, ...(plans.data ?? []).map((p) => p.name)]))
+    : (plans.data ?? []).map((p) => p.name);
   const [pendingSuspend, setPendingSuspend] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState(false);
   const [pendingPasswordReset, setPendingPasswordReset] = useState(false);
@@ -307,10 +312,10 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
             <select
               id="new-plan"
               value={newPlan}
-              onChange={(e) => setNewPlan(e.target.value as AccountPlan)}
+              onChange={(e) => setNewPlan(e.target.value)}
               className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
             >
-              {PLANS.map((p) => (
+              {planOptions.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>

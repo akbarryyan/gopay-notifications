@@ -76,10 +76,39 @@ func newTestStore(t *testing.T) *store.Store {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log, notification_settings, notification_log, password_reset_tokens, telegram_link_codes, email_verification_tokens, account_activity_log RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log, notification_settings, notification_log, password_reset_tokens, telegram_link_codes, email_verification_tokens, account_activity_log, plans RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
+	seedDefaultPlans(t, s)
 	return s
+}
+
+// seedDefaultPlans mengisi ulang tabel plans dengan 3 baris yang SAMA
+// dengan seed migrasi 00017_plans.sql -- plans ikut di-TRUNCATE seperti
+// tabel lain (isolasi penuh antar test, konsisten dengan pola di paket
+// ini), jadi test yang butuh plan bernama "Starter"/"Business"/
+// "Enterprise" (signup, buat/ubah account) tidak perlu tahu apa-apa
+// soal fitur kelola paket -- cukup panggil ini di setup seperti
+// seedActiveAccount.
+func seedDefaultPlans(t *testing.T, s *store.Store) {
+	t.Helper()
+	ctx := context.Background()
+	for _, in := range []struct {
+		name       string
+		maxDevices int
+	}{
+		{"Starter", 3}, {"Business", 10}, {"Enterprise", -1},
+	} {
+		id, err := store.NewPlanID()
+		if err != nil {
+			t.Fatalf("NewPlanID: %v", err)
+		}
+		if _, err := s.CreatePlan(ctx, id, store.PlanInput{
+			Name: in.name, MaxDevices: in.maxDevices, Visible: true,
+		}); err != nil {
+			t.Fatalf("seed plan %s: %v", in.name, err)
+		}
+	}
 }
 
 // seedActiveAccount membuat account berstatus active, jauh dari kedaluwarsa

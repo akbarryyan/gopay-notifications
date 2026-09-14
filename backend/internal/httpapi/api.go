@@ -91,6 +91,9 @@ func (a *API) Handler() http.Handler {
 	// OVO tidak boleh berarti menambah rute.
 	mux.Handle("POST /api/v1/events", a.requireDevice(a.requireActiveAccount(http.HandlerFunc(a.handleCallback))))
 	mux.HandleFunc("GET /api/v1/sources", a.handleSources)
+	// Publik juga, sama alasannya dengan /sources -- section Harga landing
+	// page perlu ini sebelum orang login/daftar apa pun.
+	mux.HandleFunc("GET /api/v1/pricing-plans", a.handlePublicPricingPlans)
 
 	// Invoice: dipanggil server website merchant, bukan browser. Auth API
 	// key (Authorization: Bearer), terpisah dari HMAC device dan cookie
@@ -192,6 +195,11 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/suspend", a.requireVendor(http.HandlerFunc(a.handleVendorSuspendAccount)))
 	mux.Handle("POST /api/v1/vendor/accounts/{accountID}/revoke", a.requireVendor(http.HandlerFunc(a.handleVendorRevokeAccount)))
 	mux.Handle("GET /api/v1/vendor/audit-log", a.requireVendor(http.HandlerFunc(a.handleVendorAuditLog)))
+	mux.Handle("GET /api/v1/vendor/plans", a.requireVendor(http.HandlerFunc(a.handleVendorListPlans)))
+	mux.Handle("POST /api/v1/vendor/plans", a.requireVendor(http.HandlerFunc(a.handleVendorCreatePlan)))
+	mux.Handle("PATCH /api/v1/vendor/plans/{planID}", a.requireVendor(http.HandlerFunc(a.handleVendorUpdatePlan)))
+	mux.Handle("DELETE /api/v1/vendor/plans/{planID}", a.requireVendor(http.HandlerFunc(a.handleVendorDeletePlan)))
+	mux.Handle("POST /api/v1/vendor/plans/{planID}/move", a.requireVendor(http.HandlerFunc(a.handleVendorMovePlan)))
 	mux.Handle("GET /api/v1/vendor/me", a.requireVendor(http.HandlerFunc(a.handleVendorMe)))
 	mux.Handle("POST /api/v1/vendor/me/password", a.requireVendor(http.HandlerFunc(a.handleVendorChangePassword)))
 	mux.Handle("GET /api/v1/vendor/settings/notifications", a.requireVendor(http.HandlerFunc(a.handleVendorGetNotificationSettings)))

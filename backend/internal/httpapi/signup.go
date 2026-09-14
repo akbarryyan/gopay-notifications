@@ -20,10 +20,14 @@ type signupRequest struct {
 }
 
 const (
-	signupTrialDays  = 3
-	signupPlan       = "Starter"
-	signupMaxDevices = 3
-	minPasswordLen   = 8
+	signupTrialDays = 3
+	// signupPlan HARUS tetap cocok nama salah satu baris di tabel plans
+	// (dikelola vendor lewat halaman Plans) -- kuota device trial diambil
+	// dari sana saat signup, bukan angka tetap lagi. Jangan mengganti nama
+	// plan "Starter" atau menghapusnya tanpa mengganti nilai ini juga,
+	// kalau tidak signup swalayan berhenti bekerja (menjawab 503).
+	signupPlan     = "Starter"
+	minPasswordLen = 8
 )
 
 // handleSignup adalah SATU-SATUNYA endpoint di seluruh backend yang tidak
@@ -61,6 +65,24 @@ func (a *API) handleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Kuota device trial diambil dari plan "Starter" yang dikelola vendor
+	// (halaman Plans) -- kalau vendor menghapus/mengganti nama plan itu
+	// tanpa memperbarui konstanta signupPlan, signup swalayan sengaja
+	// berhenti (503) alih-alih diam-diam memakai kuota yang salah.
+	plan, err := a.store.GetPlanByName(r.Context(), signupPlan)
+	if errors.Is(err, store.ErrPlanNotFound) {
+		slog.Error("plan trial signup tidak ditemukan", "plan", signupPlan)
+		a.signupThrottle.RecordFailure(ip, a.now())
+		a.writeError(w, http.StatusServiceUnavailable, "not_available",
+			"pendaftaran sedang tidak tersedia, coba lagi nanti")
+		return
+	}
+	if err != nil {
+		slog.Error("ambil plan trial signup gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+
 	id, err := randomPrefixedAccountID()
 	if err != nil {
 		slog.Error("generate account id gagal", "err", err)
@@ -71,7 +93,7 @@ func (a *API) handleSignup(w http.ResponseWriter, r *http.Request) {
 	now := a.now()
 	err = a.store.CreateAccount(r.Context(), store.CreateAccountInput{
 		ID: id, BusinessName: req.BusinessName, Email: req.Email, Username: req.Username,
-		PlaintextPassword: req.Password, Plan: signupPlan, MaxDevices: signupMaxDevices,
+		PlaintextPassword: req.Password, Plan: signupPlan, MaxDevices: plan.MaxDevices,
 		ExpiresAt: now.Add(signupTrialDays * 24 * time.Hour),
 	})
 	if errors.Is(err, store.ErrAccountEmailTaken) {

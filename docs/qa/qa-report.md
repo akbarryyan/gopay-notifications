@@ -1038,3 +1038,50 @@ satu-satunya jalur "hampir habis".
 ### Keseluruhan suite
 
 `make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (30.3s), `notify`, `reminder`, `secretbox`, `store` (14.5s), `telegram`, `telegrambot`.
+
+---
+
+## 25. Halaman Plans di Vendor Dashboard + section Harga landing page dinamis
+
+Permintaan langsung Akbar: kelola paket lewat Vendor Dashboard, dengan
+section Harga landing page tetap sama styling/layoutingnya tapi datanya
+dari input vendor. Tabel `plans` (migrasi 00017) jadi sumber ganda: kuota
+device saat account dibuat/diganti plan (menggantikan `planPresets` yang
+dulu hardcode) DAN teks yang tampil publik. `accounts.plan` tetap teks
+bebas — menghapus/mengubah plan tidak menyentuh account yang sudah
+memakainya.
+
+**Ringkasan:** `PASS` 13 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+
+### 25a. Backend
+
+| Butir | Status | Bukti |
+|---|---|---|
+| CRUD plan (create/get-by-name/update/delete) termasuk validasi nama bentrok | `PASS` | `TestCreatePlanDanGetByName`, `TestCreatePlanNamaBentrokDitolak`, `TestUpdatePlan`, `TestUpdatePlanNamaBentrokDenganPlanLain` — lulus |
+| Menghapus plan yang sudah dipakai account TIDAK mengubah `plan`/`max_devices` account itu | `PASS` | `TestDeletePlanAmanWalauSudahDipakaiAccount` — lulus |
+| `ListPlans` (semua) vs `ListVisiblePlans` (cuma `visible=true`) | `PASS` | `TestListPlansDanListVisiblePlans` — lulus |
+| Reorder (`MovePlan`) naik/turun, diam saja di ujung, pemutus seri konsisten | `PASS` | `TestMovePlan` — lulus |
+| `POST/PATCH/DELETE/move /api/v1/vendor/plans*` wajib sesi vendor; validasi `max_devices`/`unlimited`; fitur baris kosong dibuang; nama bentrok → 409 | `PASS` | `TestVendorPlansButuhSesiVendor`, `TestVendorCreateUpdateDeletePlan`, `TestVendorMovePlan` — lulus |
+| `GET /api/v1/pricing-plans` publik (tanpa sesi), cuma plan visible, `device_label` dihitung server-side dari `max_devices` | `PASS` | `TestPublicPricingPlans` — lulus |
+| `handleVendorCreateAccount`/`handleVendorChangePlan` memvalidasi plan lewat `GetPlanByName` (bukan lagi peta hardcode); plan tidak dikenal → 400 | `PASS` | `TestVendorChangePlan`, `TestVendorChangePlanTidakValidDitolak` (sudah ada sebelumnya, tetap lulus tanpa perubahan) |
+| Signup swalayan mengambil kuota trial dari plan "Starter"; kalau plan itu dihapus, signup berhenti jelas (503 `not_available`), tidak diam-diam salah kuota | `PASS` | `TestSignupGagalBilaPlanTrialTidakAda` — lulus |
+| Migrasi `00017` bisa di-rollback dan diterapkan ulang, seed 3 plan (Starter/Business/Enterprise) sama persis dengan teks yang sebelumnya hardcode di landing page | `PASS` | `goose down` lalu `goose up`: `OK 00017_plans.sql`, `successfully migrated database to version: 17` |
+
+### 25b. Vendor Dashboard
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Halaman `/plans`: tambah/edit/hapus/reorder, badge Direkomendasikan/Disembunyikan, harga kosong menampilkan pesan "tidak tampil di landing page" | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih; route `/plans` ter-generate |
+| Dropdown Plan di Accounts (buat baru & ubah plan) diisi dinamis dari `GET /vendor/plans`, bukan lagi tiga nilai tetap | `PASS` | Build bersih setelah refactor `AccountPlan` jadi `string` dan penghapusan konstanta `PLANS` di kedua halaman Accounts |
+
+### 25c. Landing page (Customer Dashboard)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Section Harga mengambil data dari `GET /api/v1/pricing-plans`, layout/styling kartu (grid 3 kolom, kartu highlight gelap, hover, CTA) dipertahankan persis sama; skeleton saat loading, pesan fallback bila kosong/gagal | `PASS` | `npx tsc --noEmit`, `npx eslint .`, `npx next build` (build bersih penuh setelah `rm -rf .next`, route `index` ter-generate) |
+| Harga (`price_label`) tidak ditampilkan sama sekali untuk plan yang belum diisi vendor -- bukan "Rp 0" | `PASS` | Data seed migrasi sengaja `price_label=''`; kode render `{plan.price_label && (...)}` — tinjauan kode |
+| Tampilan sungguhan section Harga di browser (skeleton, transisi ke data asli, kartu highlight) | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev`, termasuk mengisi harga lewat halaman Plans lalu memuat ulang `/` |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (32.4s), `notify`, `reminder`, `secretbox`, `store` (15.5s), `telegram`, `telegrambot`.

@@ -1,5 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { Bell, LayoutDashboard, Receipt, Settings, ShieldCheck, Users, Webhook } from "lucide-react";
+import {
+  Bell,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Settings,
+  ShieldCheck,
+  Users,
+  Webhook,
+} from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -15,6 +24,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Accounts", href: "/accounts", icon: Users },
+  { label: "Plans", href: "/plans", icon: Package },
   { label: "Transactions", href: "/transactions", icon: Receipt },
   { label: "Webhooks", href: "/webhooks", icon: Webhook },
   { label: "Notifications", href: "/notifications", icon: Bell },

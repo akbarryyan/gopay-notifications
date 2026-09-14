@@ -400,6 +400,19 @@ kode, bukan dibangkitkan otomatis, jadi **setiap perubahan perilaku API
 invoice atau webhook wajib ikut memperbarui halaman ini**. Daftar file
 sumbernya ada di komentar atas `api-docs/page.tsx`.
 
+**Section Harga di landing page (`/`, `PricingSection` di
+`components/landing/pricing-faq-footer.tsx`) diambil dari
+`GET /api/v1/pricing-plans`** (publik, tanpa sesi) — bukan array tetap di
+kode lagi, datanya diatur vendor lewat halaman Plans (lihat §"Vendor
+Dashboard" di bawah). Komponennya jadi client component (`fetch` di
+`useEffect`) khusus untuk ini — satu-satunya cara Next.js di sini memanggil
+backend tanpa `BACKEND_URL` di produksi (lihat catatan "Dashboard produksi
+tidak butuh BACKEND_URL" di bawah). Layout/styling kartu SENGAJA
+dipertahankan sama; yang berubah cuma sumber datanya. Baris harga
+(`price_label`/`price_period`) tidak ditampilkan sama sekali untuk plan
+yang belum diisi harganya vendor — jangan mengubahnya jadi menampilkan
+"Rp 0" atau angka bawaan apa pun.
+
 ### Verifikasi email saat signup
 
 Migrasi 00015 (`accounts.email_verified_at`, tabel
@@ -656,7 +669,27 @@ Halaman:
   itu memang tugas vendor.
 - **Accounts** (`/accounts`, dulu di `/`) — daftar semua account + form
   buat account baru + link ke halaman detail (`/accounts/{id}`: renew,
-  suspend, revoke).
+  suspend, revoke). Dropdown Plan diisi dinamis dari `GET /vendor/plans`
+  (lihat halaman Plans di bawah), bukan lagi tiga nilai tetap di kode.
+- **Plans** (`/plans`) — kelola paket: nama, kuota device (`max_devices`,
+  -1 = unlimited), harga (`price_label`/`price_period`, teks bebas —
+  kosong berarti section Harga TIDAK menampilkan baris harga sama sekali,
+  bukan "Rp 0"), deskripsi, daftar fitur, `highlighted`
+  ("Direkomendasikan"), `visible`, dan urutan tampil (panah naik/turun,
+  `POST .../move`). Tabel `plans` (migrasi 00017) — **satu sumber
+  kebenaran ganda**: kuota device saat account dibuat/diganti plan
+  (`GetPlanByName`, menggantikan `planPresets` yang dulu hardcode di
+  `vendor_accounts.go`) DAN teks yang tampil di section Harga landing page
+  publik (`GET /api/v1/pricing-plans`, tanpa auth, cuma plan
+  `visible=true`). `accounts.plan` TETAP teks bebas (bukan foreign key) —
+  menghapus/mengganti sebuah plan TIDAK mengubah account yang sudah
+  memakai namanya, karena `max_devices` sudah tersalin ke kolom account
+  itu sendiri sejak dibuat/terakhir diganti (lihat komentar
+  `store.DeletePlan`). Signup swalayan (`signupPlan = "Starter"` di
+  `signup.go`) mengambil kuota trial dari baris bernama persis "Starter"
+  di tabel ini — **jangan mengganti nama atau menghapus plan itu tanpa
+  memperbarui konstanta itu juga**, kalau tidak signup publik berhenti
+  (menjawab `503 not_available`, bukan diam-diam salah kuota).
 - **Audit Log** (`/audit-log`) — riwayat aksi vendor (`LogAudit`).
 - **Transactions** (`/transactions`) dan **Webhooks** (`/webhooks`) —
   invoice dan riwayat webhook delivery lintas SEMUA account, bisa
