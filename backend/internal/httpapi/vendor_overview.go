@@ -14,7 +14,6 @@ type vendorOverviewResponse struct {
 	Accounts struct {
 		Total       int `json:"total"`
 		Active      int `json:"active"`
-		Expiring    int `json:"expiring"`
 		Expired     int `json:"expired"`
 		Suspended   int `json:"suspended"`
 		Revoked     int `json:"revoked"`
@@ -78,7 +77,6 @@ func (a *API) handleVendorOverview(w http.ResponseWriter, r *http.Request) {
 	var resp vendorOverviewResponse
 	resp.Accounts.Total = stats.TotalAccounts
 	resp.Accounts.Active = stats.Active
-	resp.Accounts.Expiring = stats.Expiring
 	resp.Accounts.Expired = stats.Expired
 	resp.Accounts.Suspended = stats.Suspended
 	resp.Accounts.Revoked = stats.Revoked

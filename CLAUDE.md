@@ -104,7 +104,8 @@ dashboard, API key, atau HMAC device yang sudah diautentikasi — tidak
 pernah dipercaya dari body/query/header request manapun.
 
 `requireActiveAccount` menggantikan `requireLicense` — mengecek status
-akun (`active`/`expiring`/`expired`/`suspended`/`revoked`) langsung ke
+akun (`active`/`expired`/`suspended`/`revoked`, lihat catatan "expiring"
+yang dicabut di §"Pengingat kedaluwarsa ke customer") langsung ke
 `accounts` tiap request, tanpa file lokal atau grace period (tidak ada
 lagi jaringan antar dua service untuk dicek).
 
@@ -580,11 +581,19 @@ menyimpan chat id dari pesan itu. Dashboard menunggu lewat polling
   bot diganti. Tanpa itu, setiap restart memproses ulang `/start` 24 jam
   terakhir.
 
-Ambangnya 7 hari (`reminder.DefaultWithinDays`), sengaja BEDA dari
-`store.WarningThresholdDays` (30 hari) yang dipakai status "expiring" di
-dashboard: status itu pasif (dibaca kalau dibuka) jadi wajar menyala lebih
-awal, sedangkan pengingat aktif menghampiri orang — sebulan sebelumnya
-terlalu dini dan gampang diabaikan saat benar-benar mendesak.
+Ambangnya 7 hari (`reminder.DefaultWithinDays`) — angka ini tetap ada dan
+tidak berubah. Yang berubah (2026-09-14, permintaan eksplisit Akbar):
+`store.WarningThresholdDays` (30 hari) beserta status pasif "expiring"
+yang dulu dipakai dashboard **dicabut total**, bukan sekadar
+disembunyikan. `Account.DerivedStatus` sekarang cuma 4 nilai
+(`active`/`expired`/`suspended`/`revoked`) — account tetap "active" sampai
+PERSIS melewati `expires_at`, tidak lagi ditandai "akan berakhir"
+berminggu-minggu sebelumnya. Alasan pencabutannya: sisa waktu yang masih
+lama terasa membingungkan ditandai status peringatan, dan itu bukan
+keadaan yang butuh tindakan. Pengingat aktif ke customer (email/Telegram,
+7 hari sebelum benar-benar habis) tetap satu-satunya jalur "hampir habis"
+yang dipertahankan — jangan menambahkan kembali status peringatan pasif
+di dashboard tanpa diminta ulang.
 
 ### Logs (riwayat aktivitas akun)
 
@@ -663,6 +672,9 @@ Halaman:
   Keluar dengan modal konfirmasi. Nama di avatar dari
   `GET /api/v1/vendor/me`.
 
-Warna badge status account (`active`/`expiring`/`expired`/`suspended`/
-`revoked`) disatukan di `src/lib/account-status.ts`, dipakai bersama oleh
-halaman Accounts dan Dashboard supaya tidak diam-diam berbeda.
+Warna badge status account (`active`/`expired`/`suspended`/`revoked` —
+tidak ada lagi "expiring", lihat §"Pengingat kedaluwarsa ke customer")
+disatukan di `src/lib/account-status.ts`, dipakai bersama oleh halaman
+Accounts dan Dashboard supaya tidak diam-diam berbeda. Kartu ringkasan di
+Dashboard Vendor yang dulu "Akan Berakhir" sekarang "Kedaluwarsa"
+(`accounts.expired`, link `?status=expired`).

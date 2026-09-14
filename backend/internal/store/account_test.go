@@ -52,7 +52,12 @@ func TestAccountDerivedStatus(t *testing.T) {
 		expect string
 	}{
 		{"aktif jauh dari kedaluwarsa", store.Account{AdminStatus: "active", ExpiresAt: now.Add(200 * 24 * time.Hour)}, "active"},
-		{"akan berakhir dalam 10 hari", store.Account{AdminStatus: "active", ExpiresAt: now.Add(10 * 24 * time.Hour)}, "expiring"},
+		// Tidak ada status "expiring" (peringatan dini) -- dicabut atas
+		// permintaan eksplisit Akbar: sisa waktu berminggu-minggu tidak
+		// boleh ditandai "akan berakhir". Tetap "active" sampai PERSIS
+		// melewati expires_at.
+		{"akan berakhir dalam 10 hari, tetap aktif", store.Account{AdminStatus: "active", ExpiresAt: now.Add(10 * 24 * time.Hour)}, "active"},
+		{"akan berakhir dalam 1 jam, tetap aktif", store.Account{AdminStatus: "active", ExpiresAt: now.Add(time.Hour)}, "active"},
 		{"sudah lewat", store.Account{AdminStatus: "active", ExpiresAt: now.Add(-time.Hour)}, "expired"},
 		{"disuspend walau belum kedaluwarsa", store.Account{AdminStatus: "suspended", ExpiresAt: now.Add(200 * 24 * time.Hour)}, "suspended"},
 		{"dicabut walau belum kedaluwarsa", store.Account{AdminStatus: "revoked", ExpiresAt: now.Add(200 * 24 * time.Hour)}, "revoked"},

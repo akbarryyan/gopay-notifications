@@ -31,9 +31,6 @@ func isAccountUniqueViolation(err error, constraint string) bool {
 	return false
 }
 
-// WarningThresholdDays: ambang status berubah dari "active" ke "expiring".
-const WarningThresholdDays = 30
-
 type Account struct {
 	ID           string
 	BusinessName string
@@ -66,6 +63,15 @@ func (a Account) VerifyPassword(plaintext string) bool {
 // pola sama persis licenseserver/store.License.DerivedStatus (dulu), cuma
 // sekarang satu query di database yang sama, tidak ada lagi jaringan atau
 // grace period.
+//
+// SENGAJA cuma 4 nilai (active/expired/suspended/revoked) -- status
+// "expiring" (peringatan dini 30 hari sebelum expires_at) pernah ada, tapi
+// dicabut atas permintaan eksplisit Akbar: sisa waktu berminggu-minggu
+// terasa membingungkan ditandai "akan berakhir", dan itu memang bukan
+// keadaan yang butuh tindakan customer/vendor. Pengingat aktif ke customer
+// (email/Telegram) tetap ada lewat internal/reminder, 7 hari sebelum
+// benar-benar habis -- itu jalur yang tepat untuk "hampir habis", bukan
+// status pasif di dashboard.
 func (a Account) DerivedStatus(now time.Time) string {
 	if a.AdminStatus == "suspended" || a.AdminStatus == "revoked" {
 		return a.AdminStatus
@@ -73,18 +79,13 @@ func (a Account) DerivedStatus(now time.Time) string {
 	if now.After(a.ExpiresAt) {
 		return "expired"
 	}
-	daysRemaining := int(a.ExpiresAt.Sub(now).Hours() / 24)
-	if daysRemaining <= WarningThresholdDays {
-		return "expiring"
-	}
 	return "active"
 }
 
 // Operational melaporkan apakah account ini boleh memakai endpoint
-// device/admin/API key -- hanya "active" dan "expiring".
+// device/admin/API key -- hanya "active".
 func (a Account) Operational(now time.Time) bool {
-	status := a.DerivedStatus(now)
-	return status == "active" || status == "expiring"
+	return a.DerivedStatus(now) == "active"
 }
 
 type CreateAccountInput struct {

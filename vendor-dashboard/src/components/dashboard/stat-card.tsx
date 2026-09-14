@@ -14,7 +14,7 @@ export function StatCard({
   value: ReactNode;
   subtitle?: ReactNode;
   icon?: ReactNode;
-  /** Bila diisi, seluruh kartu jadi link -- dipakai mis. "Akan Berakhir" di
+  /** Bila diisi, seluruh kartu jadi link -- dipakai mis. "Kedaluwarsa" di
    * Dashboard yang menuju Accounts dengan filter status sudah terpasang. */
   href?: string;
 }) {

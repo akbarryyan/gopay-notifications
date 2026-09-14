@@ -1008,3 +1008,33 @@ nilai yang sama.
 ### Keseluruhan suite
 
 `make test` (backend, tidak berubah oleh fitur ini): `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (30.2s), `notify`, `reminder`, `secretbox`, `store` (14.7s), `telegram`, `telegrambot`.
+
+---
+
+## 24. Mencabut status "expiring" (peringatan dini 30 hari)
+
+Permintaan langsung Akbar setelah membuat account baru berakhir 5 Oktober
+2026 (21 hari dari tanggal itu) langsung berstatus "expiring" — dianggap
+membingungkan karena masih berbulan-bulan tersisa terasa seperti sudah
+"akan berakhir". Keputusan: hapus status ini sama sekali, bukan cuma
+menurunkan ambangnya. `Account.DerivedStatus` sekarang cuma
+`active`/`expired`/`suspended`/`revoked` — account tetap "active" sampai
+PERSIS melewati `expires_at`. Pengingat aktif ke customer (email/Telegram,
+7 hari sebelumnya, `internal/reminder`) TIDAK berubah — itu tetap
+satu-satunya jalur "hampir habis".
+
+**Ringkasan:** `PASS` 6 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `DerivedStatus`: account dengan sisa 10 hari atau 1 jam tetap `active`; sudah lewat `expires_at` → `expired`; `suspended`/`revoked` tidak berubah | `PASS` | `TestAccountDerivedStatus` (kasus baru "akan berakhir dalam 10 hari, tetap aktif" dan "akan berakhir dalam 1 jam, tetap aktif") — lulus |
+| `Operational()` cuma `true` untuk `active` (bukan lagi `active` atau `expiring`) | `PASS` | `TestAccountOperational` — lulus (tidak berubah, sudah benar sejak awal karena tidak pernah membedakan expiring secara eksplisit) |
+| `VendorOverviewStats` tidak lagi menghitung `Expiring`; account yang dulu masuk hitungan itu sekarang ikut `Active` | `PASS` | `TestVendorOverviewStatsMenghitungRingkasanLintasAccount` (diperbarui: `Active` 1 → 2, field `Expiring` dihapus) — lulus |
+| `GET /api/v1/vendor/overview` tidak lagi mengembalikan `accounts.expiring` | `PASS` | `go build`/`go vet` bersih setelah field dihapus dari `vendorOverviewResponse`; test overview lain (tidak menyentuh field ini) tetap lulus |
+| Tidak ada sisa referensi "expiring" yang masih fungsional di backend maupun kedua dashboard (Customer License page, Vendor Dashboard/Accounts/stat-card) | `PASS` | `grep -rn "expiring"` lintas `backend/`, `dashboard/`, `vendor-dashboard/` — nihil di luar komentar historis yang sengaja menjelaskan pencabutannya |
+| `npx tsc --noEmit`, `npx eslint .`, `npx next build` bersih untuk `dashboard/` dan `vendor-dashboard/` | `PASS` | Dijalankan langsung, keduanya 0 error/warning |
+| Tampilan status di kedua dashboard setelah update (account baru langsung "Aktif", bukan "Akan Berakhir"/"Expiring") | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev` dan setelah update VPS |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (30.3s), `notify`, `reminder`, `secretbox`, `store` (14.5s), `telegram`, `telegrambot`.

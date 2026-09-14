@@ -62,11 +62,11 @@ export default function VendorDashboardPage() {
           subtitle={`${accounts.active} aktif · ${accounts.suspended + accounts.revoked} nonaktif`}
         />
         <StatCard
-          title="Akan Berakhir"
+          title="Kedaluwarsa"
           icon={<AlertTriangle className="size-4" />}
-          value={accounts.expiring}
-          subtitle="dalam 30 hari, klik untuk lihat daftarnya"
-          href="/accounts?status=expiring"
+          value={accounts.expired}
+          subtitle="belum diperpanjang, klik untuk lihat daftarnya"
+          href="/accounts?status=expired"
         />
         <StatCard
           title="Account Baru"

@@ -60,7 +60,7 @@ export function logout(): Promise<{ success: true }> {
 // --- Accounts --------------------------------------------------------------
 
 export type AccountPlan = "Starter" | "Business" | "Enterprise";
-export type AccountStatus = "active" | "expiring" | "expired" | "suspended" | "revoked";
+export type AccountStatus = "active" | "expired" | "suspended" | "revoked";
 
 export interface Account {
   id: string;
@@ -155,7 +155,6 @@ export interface VendorOverview {
   accounts: {
     total: number;
     active: number;
-    expiring: number;
     expired: number;
     suspended: number;
     revoked: number;

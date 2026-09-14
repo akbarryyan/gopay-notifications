@@ -10,7 +10,7 @@ import (
 
 // seedAccountWithExpiry sama seperti seedAccount, tapi expires_at bisa
 // diatur -- dipakai test yang butuh account dengan status tertentu
-// (active/expiring/expired) lewat DerivedStatus.
+// (active/expired) lewat DerivedStatus.
 func seedAccountWithExpiry(t *testing.T, s *store.Store, id string, expiresAt time.Time) {
 	t.Helper()
 	err := s.CreateAccount(context.Background(), store.CreateAccountInput{
@@ -27,9 +27,9 @@ func TestVendorOverviewStatsMenghitungRingkasanLintasAccount(t *testing.T) {
 	s := testStore(t)
 	now := time.Now()
 
-	seedAccountWithExpiry(t, s, "acc_active", now.Add(200*24*time.Hour))  // > 30 hari -> active
-	seedAccountWithExpiry(t, s, "acc_expiring", now.Add(10*24*time.Hour)) // <= 30 hari -> expiring
-	seedAccountWithExpiry(t, s, "acc_expired", now.Add(-24*time.Hour))    // sudah lewat -> expired
+	seedAccountWithExpiry(t, s, "acc_active", now.Add(200*24*time.Hour))     // active
+	seedAccountWithExpiry(t, s, "acc_active_soon", now.Add(10*24*time.Hour)) // masih jauh dari expires_at -> tetap active
+	seedAccountWithExpiry(t, s, "acc_expired", now.Add(-24*time.Hour))       // sudah lewat -> expired
 	if err := s.SetAccountAdminStatus(context.Background(), "acc_expired", "suspended"); err != nil {
 		t.Fatalf("SetAccountAdminStatus: %v", err)
 	}
@@ -49,11 +49,8 @@ func TestVendorOverviewStatsMenghitungRingkasanLintasAccount(t *testing.T) {
 	if stats.TotalAccounts != 3 {
 		t.Errorf("TotalAccounts = %d, mau 3", stats.TotalAccounts)
 	}
-	if stats.Active != 1 {
-		t.Errorf("Active = %d, mau 1", stats.Active)
-	}
-	if stats.Expiring != 1 {
-		t.Errorf("Expiring = %d, mau 1", stats.Expiring)
+	if stats.Active != 2 {
+		t.Errorf("Active = %d, mau 2", stats.Active)
 	}
 	if stats.Suspended != 1 {
 		t.Errorf("Suspended = %d, mau 1", stats.Suspended)

@@ -52,7 +52,6 @@ const PLANS: AccountPlan[] = ["Starter", "Business", "Enterprise"];
 
 const STATUS_OPTIONS: { value: AccountStatus; label: string }[] = [
   { value: "active", label: "Active" },
-  { value: "expiring", label: "Expiring" },
   { value: "expired", label: "Expired" },
   { value: "suspended", label: "Suspended" },
   { value: "revoked", label: "Revoked" },
@@ -84,7 +83,7 @@ function matchesFilters(
   return true;
 }
 
-// useSearchParams() (dibaca dari ?status=... link "Akan Berakhir" di
+// useSearchParams() (dibaca dari ?status=... link "Kedaluwarsa" di
 // Dashboard) menuntut Suspense boundary supaya prerender halaman ini tidak
 // dianggap bergantung sepenuhnya pada request -- dipisah ke komponen
 // sendiri, bukan dipasang di root export, supaya fallback-nya cuma
@@ -100,7 +99,7 @@ export default function AccountsPage() {
 function AccountsPageInner() {
   const { data, loading, error, reload } = useApiData(getAccounts);
   const searchParams = useSearchParams();
-  // Diisi dari ?status=... (mis. link "Akan Berakhir" di Dashboard) --
+  // Diisi dari ?status=... (mis. link "Kedaluwarsa" di Dashboard) --
   // lazy initializer, bukan efek, supaya tidak berkedip kosong dulu sebelum
   // filter terpasang.
   const [query, setQuery] = useState("");

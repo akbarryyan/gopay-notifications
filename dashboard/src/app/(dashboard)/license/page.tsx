@@ -12,7 +12,6 @@ import { formatDateOnly } from "@/lib/format";
 
 const STATUS_LABEL: Record<LicenseStatus, string> = {
   active: "Aktif",
-  expiring: "Akan berakhir",
   expired: "Kedaluwarsa",
   suspended: "Disuspend",
   revoked: "Dicabut",
@@ -22,21 +21,14 @@ const STATUS_LABEL: Record<LicenseStatus, string> = {
 // sinkron dengan store.Account.Operational() di backend. Type predicate
 // (bukan cuma boolean) supaya TypeScript ikut menyempitkan tipe
 // license.status di pemanggil setelah early-return.
-function isOperational(status: LicenseStatus): status is "active" | "expiring" {
-  return status === "active" || status === "expiring";
+function isOperational(status: LicenseStatus): status is "active" {
+  return status === "active";
 }
 
 function StatusBadge({ status }: { status: LicenseStatus }) {
   if (status === "active") {
     return (
       <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-        {STATUS_LABEL[status]}
-      </Badge>
-    );
-  }
-  if (status === "expiring") {
-    return (
-      <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400">
         {STATUS_LABEL[status]}
       </Badge>
     );
@@ -55,7 +47,7 @@ function StatusIcon({ status }: { status: LicenseStatus }) {
   return <ShieldOff className="size-8 text-red-600 dark:text-red-400" />;
 }
 
-const INACTIVE_EXPLANATION: Record<Exclude<LicenseStatus, "active" | "expiring">, string> = {
+const INACTIVE_EXPLANATION: Record<Exclude<LicenseStatus, "active">, string> = {
   expired:
     "Akun ini sudah kedaluwarsa. Pengiriman pembayaran, invoice, dan sebagian besar halaman lain di dashboard ini sedang tidak berfungsi sampai akun diperpanjang.",
   suspended:
@@ -74,21 +66,6 @@ function InactiveBanner({ license }: { license: LicenseInfo }) {
       <AlertDescription>
         {INACTIVE_EXPLANATION[license.status]} Hubungi penyedia layanan kamu untuk memperbaiki akun
         ini.
-      </AlertDescription>
-    </Alert>
-  );
-}
-
-function ExpiringWarning({ license }: { license: LicenseInfo }) {
-  if (license.status !== "expiring") return null;
-
-  return (
-    <Alert>
-      <AlertTriangle className="size-4" />
-      <AlertTitle>Akun akan berakhir</AlertTitle>
-      <AlertDescription>
-        Akun akan berakhir dalam {Math.max(license.days_remaining, 0)} hari. Hubungi penyedia
-        layanan kamu untuk memperpanjang sebelum tanggal itu.
       </AlertDescription>
     </Alert>
   );
@@ -131,7 +108,6 @@ export default function LicensePage() {
       ) : data ? (
         <>
           <InactiveBanner license={data} />
-          <ExpiringWarning license={data} />
 
           <div className="rounded-2xl border border-border/60 p-6 shadow-sm">
             <div className="flex items-center gap-4">

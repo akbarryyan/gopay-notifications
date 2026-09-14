@@ -16,11 +16,9 @@ import (
 
 // DefaultWithinDays: pengingat dikirim saat sisa masa aktif <= 7 hari.
 //
-// Bukan 30 hari (store.WarningThresholdDays, ambang status "expiring" yang
-// dipakai dashboard): status di dashboard memang wajar menyala lebih awal
-// karena pasif -- dibaca kalau dibuka. Pengingat itu aktif, menghampiri
-// orang; dikirim sebulan sebelumnya membuatnya gampang dilupakan lalu
-// diabaikan saat benar-benar mendesak.
+// Pengingat ini AKTIF menghampiri orang lewat email/Telegram -- terlalu
+// dini (mis. sebulan sebelumnya) gampang dilupakan begitu saja dan sudah
+// tidak diingat lagi saat benar-benar mendesak.
 const DefaultWithinDays = 7
 
 // Store adalah bagian dari *store.Store yang dipakai pekerjaan ini --

@@ -14,7 +14,6 @@ import (
 type VendorOverviewStats struct {
 	TotalAccounts int
 	Active        int
-	Expiring      int
 	Expired       int
 	Suspended     int
 	Revoked       int
@@ -28,9 +27,9 @@ type VendorOverviewStats struct {
 
 // VendorOverviewStats menghitung ringkasan lewat ListAccounts yang sudah
 // ada (bukan query agregat SQL terpisah untuk status) -- DerivedStatus
-// adalah method Go di Account, satu-satunya sumber kebenaran soal kapan
-// account dianggap "expiring" dkk (WarningThresholdDays). Menduplikasi
-// logika itu ke SQL berisiko dua tempat itu diam-diam tidak sinkron.
+// adalah method Go di Account, satu-satunya sumber kebenaran soal status
+// account. Menduplikasi logika itu ke SQL berisiko dua tempat itu
+// diam-diam tidak sinkron.
 func (s *Store) VendorOverviewStats(ctx context.Context, now time.Time) (VendorOverviewStats, error) {
 	accounts, err := s.ListAccounts(ctx)
 	if err != nil {
@@ -44,8 +43,6 @@ func (s *Store) VendorOverviewStats(ctx context.Context, now time.Time) (VendorO
 		switch acc.DerivedStatus(now) {
 		case "active":
 			st.Active++
-		case "expiring":
-			st.Expiring++
 		case "expired":
 			st.Expired++
 		case "suspended":

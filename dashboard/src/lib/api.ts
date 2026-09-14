@@ -424,7 +424,7 @@ export function dismissException(eventId: string, note?: string): Promise<{ succ
 // dengan ApiError (code "account_expired"/"account_suspended"/
 // "account_revoked", status 402) bila akun tidak aktif.
 
-export type LicenseStatus = "active" | "expiring" | "expired" | "suspended" | "revoked";
+export type LicenseStatus = "active" | "expired" | "suspended" | "revoked";
 
 export interface LicenseInfo {
   business_name: string;

@@ -10,7 +10,7 @@ import (
 const dateOnlyLayout = "2006-01-02"
 
 // requireActiveAccount menolak request kalau account pemilik sesi/API
-// key/device tidak operasional (active/expiring). Menggantikan
+// key/device tidak operasional (cuma "active"). Menggantikan
 // requireLicense (dulu baca file lokal + grace period -- sekarang query
 // langsung ke accounts, tidak ada lagi jaringan antar dua service).
 //

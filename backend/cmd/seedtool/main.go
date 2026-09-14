@@ -116,7 +116,7 @@ func main() {
 			PlaintextPassword: *password,
 			Plan:              plan.name,
 			MaxDevices:        plan.maxDevices,
-			ExpiresAt:         time.Now().Add(180 * 24 * time.Hour), // jauh dari expiring (>30 hari)
+			ExpiresAt:         time.Now().Add(180 * 24 * time.Hour), // jauh dari kedaluwarsa
 		})
 		if err != nil {
 			fail("buat account %q: %v", business, err)
