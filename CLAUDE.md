@@ -400,6 +400,20 @@ kode, bukan dibangkitkan otomatis, jadi **setiap perubahan perilaku API
 invoice atau webhook wajib ikut memperbarui halaman ini**. Daftar file
 sumbernya ada di komentar atas `api-docs/page.tsx`.
 
+**QRIS statis per account** (migrasi 00018, `internal/store/qris_image.go`):
+tiap account upload gambar QRIS-nya sendiri lewat Settings
+(`PUT`/`GET`/`DELETE /api/v1/admin/account/qris-image`, disimpan `BYTEA` di
+Postgres -- bukan filesystem/S3, konsisten dengan backup `pg_dump`-only).
+`POST /api/v1/invoices` menyertakan gambar itu sebagai data URI
+(`qris_image`) di response, dan MENOLAK `409 qris_not_configured` kalau
+account belum upload -- invoice tanpa cara bayar tidak dibuat sama sekali.
+`GET /invoices/{id}` (polling) sengaja tidak mengulang field ini. Ini
+sub-project 1 dari rencana migrasi `whuzpay-pg/` (payment gateway
+aggregator, folder terpisah di repo ini) dari provider Cashi ke
+gopay-notifications sendiri -- lihat
+`docs/superpowers/specs/2026-09-15-account-qris-image-design.md`.
+Sub-project 2 (provider adapter di `whuzpay-pg/`) belum dikerjakan.
+
 **Section Harga di landing page (`/`, `PricingSection` di
 `components/landing/pricing-faq-footer.tsx`) diambil dari
 `GET /api/v1/pricing-plans`** (publik, tanpa sesi) — bukan array tetap di
@@ -610,10 +624,12 @@ di dashboard tanpa diminta ulang.
 
 ### Logs (riwayat aktivitas akun)
 
-`account_activity_log` (migrasi 00016) mencatat 8 jenis aktivitas:
+`account_activity_log` (migrasi 00016, ditambah `qris_image_updated`/
+`qris_image_removed` di migrasi 00018) mencatat 10 jenis aktivitas:
 `login_success`, `login_failed`, `password_changed`, `password_reset`,
-`api_key_created`, `api_key_revoked`, `device_added`, `device_deleted` —
-lewat `a.logActivity(r, accountID, action, metadata)`
+`api_key_created`, `api_key_revoked`, `device_added`, `device_deleted`,
+`qris_image_updated`, `qris_image_removed` — lewat
+`a.logActivity(r, accountID, action, metadata)`
 (`internal/httpapi/activity_log.go`), dipanggil dari handler yang
 bersangkutan setelah aksinya berhasil. Gagal mencatat TIDAK menggagalkan
 aksinya (pola sama dengan `LogAudit`/`notify.Deliver`).

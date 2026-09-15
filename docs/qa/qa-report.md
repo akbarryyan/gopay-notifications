@@ -1128,3 +1128,45 @@ renew/suspend/plan/send-password-reset yang sudah ada.
 ### Keseluruhan suite
 
 `make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (40.1s), `notify`, `reminder`, `secretbox`, `store` (18.8s), `telegram`, `telegrambot`.
+
+---
+
+## 27. QRIS statis per account (sub-project 1 migrasi Cashi → gopay-notifications)
+
+Permintaan langsung Akbar: rencana migrasi `whuzpay-pg/` (payment gateway
+aggregator, folder terpisah di repo ini) dari provider Cashi ke
+gopay-notifications sendiri. Spec:
+[`docs/superpowers/specs/2026-09-15-account-qris-image-design.md`](../superpowers/specs/2026-09-15-account-qris-image-design.md).
+Sub-project 1 ini murni di gopay-notifications sendiri (belum menyentuh
+`whuzpay-pg/`): tiap account upload gambar QRIS statisnya sendiri, dan
+`POST /invoices` menyertakannya ke integrator, menolak `409
+qris_not_configured` kalau belum diatur.
+
+**Ringkasan:** `PASS` 12 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+
+### 27a. Backend
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Tabel `account_qris_images` (migrasi 00018), relasi 1:1 dengan `accounts`, `ON DELETE CASCADE` | `PASS` | `TestDeleteAccountIkutMenghapusQRISImage` — lulus; `goose up` sukses ke versi 18 |
+| Store: upsert menimpa (bukan menambah baris), get, delete idempotent, cek eksistensi ringan | `PASS` | `go test ./internal/store/... -run QRISImage -v` → `TestUpsertDanGetQRISImage`, `TestUpsertQRISImageMenimpaBukanMenambah`, `TestGetQRISImageTidakAdaMengembalikanErrNotFound`, `TestHasQRISImage`, `TestDeleteQRISImageIdempotent`, `TestDeleteAccountIkutMenghapusQRISImage` — 6 lulus |
+| `PUT /admin/account/qris-image`: validasi ukuran (≤300KB) dan tipe dari ISI byte (`http.DetectContentType`, bukan field yang diklaim klien), bukan base64 valid ditolak jelas | `PASS` | `TestUploadQRISImageBerhasil`, `TestUploadQRISImageBase64TidakValid`, `TestUploadQRISImageTerlaluBesar`, `TestUploadQRISImageTipeTidakDidukung` — lulus |
+| `GET`/`DELETE /admin/account/qris-image`: 404 belum ada, delete idempotent, seluruh endpoint butuh sesi | `PASS` | `TestGetQRISImageBelumAdaMengembalikan404`, `TestDeleteQRISImageIdempotenLewatHTTP`, `TestQRISImageEndpointButuhSesi` — lulus |
+| `GET /admin/account` menyertakan `qris_image_configured` | `PASS` | `TestGetAccountProfileMemuatQRISImageConfigured` — lulus |
+| `POST /invoices` menyertakan `qris_image` (data URI) di response create; account tanpa QRIS ditolak `409 qris_not_configured` TANPA menyimpan invoice apa pun; `GET /invoices/{id}` (polling) sengaja TIDAK mengulang field ini | `PASS` | `TestCreateInvoiceMenyertakanQRISImage`, `TestCreateInvoiceGagalTanpaQRISImage`, `TestCreateInvoiceGagalTanpaQRISImageTidakMenyimpanApaPun`, `TestGetInvoiceTidakMenyertakanQRISImage` — lulus |
+| Webhook payload (`invoice.paid`) TIDAK ikut membengkak dengan `qris_image` (`omitempty`, cuma diisi manual di `handleCreateInvoice`) | `PASS` | Tinjauan kode `webhook_send.go` — masih memanggil `toInvoiceJSON(inv)` polos tanpa mengisi field baru; test webhook yang sudah ada (`TestWebhookInvoicePaidTerpicuOtomatisLewatCallback` dkk) tetap lulus tanpa perubahan assertion |
+| `go build`/`go vet`/`gofmt -l .` bersih | `PASS` | Dijalankan langsung, keluaran kosong |
+| `make test` (seluruh suite backend, termasuk 4 helper test lain yang diperbarui ikut upload QRIS dummy: `admin_exceptions_test.go`, `webhook_worker_test.go`, `tenant_isolation_test.go`) | `PASS` | `ok` untuk seluruh paket termasuk `httpapi` (37.4s) dan `store` (17.4s) |
+
+### 27b. Customer Dashboard
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Card "QRIS Pembayaran" di Settings: upload/ganti/hapus, preview `<img>` langsung dari endpoint backend (tanpa decode base64 di frontend), validasi ukuran+tipe di klien sebelum kirim | `PASS` | `npx tsc --noEmit`, `npx eslint .` (0 error/warning setelah perbaikan posisi komentar `eslint-disable-next-line`), `npx next build` bersih setelah `rm -rf .next` |
+| Halaman Logs mengenali 2 aktivitas baru (`qris_image_updated`/`qris_image_removed`) di `ACTION_LABEL`/`ACTION_BADGE`/`ActionIcon` (`Record<ActivityAction, ...>` exhaustive — `tsc` akan gagal kalau ada yang terlewat) | `PASS` | Bagian dari `npx tsc --noEmit` di atas |
+| API Docs (`/api-docs`): contoh response `POST /invoices` memuat `qris_image`, baris baru di tabel field invoice, baris baru `409 qris_not_configured` di tabel error | `PASS` | Tinjauan kode + build bersih di atas |
+| Uji end-to-end sungguhan di browser (upload gambar asli, lihat preview, buat invoice API sungguhan dan cek `qris_image` di response, hapus lalu coba buat invoice lagi dan lihat `409`) | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev` |
+
+### Keseluruhan suite
+
+`make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (37.4s), `notify`, `reminder`, `secretbox`, `store` (17.4s), `telegram`, `telegrambot`.

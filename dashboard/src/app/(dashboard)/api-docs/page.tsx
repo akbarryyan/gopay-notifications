@@ -13,6 +13,7 @@ import { CodeTabs } from "@/components/docs/code-tabs";
  *   backend/internal/httpapi/webhook_send.go (payload + tanda tangan)
  *   backend/internal/store/invoice.go (nominal unik, 15 menit, idempotensi)
  *   backend/internal/store/webhook.go (5 percobaan, jeda 1/2/4/8 menit)
+ *   backend/internal/store/qris_image.go (gambar QRIS di response create)
  * Kalau salah satu berubah, halaman ini ikut diubah.
  */
 
@@ -362,7 +363,8 @@ echo "Bayar tepat Rp" . number_format($invoice["unique_amount"], 0, ",", ".");`,
   "matched_event_id": null,
   "created_at": "2026-09-14T09:30:00Z",
   "expires_at": "2026-09-14T09:45:00Z",
-  "paid_at": null
+  "paid_at": null,
+  "qris_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
 }`,
           },
         ]}
@@ -411,6 +413,16 @@ function InvoiceFields() {
         ["created_at", "string (RFC 3339)", "Waktu invoice dibuat."],
         ["expires_at", "string (RFC 3339)", "Batas waktu pembayaran."],
         ["paid_at", "string | null", "Waktu invoice ditandai lunas."],
+        [
+          "qris_image",
+          "string",
+          <>
+            QRIS statis milikmu, data URI siap pakai (<C>&lt;img src=&#123;qris_image&#125;&gt;</C>).
+            Selalu terisi -- kalau belum diatur, permintaan ini sudah ditolak <C>409
+            qris_not_configured</C> sebelum sampai sini. Cuma ada di respons <C>POST</C>, tidak
+            diulang di <C>GET /invoices/&#123;id&#125;</C>.
+          </>,
+        ],
       ]}
     />
   );
@@ -678,6 +690,11 @@ function Errors() {
     ],
     ["404", "not_found", "Invoice tidak ditemukan di akun ini."],
     ["409", "external_ref_conflict", "external_ref sudah dipakai dengan amount berbeda."],
+    [
+      "409",
+      "qris_not_configured",
+      "Belum upload gambar QRIS di Settings. Invoice tidak dibuat -- upload dulu, lalu coba lagi.",
+    ],
     [
       "503",
       "allocation_full",
