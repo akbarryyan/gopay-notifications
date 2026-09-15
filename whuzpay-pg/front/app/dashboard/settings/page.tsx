@@ -4,10 +4,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 import { CopyIcon, EyeIcon, EyeOffIcon, RefreshCwIcon } from "lucide-react";
 import {
+  fetchGopayCredentialsStatus,
   fetchMerchantBusiness,
   fetchMerchantWebhookSecret,
   regenerateMerchantWebhookSecret,
+  updateGopayCredentials,
   updateMerchantBusiness,
+  type GopayCredentialsStatus,
   type MerchantBusiness,
 } from "@/lib/merchant-api";
 import { Button } from "@/components/ui/button";
@@ -175,6 +178,162 @@ function WebhookSecretCard() {
   );
 }
 
+function GopayCredentialsCard() {
+  const [status, setStatus] = useState<GopayCredentialsStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [webhookSecretInput, setWebhookSecretInput] = useState("");
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [savingWebhookSecret, setSavingWebhookSecret] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const data = await fetchGopayCredentialsStatus();
+        if (!cancelled) setStatus(data);
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : "Failed to load gopay credentials.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleSaveApiKey(e: FormEvent) {
+    e.preventDefault();
+    if (!apiKeyInput) return;
+    setSavingApiKey(true);
+    try {
+      const data = await updateGopayCredentials({ api_key: apiKeyInput });
+      setStatus(data);
+      setApiKeyInput("");
+      toast.success("gopay API key saved.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save API key.",
+      );
+    } finally {
+      setSavingApiKey(false);
+    }
+  }
+
+  async function handleSaveWebhookSecret(e: FormEvent) {
+    e.preventDefault();
+    if (!webhookSecretInput) return;
+    setSavingWebhookSecret(true);
+    try {
+      const data = await updateGopayCredentials({
+        webhook_secret: webhookSecretInput,
+      });
+      setStatus(data);
+      setWebhookSecretInput("");
+      toast.success("gopay webhook secret saved.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save webhook secret.",
+      );
+    } finally {
+      setSavingWebhookSecret(false);
+    }
+  }
+
+  return (
+    <Card className="p-5 sm:p-6">
+      <h2 className="text-[14px] font-semibold text-[#1f2a37]">
+        GoPay provider (gopay-notifications)
+      </h2>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-[#6b7c93]">
+        Your own gopay-notifications account powers QRIS payments here.
+        Follow these steps once:
+      </p>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-[12.5px] leading-relaxed text-[#6b7c93]">
+        <li>Sign in to gopay-notifications and upload your QRIS in Settings.</li>
+        <li>Create an API key on the API Keys page there.</li>
+        <li>
+          Create a webhook endpoint pointing to{" "}
+          <code className="font-mono">
+            {"{APP_BASE_URL}"}/api/v1/provider-webhooks/gopay
+          </code>{" "}
+          with the <code className="font-mono">invoice.paid</code> event.
+        </li>
+        <li>Paste the API key and webhook secret you got below.</li>
+      </ol>
+
+      {loading ? (
+        <div className="mt-3 text-[12.5px] text-[#8a97a8]">Loading...</div>
+      ) : (
+        <div className="mt-4 space-y-4">
+          <form
+            onSubmit={(e) => void handleSaveApiKey(e)}
+            className="flex items-end gap-2"
+          >
+            <label className="flex flex-1 flex-col gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8a97a8]">
+                API Key{" "}
+                {status?.api_key_configured ? "(configured)" : "(not set)"}
+              </span>
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="sk_..."
+                className="h-10 rounded-lg border border-[#e8eef4] px-3 text-[13px] outline-none focus:border-[#3b9eff] focus:ring-2 focus:ring-[#3b9eff]/15"
+              />
+            </label>
+            <Button
+              type="submit"
+              disabled={savingApiKey || !apiKeyInput}
+              className="h-10 rounded-full bg-[#06163a] px-5 text-[13px] font-semibold text-white shadow-none hover:bg-[#0b2048]"
+            >
+              {savingApiKey ? "Saving..." : "Save"}
+            </Button>
+          </form>
+
+          <form
+            onSubmit={(e) => void handleSaveWebhookSecret(e)}
+            className="flex items-end gap-2"
+          >
+            <label className="flex flex-1 flex-col gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8a97a8]">
+                Webhook Secret{" "}
+                {status?.webhook_secret_configured
+                  ? "(configured)"
+                  : "(not set)"}
+              </span>
+              <input
+                type="password"
+                value={webhookSecretInput}
+                onChange={(e) => setWebhookSecretInput(e.target.value)}
+                placeholder="whsec_..."
+                className="h-10 rounded-lg border border-[#e8eef4] px-3 text-[13px] outline-none focus:border-[#3b9eff] focus:ring-2 focus:ring-[#3b9eff]/15"
+              />
+            </label>
+            <Button
+              type="submit"
+              disabled={savingWebhookSecret || !webhookSecretInput}
+              className="h-10 rounded-full bg-[#06163a] px-5 text-[13px] font-semibold text-white shadow-none hover:bg-[#0b2048]"
+            >
+              {savingWebhookSecret ? "Saving..." : "Save"}
+            </Button>
+          </form>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function MerchantSettingsPage() {
   const [business, setBusiness] = useState<MerchantBusiness | null>(null);
   const [loading, setLoading] = useState(true);
@@ -311,6 +470,7 @@ export default function MerchantSettingsPage() {
         </Card>
       )}
 
+      <GopayCredentialsCard />
       <WebhookSecretCard />
     </div>
   );

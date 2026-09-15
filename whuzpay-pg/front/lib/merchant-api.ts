@@ -399,6 +399,43 @@ export async function regenerateMerchantWebhookSecret(): Promise<{
   return body as { webhook_secret: string };
 }
 
+// ---- Provider gopay (kredensial gopay-notifications per merchant) --------
+
+export type GopayCredentialsStatus = {
+  api_key_configured: boolean;
+  webhook_secret_configured: boolean;
+};
+
+export function fetchGopayCredentialsStatus() {
+  return merchantFetch<GopayCredentialsStatus>(
+    "/api/v1/merchant/gopay-credentials",
+  );
+}
+
+// Tri-state per field: field absen (undefined) di payload berarti biarkan
+// nilai tersimpan, "" berarti hapus, isi berarti ganti.
+export async function updateGopayCredentials(payload: {
+  api_key?: string;
+  webhook_secret?: string;
+}): Promise<GopayCredentialsStatus> {
+  const res = await fetch(`${API_URL}/api/v1/merchant/gopay-credentials`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const body = (await res.json().catch(() => null)) as
+    | GopayCredentialsStatus
+    | ApiErrorBody
+    | null;
+  if (!res.ok) {
+    throw new Error(
+      (body as ApiErrorBody | null)?.message ??
+        "Failed to update gopay credentials.",
+    );
+  }
+  return body as GopayCredentialsStatus;
+}
+
 // ---- Payment Links --------------------------------------------------------
 // A link is reusable: every checkout through it spawns a fresh one-time
 // payment (see the backend's PaymentLinkService.InitiateCheckout). Creating

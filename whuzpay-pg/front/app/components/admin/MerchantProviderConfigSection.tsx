@@ -30,7 +30,7 @@ type Props = {
 };
 
 const emptyForm = {
-  provider_name: "cashi",
+  provider_name: "gopay",
   payment_method: "qris",
   priority: 1,
   weight: 100,
@@ -40,7 +40,7 @@ const emptyForm = {
 
 export default function MerchantProviderConfigSection({ merchantId }: Props) {
   const [items, setItems] = useState<AdminMerchantProviderConfig[]>([]);
-  const [providerNames, setProviderNames] = useState<string[]>(["cashi"]);
+  const [providerNames, setProviderNames] = useState<string[]>(["gopay"]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -167,7 +167,7 @@ export default function MerchantProviderConfigSection({ merchantId }: Props) {
           onClick={() => {
             setForm({
               ...emptyForm,
-              provider_name: providerNames[0] ?? "cashi",
+              provider_name: providerNames[0] ?? "gopay",
             });
             setShowForm((v) => !v);
           }}
