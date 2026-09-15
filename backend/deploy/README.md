@@ -104,12 +104,11 @@ ubuntu@13.60.252.148`.
    sudo systemctl enable gopay-ingestion gopay-dashboard
    ```
 
-6. Isi `Caddyfile` dengan domain sungguhan dan hash basic auth
-   (`caddy hash-password`), lalu salin ke `/etc/caddy/Caddyfile` dan
-   `sudo systemctl reload caddy`. Caddyfile yang sudah disiapkan merutekan
-   `/api/*` ke backend (port 8080) dan sisanya ke dashboard (port 3000) —
-   satu domain, tanpa CORS, persis seperti yang diasumsikan
-   `dashboard/README.md`.
+6. Isi `Caddyfile` dengan domain sungguhan, lalu salin ke
+   `/etc/caddy/Caddyfile` dan `sudo systemctl reload caddy`. Caddyfile yang
+   sudah disiapkan merutekan `/api/*` ke backend (port 8080) dan sisanya ke
+   dashboard (port 3000) — satu domain, tanpa CORS, persis seperti yang
+   diasumsikan `dashboard/README.md`.
 
 ### Jebakan yang pernah terjadi saat memasang VPS baru
 
@@ -762,9 +761,9 @@ Jalankan untuk **kedua** domain:
 D=GANTI-DOMAIN.com          # lalu ulangi dengan D=uat.GANTI-DOMAIN.com
 
 curl -s "https://$D/api/v1/health"
-curl -s -o /dev/null -w '%{http_code}\n' "https://$D/api/v1/events"                  # mau 401
-curl -s -o /dev/null -w '%{http_code}\n' -u admin:<pw> "https://$D/api/v1/events"    # mau 405 (lolos basic auth; rute ini cuma menerima POST dari HP)
-curl -s -o /dev/null -w '%{http_code}\n' "http://$D/api/v1/health"                   # mau 308
+curl -s -o /dev/null -w '%{http_code}\n' "https://$D/api/v1/events"                      # mau 405 (GET ke rute yang cuma menerima POST dari HP)
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "https://$D/api/v1/events" -d '{}'      # mau 401 invalid_signature (header HMAC belum ada)
+curl -s -o /dev/null -w '%{http_code}\n' "http://$D/api/v1/health"                       # mau 308
 ```
 
 Satu pemeriksaan tambahan yang membuktikan pemisahannya nyata: ambil Device ID

@@ -325,28 +325,22 @@ diabaikan orang.
 
 ---
 
-## 7. `GET /events`
+## 7. `GET /events` — DIHAPUS
 
-Dilindungi basic auth di Caddy, bukan HMAC — ini untuk dibuka di browser saat verifikasi M2 dan M4.
-Handler yang sama juga dipasang di `GET /admin/events` untuk dashboard, di
-belakang `requireAdmin` (cookie sesi) alih-alih basic auth Caddy — itu jalur
-yang dipakai halaman Events dashboard sub-project 4.
+Endpoint publik ini (dilindungi basic auth Caddy, bukan HMAC, buat dibuka
+manual di browser saat verifikasi M2/M4) **dihapus** saat migrasi
+multi-tenant (`docs/superpowers/plans/2026-09-13-multitenant-accounts-plan.md`
+task 9) — tidak ada cara menurunkan `account_id` dari basic auth Caddy yang
+generik. Penggantinya `GET /api/v1/admin/events`, di belakang `requireAdmin`
+(cookie sesi) + `requireActiveAccount`, dipakai halaman Events dashboard.
 
-```
-GET /events?limit=50&offset=0&source=gopay&q=dev_01&from=2026-09-01&to=2026-09-30
-```
-
-| Query param | Wajib | Arti |
-|---|---|---|
-| `limit` | tidak (default 50, maks 1000) | jumlah baris |
-| `offset` | tidak (default 0) | untuk paginasi |
-| `source` | tidak | harus salah satu ID di `internal/connector` (mis. `gopay`); ID tidak dikenal → `400 invalid_payload` |
-| `q` | tidak | cocok sebagian ke `device_id` ATAU `title`, tanpa peduli huruf besar/kecil |
-| `from`, `to` | tidak | tanggal saja (`YYYY-MM-DD`, UTC), inklusif kedua ujungnya — bukan RFC3339, sengaja selaras dengan `<input type="date">` |
-
-Mengembalikan event terbaru lebih dulu, memuat teks mentah dan payload asli.
-Seluruh filter bersifat AND — mengisi lebih dari satu mempersempit hasil,
-tidak memperluasnya.
+Baris `@events`/`basic_auth` yang dulu menjaga path ini di Caddyfile production
+sempat tertinggal setelah endpoint-nya dihapus, dan wildcard-nya
+(`/api/v1/events*`) ikut memblokir `POST /api/v1/events` (endpoint device
+ingestion HMAC yang sungguhan) sebelum sempat sampai ke backend — ditemukan
+2026-09-15 saat uji end-to-end Android bridge pertama ke produksi. Sudah
+dihapus dari `backend/Caddyfile`; jangan ditambahkan lagi tanpa scope method
+`GET` secara eksplisit kalau suatu saat perlu endpoint debug serupa.
 
 ---
 

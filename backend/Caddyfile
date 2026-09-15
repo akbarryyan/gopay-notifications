@@ -2,21 +2,12 @@
 GANTI-DOMAIN.com {
 	encode zstd gzip
 
-	# /events dilindungi basic auth — ini untuk dibuka manual di browser
-	# untuk verifikasi (lihat docs/api-contract.md §7), BUKAN dipakai
-	# dashboard (dashboard punya sesi cookie sendiri lewat requireAdmin).
-	# handle di sini dan handle @api di bawah saling eksklusif dan dicek
-	# berurutan, jadi path /api/v1/events selalu kena basic_auth duluan,
-	# tidak pernah ikut tembus ke reverse_proxy /api/* yang polos.
-	@events path /api/v1/events*
-	handle @events {
-		basic_auth {
-			admin GANTI_HASH_BCRYPT_PRODUKSI
-		}
-		reverse_proxy 127.0.0.1:8080
-	}
-
-	# Sisa /api/* (device, admin dashboard, invoice, webhook) ke backend Go.
+	# GET /api/v1/events (debug manual M2/M4) sudah DIHAPUS dari backend saat
+	# migrasi multi-tenant (lihat docs/api-contract.md §7) -- blok basic_auth
+	# yang dulu menjaganya di sini SUDAH DIHAPUS JUGA. Wildcard-nya dulu ikut
+	# memblokir POST /api/v1/events (device ingestion HMAC yang sungguhan)
+	# sebelum sampai ke backend, karena Caddy path matcher tidak peduli method.
+	# Jangan tambahkan lagi tanpa scope `method GET` eksplisit.
 	@api path /api/*
 	handle @api {
 		reverse_proxy 127.0.0.1:8080
@@ -41,11 +32,6 @@ GANTI-DOMAIN.com {
 # dibutuhkan.
 uat.GANTI-DOMAIN.com {
 	encode zstd gzip
-
-	@events path /api/v1/events*
-	basic_auth @events {
-		admin GANTI_HASH_BCRYPT_UAT
-	}
 
 	reverse_proxy 127.0.0.1:8081
 
