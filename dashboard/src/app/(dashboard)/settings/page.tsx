@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import {
   Bell,
   Eye,
@@ -8,8 +8,10 @@ import {
   KeyRound,
   Loader2,
   MailWarning,
+  QrCode,
   RotateCw,
   Send,
+  Trash2,
   Unlink,
   UserRound,
 } from "lucide-react";
@@ -35,10 +37,13 @@ import {
   ApiError,
   changePassword,
   createTelegramLink,
+  deleteQRISImage,
   getAccountProfile,
+  qrisImageURL,
   resendVerificationEmail,
   setTelegramChatID,
   updateAccountProfile,
+  uploadQRISImage,
   type AccountProfile,
   type TelegramLink,
 } from "@/lib/api";
@@ -85,6 +90,9 @@ export default function SettingsPage() {
               onSaved={reload}
             />
             <PasswordCard />
+            <div className="lg:col-span-2">
+              <QRISImageCard key={String(data.qris_image_configured)} profile={data} onSaved={reload} />
+            </div>
             <div className="lg:col-span-2">
               <NotificationCard key={data.telegram_chat_id ?? ""} profile={data} onSaved={reload} />
             </div>
@@ -346,6 +354,148 @@ function PasswordCard() {
           {busy ? "Menyimpan..." : "Ganti password"}
         </Button>
       </form>
+    </SettingsCard>
+  );
+}
+
+const MAX_QRIS_IMAGE_BYTES = 300 * 1024;
+
+/**
+ * Gambar QRIS statis milik account ini -- disertakan otomatis lewat
+ * POST /invoices ke integrator (mis. sistem kasir/website sendiri). Tanpa
+ * ini, pembuatan invoice ditolak 409 qris_not_configured.
+ */
+function QRISImageCard({
+  profile,
+  onSaved,
+}: {
+  profile: AccountProfile;
+  onSaved: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Dipakai memaksa <img> reload setelah upload -- src yang sama persis
+  // tidak akan di-refetch browser tanpa ini.
+  const [cacheBust, setCacheBust] = useState(0);
+
+  async function onFileSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // supaya memilih file yang sama lagi tetap trigger onChange
+    if (!file) return;
+
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      toast.error("Hanya file PNG atau JPEG yang didukung.");
+      return;
+    }
+    if (file.size > MAX_QRIS_IMAGE_BYTES) {
+      toast.error("Ukuran gambar maksimal 300KB.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      // readAsDataURL menghasilkan "data:image/png;base64,XXXX" -- backend
+      // cuma butuh bagian base64-nya, content_type dikirim terpisah.
+      const base64 = dataUrl.split(",")[1] ?? "";
+      await uploadQRISImage(base64, file.type);
+      toast.success("QRIS berhasil diperbarui.");
+      setCacheBust((n) => n + 1);
+      onSaved();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error("Gagal upload QRIS.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDelete() {
+    setBusy(true);
+    try {
+      await deleteQRISImage();
+      toast.success("QRIS dihapus.");
+      onSaved();
+    } catch {
+      toast.error("Gagal menghapus QRIS.");
+    } finally {
+      setBusy(false);
+      setConfirmingDelete(false);
+    }
+  }
+
+  return (
+    <SettingsCard
+      icon={<QrCode className="size-4 text-muted-foreground" />}
+      title="QRIS Pembayaran"
+      description="Gambar QRIS statis milikmu sendiri -- disertakan otomatis tiap kali sistem integrasi kamu membuat invoice lewat API. Tanpa ini, pembuatan invoice akan ditolak."
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        {profile.qris_image_configured ? (
+          // Gambar dari backend sendiri (bukan aset build), bukan kandidat next/image.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`${qrisImageURL}?v=${cacheBust}`}
+            alt="QRIS"
+            className="size-32 rounded-xl border border-border/60 object-contain p-2"
+          />
+        ) : (
+          <div className="flex size-32 items-center justify-center rounded-xl border border-dashed text-xs text-muted-foreground">
+            Belum diatur
+          </div>
+        )}
+        <div className="flex flex-1 flex-col gap-2">
+          <Label htmlFor="qris-image-input">
+            {profile.qris_image_configured ? "Ganti gambar" : "Upload gambar"}
+          </Label>
+          <Input
+            id="qris-image-input"
+            type="file"
+            accept="image/png,image/jpeg"
+            disabled={busy}
+            onChange={onFileSelected}
+          />
+          <p className="text-xs text-muted-foreground">PNG atau JPEG, maksimal 300KB.</p>
+          {profile.qris_image_configured && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-fit text-destructive hover:text-destructive"
+              disabled={busy}
+              onClick={() => setConfirmingDelete(true)}
+            >
+              <Trash2 className="mr-1.5 size-3.5" />
+              Hapus
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <AlertDialog open={confirmingDelete} onOpenChange={(open) => !open && setConfirmingDelete(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus gambar QRIS?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pembuatan invoice lewat API akan langsung ditolak sampai kamu upload ulang.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={onDelete} disabled={busy}>
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SettingsCard>
   );
 }

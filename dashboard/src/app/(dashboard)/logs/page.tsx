@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Globe, KeyRound, LogIn, RotateCw, Search, Smartphone } from "lucide-react";
+import { Globe, KeyRound, LogIn, QrCode, RotateCw, Search, Smartphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -31,6 +31,8 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   api_key_revoked: "API key dicabut",
   device_added: "Device ditambahkan",
   device_deleted: "Device dihapus",
+  qris_image_updated: "QRIS diperbarui",
+  qris_image_removed: "QRIS dihapus",
 };
 
 const ACTION_BADGE: Record<ActivityAction, string> = {
@@ -42,6 +44,8 @@ const ACTION_BADGE: Record<ActivityAction, string> = {
   api_key_revoked: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
   device_added: "border-transparent bg-slate-500/15 text-slate-700 dark:text-slate-300",
   device_deleted: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  qris_image_updated: "border-transparent bg-slate-500/15 text-slate-700 dark:text-slate-300",
+  qris_image_removed: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400",
 };
 
 const ACTION_OPTIONS = (Object.keys(ACTION_LABEL) as ActivityAction[]).map((value) => ({
@@ -60,6 +64,9 @@ function ActionIcon({ action }: { action: ActivityAction }) {
     case "device_added":
     case "device_deleted":
       return <Smartphone className="size-3.5" />;
+    case "qris_image_updated":
+    case "qris_image_removed":
+      return <QrCode className="size-3.5" />;
     default:
       return null;
   }

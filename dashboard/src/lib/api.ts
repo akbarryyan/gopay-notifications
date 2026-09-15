@@ -463,6 +463,8 @@ export interface AccountProfile {
   telegram_available: boolean;
   /** false = pengingat, bukan gerbang -- account tetap berfungsi penuh. */
   email_verified: boolean;
+  /** false berarti POST /invoices ditolak 409 qris_not_configured. */
+  qris_image_configured: boolean;
 }
 
 export async function getAccountProfile(): Promise<AccountProfile> {
@@ -494,6 +496,25 @@ export function resendVerificationEmail(): Promise<{ success: true; already_veri
   return apiFetch("/api/v1/admin/account/email/resend", { method: "POST" });
 }
 
+// --- QRIS statis (dipakai integrator lewat POST /invoices) -------------
+
+/** URL gambar langsung -- dipakai sebagai <img src>, browser kirim cookie sesi otomatis. */
+export const qrisImageURL = "/api/v1/admin/account/qris-image";
+
+export function uploadQRISImage(
+  imageBase64: string,
+  contentType: string,
+): Promise<{ success: true }> {
+  return apiFetch("/api/v1/admin/account/qris-image", {
+    method: "PUT",
+    body: JSON.stringify({ image_base64: imageBase64, content_type: contentType }),
+  });
+}
+
+export function deleteQRISImage(): Promise<{ success: true }> {
+  return apiFetch("/api/v1/admin/account/qris-image", { method: "DELETE" });
+}
+
 // --- Logs (riwayat aktivitas akun) -------------------------------------
 
 export type ActivityAction =
@@ -504,7 +525,9 @@ export type ActivityAction =
   | "api_key_created"
   | "api_key_revoked"
   | "device_added"
-  | "device_deleted";
+  | "device_deleted"
+  | "qris_image_updated"
+  | "qris_image_removed";
 
 export interface ActivityEntry {
   id: number;
