@@ -3,8 +3,8 @@ info:
   title: WhuzPay Payment Gateway Aggregator API
   description: |
     REST API for the WhuzPay QRIS payment gateway aggregator. Orchestrates
-    payment providers (Cashi in production, an in-process mock for
-    merchant sandbox) behind one consistent API and dashboard.
+    payment providers (gopay-notifications in production, an in-process
+    mock for merchant sandbox) behind one consistent API and dashboard.
 
     Generated from the actual route table in `cmd/api/main.go` and the
     handler/service/domain source — not hand-guessed. See
@@ -941,10 +941,10 @@ paths:
   /provider-webhooks/{providerName}:
     post:
       tags: [Webhooks]
-      summary: Inbound webhook from a payment provider (e.g. Cashi)
+      summary: Inbound webhook from a payment provider (e.g. gopay)
       description: |
         No auth — signature-verified downstream per provider adapter
-        (`x-gateway-signature` header, HMAC). Rate limited 120 req/min per
+        (`X-Webhook-Signature` header, HMAC). Rate limited 120 req/min per
         IP to blunt flooding. Duplicate or already-terminal-payment
         webhooks respond 200 `{"status":"ignored"}` rather than an error,
         since providers retry on non-2xx (see
@@ -1110,9 +1110,6 @@ components:
         callback_url: { type: string, nullable: true }
         expires_in_minutes: { type: integer, minimum: 1, maximum: 1440, default: 30 }
         environment: { type: string, enum: [sandbox, production] }
-        use_custom_merchant_name:
-          type: boolean
-          description: Requests a custom merchant display name on the QR (provider-dependent, e.g. Cashi QRIS Custom).
     PaymentResponse:
       type: object
       properties:

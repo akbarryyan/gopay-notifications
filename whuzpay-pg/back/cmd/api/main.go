@@ -14,7 +14,6 @@ import (
 	"github.com/akbarryyan/pg-aggregator-back/internal/handler"
 	"github.com/akbarryyan/pg-aggregator-back/internal/middleware"
 	"github.com/akbarryyan/pg-aggregator-back/internal/provider"
-	"github.com/akbarryyan/pg-aggregator-back/internal/provider/cashi"
 	"github.com/akbarryyan/pg-aggregator-back/internal/provider/sandbox"
 	"github.com/akbarryyan/pg-aggregator-back/internal/repository"
 	"github.com/akbarryyan/pg-aggregator-back/internal/scheduler"
@@ -51,18 +50,11 @@ func main() {
 	apiKeyRepo := repository.NewMerchantAPIKeyRepository(db)
 	merchantUserRepo := repository.NewMerchantUserRepository(db)
 	adminRepo := repository.NewAdminRepository(db)
-	cashiAdapter := cashi.NewCashiAdapter(
-		cfg.Cashi.BaseURL,
-		cfg.Cashi.APIKey,
-		cfg.Cashi.SecretKey,
-	)
 	sandboxAdapter := sandbox.NewAdapter()
 
 	providerRouter := provider.NewProviderRouter()
-	providerRouter.RegisterProvider(cashiAdapter)
 	providerRouter.RegisterProvider(sandboxAdapter)
-	// Production QRIS routing uses real Cashi only
-	providerRouter.RegisterPaymentMethodProvider("qris", cashiAdapter.GetName())
+	// TODO(Task 3): daftarkan gopayAdapter + RegisterPaymentMethodProvider("qris", ...)
 
 	paymentLinkRepo := repository.NewPaymentLinkRepository(db)
 
@@ -312,7 +304,7 @@ func setupRouter(
 	merchantAPI.HandleFunc("/payments/{id}", paymentHandler.GetPayment).Methods("GET")
 	merchantAPI.HandleFunc("/payments/{id}/status", paymentHandler.GetPaymentStatus).Methods("GET")
 
-	// Provider webhook (e.g. Cashi) — signature-verified downstream, but still
+	// Provider webhook (e.g. gopay) — signature-verified downstream, but still
 	// rate limited per source IP to blunt flooding/DoS attempts.
 	api.Handle("/provider-webhooks/{providerName}", publicRateLimiter.Limit(http.HandlerFunc(webhookHandler.HandleProviderWebhook))).Methods("POST")
 

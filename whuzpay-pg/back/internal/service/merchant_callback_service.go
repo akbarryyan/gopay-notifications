@@ -27,8 +27,9 @@ const maxCallbackAttempts = 5
 
 // EnsureMerchantWebhookSecret returns the merchant's HMAC signing secret for
 // outbound payment webhooks, generating and persisting one on first use.
-// Mirrors CASHI_SECRET_KEY's role for inbound Cashi webhooks, just for the
-// direction we control (see docs/cashi-api.md's webhook verification example).
+// Mirrors the per-merchant gopay webhook secret's role for inbound gopay
+// webhooks, just for the direction we control (outbound callbacks to
+// merchants).
 func (s *PaymentService) EnsureMerchantWebhookSecret(ctx context.Context, merchantID uuid.UUID) (string, error) {
 	if s.merchantRepo == nil {
 		return "", fmt.Errorf("merchant repository not available")

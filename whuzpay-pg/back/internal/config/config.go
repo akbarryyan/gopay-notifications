@@ -12,7 +12,7 @@ type Config struct {
 	App      AppConfig
 	DB       DBConfig
 	Redis    RedisConfig
-	Cashi    CashiConfig
+	Gopay    GopayConfig
 	Security SecurityConfig
 }
 
@@ -39,13 +39,11 @@ type RedisConfig struct {
 	Password string
 }
 
-type CashiConfig struct {
-	// BaseURL e.g. https://cashi.id (see docs/cashi-api.md)
+// GopayConfig -- BaseURL saja, tidak ada API key/secret global karena
+// kredensial gopay-notifications disimpan per merchant (lihat
+// internal/repository/merchant_gopay_credentials_repository.go).
+type GopayConfig struct {
 	BaseURL string
-	// APIKey sent as x-api-key header on create-order / check-status
-	APIKey string
-	// SecretKey used only to verify webhook HMAC signatures
-	SecretKey string
 }
 
 type SecurityConfig struct {
@@ -78,10 +76,8 @@ func Load() (*Config, error) {
 			Port:     getEnv("REDIS_PORT", "6379"),
 			Password: getEnv("REDIS_PASSWORD", ""),
 		},
-		Cashi: CashiConfig{
-			BaseURL:   getEnv("CASHI_BASE_URL", "https://cashi.id"),
-			APIKey:    getEnv("CASHI_API_KEY", ""),
-			SecretKey: getEnv("CASHI_SECRET_KEY", ""),
+		Gopay: GopayConfig{
+			BaseURL: getEnv("GOPAY_BASE_URL", "https://whuzpay.com"),
 		},
 		Security: SecurityConfig{
 			JWTSecret: getEnv("JWT_SECRET", "change-this-secret"),
@@ -113,9 +109,6 @@ func (c *Config) Validate() error {
 	}
 
 	if c.App.Environment == "production" {
-		if c.Cashi.APIKey == "" || c.Cashi.SecretKey == "" {
-			return fmt.Errorf("Cashi credentials are required in production")
-		}
 		if c.Security.JWTSecret == "change-this-secret" {
 			return fmt.Errorf("JWT_SECRET must be changed in production")
 		}

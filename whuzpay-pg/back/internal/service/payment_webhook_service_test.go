@@ -63,8 +63,17 @@ func TestProcessWebhook_UnregisteredProvider(t *testing.T) {
 }
 
 func TestProcessWebhook_InvalidSignatureRejected(t *testing.T) {
-	svc, _, webhookRepo, router := newWebhookTestService()
-	prov := &fakeProvider{name: "cashi", validateErr: providerPkg.ErrInvalidWebhookSignature}
+	svc, paymentRepo, webhookRepo, router := newWebhookTestService()
+	// Payment (dan provider_reference-nya) harus sudah ada -- urutan
+	// sekarang parse+cari payment DULU, validasi BELAKANGAN (perlu
+	// MerchantID payment itu), jadi signature yang salah baru tercapai
+	// setelah payment ditemukan.
+	seedPayment(t, paymentRepo, payment.StatusPending, "prov-ref-1")
+	prov := &fakeProvider{
+		name:        "cashi",
+		validateErr: providerPkg.ErrInvalidWebhookSignature,
+		parseResp:   &domainProvider.ProviderWebhookPayload{ProviderReference: "prov-ref-1", Status: "paid"},
+	}
 	router.RegisterProvider(prov)
 
 	err := svc.ProcessWebhook(context.Background(), "cashi", []byte(`{}`), "bad-sig")

@@ -197,11 +197,13 @@ func (p *stubProvider) CreatePayment(ctx context.Context, req *domainProvider.Pr
 	}, nil
 }
 
-func (p *stubProvider) GetPaymentStatus(ctx context.Context, providerReference string) (*domainProvider.NormalizedPaymentStatus, error) {
+func (p *stubProvider) GetPaymentStatus(ctx context.Context, providerReference string, _ uuid.UUID) (*domainProvider.NormalizedPaymentStatus, error) {
 	return &domainProvider.NormalizedPaymentStatus{Status: payment.StatusPending, ProviderReference: providerReference}, nil
 }
 
-func (p *stubProvider) ValidateWebhook(rawPayload []byte, signature string) error { return nil }
+func (p *stubProvider) ValidateWebhook(rawPayload []byte, signature string, _ uuid.UUID) error {
+	return nil
+}
 
 func (p *stubProvider) ParseWebhook(rawPayload []byte) (*domainProvider.ProviderWebhookPayload, error) {
 	return &domainProvider.ProviderWebhookPayload{

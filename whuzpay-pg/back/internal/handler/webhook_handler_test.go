@@ -85,11 +85,20 @@ func TestWebhookHandler_HandleProviderWebhook_MissingProviderName(t *testing.T) 
 }
 
 func TestWebhookHandler_HandleProviderWebhook_InvalidSignatureRejected(t *testing.T) {
+	providerRef := "PROV-REF-BADSIG"
 	fp := &fakeProvider{
 		name:        "testprov",
 		validateErr: errors.New("invalid signature"),
+		// Payment (dan provider_reference-nya) harus sudah ada -- urutan
+		// sekarang parse+cari payment DULU, validasi BELAKANGAN.
+		parsePayload: &domainProvider.ProviderWebhookPayload{
+			ProviderName:      "testprov",
+			ProviderReference: providerRef,
+			Status:            "paid",
+		},
 	}
-	svc, _ := newTestWebhookService(fp)
+	svc, paymentRepo := newTestWebhookService(fp)
+	seedPendingPayment(t, paymentRepo, "testprov", providerRef)
 	h := NewWebhookHandler(svc)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/provider-webhooks/testprov", strings.NewReader(`{}`))

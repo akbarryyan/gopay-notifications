@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/provider"
+	"github.com/google/uuid"
 )
 
 func TestCreatePayment_RejectsAmountBelowMinimum(t *testing.T) {
@@ -81,7 +82,7 @@ func TestCreatePayment_DefaultExpiryWhenNotProvided(t *testing.T) {
 
 func TestGetPaymentStatus_UnknownReferenceIsPending(t *testing.T) {
 	a := NewAdapter()
-	status, err := a.GetPaymentStatus(context.Background(), "never-created")
+	status, err := a.GetPaymentStatus(context.Background(), "never-created", uuid.Nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,7 +102,7 @@ func TestGetPaymentStatus_ExpiresAfterDeadline(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	status, err := a.GetPaymentStatus(context.Background(), resp.ProviderReference)
+	status, err := a.GetPaymentStatus(context.Background(), resp.ProviderReference, uuid.Nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestGetPaymentStatus_ForcePaidDevHelper(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	status, err := a.GetPaymentStatus(context.Background(), ref)
+	status, err := a.GetPaymentStatus(context.Background(), ref, uuid.Nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -144,7 +145,7 @@ func TestMarkPaid(t *testing.T) {
 	if !a.MarkPaid(resp.ProviderReference) {
 		t.Fatalf("expected MarkPaid to succeed for existing reference")
 	}
-	status, err := a.GetPaymentStatus(context.Background(), resp.ProviderReference)
+	status, err := a.GetPaymentStatus(context.Background(), resp.ProviderReference, uuid.Nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,7 +160,7 @@ func TestMarkPaid(t *testing.T) {
 
 func TestValidateAndParseWebhook_NotSupported(t *testing.T) {
 	a := NewAdapter()
-	if err := a.ValidateWebhook([]byte(`{}`), "any-signature"); err != nil {
+	if err := a.ValidateWebhook([]byte(`{}`), "any-signature", uuid.Nil); err != nil {
 		t.Errorf("sandbox should never reject webhook validation, got %v", err)
 	}
 	if _, err := a.ParseWebhook([]byte(`{}`)); err == nil {

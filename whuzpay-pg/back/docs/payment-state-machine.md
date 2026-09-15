@@ -75,7 +75,7 @@ Aturan ini ditegakkan **dua kali** secara independen (defense-in-depth):
 
 | Trigger | Fungsi | Kapan |
 |---|---|---|
-| Provider webhook | `PaymentService.ProcessWebhook` | Provider (mis. Cashi) POST ke `/api/v1/provider-webhooks/{providerName}` |
+| Provider webhook | `PaymentService.ProcessWebhook` | Provider (mis. gopay) POST ke `/api/v1/provider-webhooks/{providerName}` |
 | Reconcile manual/admin | `PaymentService.ReconcilePayment` | Admin poll status ke provider, atau `CheckPaymentStatus` |
 | Reconcile batch | `PaymentService.ReconcilePendingPayments` | Admin trigger cek massal payment pending |
 | Expire job | `PaymentService.ExpirePayments` (scheduler, tiap 1 menit) | `pending` + `expires_at` sudah lewat → `expired`, tanpa perlu provider |

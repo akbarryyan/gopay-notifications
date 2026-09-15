@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	domainProvider "github.com/akbarryyan/pg-aggregator-back/internal/domain/provider"
+	"github.com/google/uuid"
 )
 
 // fakeProvider is a minimal PaymentProvider used only to exercise ProviderRouter
@@ -17,10 +18,12 @@ func (f *fakeProvider) GetName() string { return f.name }
 func (f *fakeProvider) CreatePayment(ctx context.Context, req *domainProvider.ProviderPaymentRequest) (*domainProvider.ProviderPaymentResponse, error) {
 	return &domainProvider.ProviderPaymentResponse{ProviderName: f.name}, nil
 }
-func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference string) (*domainProvider.NormalizedPaymentStatus, error) {
+func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference string, _ uuid.UUID) (*domainProvider.NormalizedPaymentStatus, error) {
 	return &domainProvider.NormalizedPaymentStatus{Status: "pending"}, nil
 }
-func (f *fakeProvider) ValidateWebhook(rawPayload []byte, signature string) error { return nil }
+func (f *fakeProvider) ValidateWebhook(rawPayload []byte, signature string, _ uuid.UUID) error {
+	return nil
+}
 func (f *fakeProvider) ParseWebhook(rawPayload []byte) (*domainProvider.ProviderWebhookPayload, error) {
 	return nil, nil
 }

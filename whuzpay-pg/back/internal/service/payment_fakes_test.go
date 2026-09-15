@@ -360,6 +360,10 @@ type fakeProvider struct {
 	statusErr  error
 
 	validateErr error
+	// validateFn, kalau non-nil, dipanggil sebagai ganti validateErr --
+	// dipakai test yang perlu memeriksa argumen (mis. merchantID) yang
+	// diterima ValidateWebhook, bukan cuma mengendalikan hasilnya.
+	validateFn func(rawPayload []byte, signature string, merchantID uuid.UUID) error
 
 	parseResp *domainProvider.ProviderWebhookPayload
 	parseErr  error
@@ -385,7 +389,7 @@ func (f *fakeProvider) CreatePayment(ctx context.Context, req *domainProvider.Pr
 	}, nil
 }
 
-func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference string) (*domainProvider.NormalizedPaymentStatus, error) {
+func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference string, _ uuid.UUID) (*domainProvider.NormalizedPaymentStatus, error) {
 	if f.statusErr != nil {
 		return nil, f.statusErr
 	}
@@ -396,7 +400,10 @@ func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference s
 	return &domainProvider.NormalizedPaymentStatus{Status: "pending", ProviderReference: providerReference}, nil
 }
 
-func (f *fakeProvider) ValidateWebhook(rawPayload []byte, signature string) error {
+func (f *fakeProvider) ValidateWebhook(rawPayload []byte, signature string, merchantID uuid.UUID) error {
+	if f.validateFn != nil {
+		return f.validateFn(rawPayload, signature, merchantID)
+	}
 	return f.validateErr
 }
 

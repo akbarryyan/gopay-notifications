@@ -204,11 +204,11 @@ func (f *fakeProvider) CreatePayment(ctx context.Context, req *domainProvider.Pr
 	}, nil
 }
 
-func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference string) (*domainProvider.NormalizedPaymentStatus, error) {
+func (f *fakeProvider) GetPaymentStatus(ctx context.Context, providerReference string, _ uuid.UUID) (*domainProvider.NormalizedPaymentStatus, error) {
 	return &domainProvider.NormalizedPaymentStatus{Status: payment.StatusPending, ProviderReference: providerReference}, nil
 }
 
-func (f *fakeProvider) ValidateWebhook(rawPayload []byte, signature string) error {
+func (f *fakeProvider) ValidateWebhook(rawPayload []byte, signature string, _ uuid.UUID) error {
 	return f.validateErr
 }
 

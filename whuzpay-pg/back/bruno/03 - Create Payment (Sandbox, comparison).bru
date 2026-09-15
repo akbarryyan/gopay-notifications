@@ -22,10 +22,9 @@ body:json {
   {
     "merchant_id": "{{merchant_id}}",
     "amount": 50000,
-    "description": "Bruno test - sandbox (never touches Cashi)",
+    "description": "Bruno test - sandbox (never touches gopay-notifications)",
     "payment_method": "qris",
-    "environment": "sandbox",
-    "use_custom_merchant_name": true
+    "environment": "sandbox"
   }
 }
 
@@ -37,10 +36,9 @@ tests {
 }
 
 docs {
-  Same body as request 02, only "environment" changed to sandbox.
-
-  Run this to see the contrast: provider_name comes back "sandbox", and
-  the backend log shows "Creating SANDBOX payment (mock provider, no
-  Cashi call)" instead — proving use_custom_merchant_name is silently a
-  no-op here, since sandbox never reaches Cashi at all.
+  Sama seperti request produksi (payment_method: qris), cuma "environment"
+  diganti sandbox. Run ini untuk melihat kontrasnya: provider_name balik
+  "sandbox", dan log backend menunjukkan "Creating SANDBOX payment (mock
+  provider, no gopay call)" -- sandbox tidak pernah menyentuh
+  gopay-notifications sama sekali.
 }

@@ -12,7 +12,7 @@ keseluruhan sistem (backend + frontend).
 - **Auth**: JWT (`golang-jwt/jwt/v5`), password hashing via `golang.org/x/crypto`
 - **Cache/Queue**: Redis (config sudah ada, belum dipakai — background job
   masih single-instance in-process ticker)
-- **Provider**: Cashi (real, production QRIS) + sandbox mock (in-process, tanpa network)
+- **Provider**: gopay-notifications (real, production QRIS) + sandbox mock (in-process, tanpa network)
 
 ## Project Structure
 
@@ -31,7 +31,7 @@ back/
 │   ├── service/           # Business logic (PaymentService, AuthService, dst)
 │   ├── repository/        # Akses data (query SQL manual)
 │   ├── provider/           # Adapter pattern provider eksternal
-│   │   ├── cashi/           # Adapter Cashi (HTTP real)
+│   │   ├── gopay/           # Adapter gopay-notifications (HTTP real)
 │   │   └── sandbox/         # Adapter mock in-memory
 │   ├── middleware/         # Auth (admin JWT, merchant JWT, API key), rate limiting
 │   └── scheduler/          # Background job periodik in-process
@@ -83,7 +83,7 @@ make db-create
 |---|---|
 | `APP_URL`, `FRONTEND_URL` | Wajib diisi — `config.Validate()` gagal start kalau kosong |
 | `JWT_SECRET` | Wajib diganti di production (`APP_ENV=production` menolak nilai default) |
-| `CASHI_API_KEY` / `CASHI_SECRET_KEY` | Wajib di production; sandbox merchant tidak butuh ini (mock, tanpa HTTP call) |
+| `GOPAY_BASE_URL` | Alamat gopay-notifications; kredensial (API key/webhook secret) per merchant, disimpan di `merchant_gopay_credentials`, bukan env var |
 | `DB_*` | Koneksi PostgreSQL |
 
 ## Arsitektur & Alur Request
@@ -98,7 +98,7 @@ Layering khas Go clean architecture, dependency injection **manual** di
 ```
 handler → service → repository → PostgreSQL
               │
-              └→ provider.ProviderRouter → (cashi | sandbox) adapter
+              └→ provider.ProviderRouter → (gopay | sandbox) adapter
 ```
 
 Contoh alur **create payment**:
@@ -219,9 +219,9 @@ Dijalankan sebagai goroutine ticker in-process di `main.go`
 
 ## Architecture Principles
 
-- Payment orchestration backend (bukan wrapper Cashi)
+- Payment orchestration backend (bukan wrapper gopay-notifications)
 - Provider-agnostic core system
-- Cashi hanyalah satu provider adapter
+- gopay hanyalah satu provider adapter
 - Semua logika spesifik provider diisolasi di adapter
 - Status payment dinormalisasi secara internal
 

@@ -16,7 +16,7 @@ import (
 const ProviderName = "sandbox"
 
 // Adapter is an in-process mock payment provider for merchant sandbox environment.
-// It never calls external networks (no Cashi HTTP).
+// It never calls external networks (no gopay HTTP).
 type Adapter struct {
 	mu     sync.RWMutex
 	orders map[string]*orderState
@@ -45,7 +45,7 @@ func (a *Adapter) CreatePayment(ctx context.Context, req *provider.ProviderPayme
 		return nil, fmt.Errorf("sandbox: amount must be at least 2000")
 	}
 
-	// Mirror Cashi-like unique amount suffix (1–99) without network
+	// Mirror gopay-like unique amount suffix (1–99) without network
 	unique := time.Now().UnixNano()%99 + 1
 	finalAmount := req.Amount + unique
 
@@ -87,12 +87,12 @@ func (a *Adapter) CreatePayment(ctx context.Context, req *provider.ProviderPayme
 			"sandbox":  true,
 			"order_id": ref,
 			"amount":   finalAmount,
-			"message":  "Sandbox payment — no real money and no Cashi call",
+			"message":  "Sandbox payment — no real money and no gopay call",
 		},
 	}, nil
 }
 
-func (a *Adapter) GetPaymentStatus(ctx context.Context, providerReference string) (*provider.NormalizedPaymentStatus, error) {
+func (a *Adapter) GetPaymentStatus(ctx context.Context, providerReference string, _ uuid.UUID) (*provider.NormalizedPaymentStatus, error) {
 	_ = ctx
 	a.mu.RLock()
 	st, ok := a.orders[providerReference]
@@ -138,10 +138,10 @@ func (a *Adapter) MarkPaid(providerReference string) bool {
 	return true
 }
 
-func (a *Adapter) ValidateWebhook(rawPayload []byte, signature string) error {
+func (a *Adapter) ValidateWebhook(rawPayload []byte, signature string, _ uuid.UUID) error {
 	_ = rawPayload
 	_ = signature
-	// Sandbox webhooks are not used from Cashi
+	// Sandbox webhooks are not used from gopay
 	return nil
 }
 

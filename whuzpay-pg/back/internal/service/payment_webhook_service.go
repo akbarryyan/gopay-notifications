@@ -38,12 +38,12 @@ func (s *PaymentService) ProcessWebhook(ctx context.Context, providerName string
 		return err
 	}
 
-	if err := selectedProvider.ValidateWebhook(rawPayload, signature); err != nil {
-		logger.ErrorfCtx(ctx, "Webhook validation failed: %v", err)
-		s.failWebhookEvent(ctx, event.ID, nil, "", "rejected", "rejected", payment.ErrWebhookValidationFailed)
-		return payment.ErrWebhookValidationFailed
-	}
-
+	// Parse dan cari payment DULU, validasi tanda tangan BELAKANGAN --
+	// beda dari urutan lama (validate lalu parse). Alasan: tiap merchant
+	// (gopay) punya webhook secret sendiri, cuma diketahui SETELAH payment
+	// (dan MerchantID-nya) ditemukan. Ini aman -- provider_reference yang
+	// dibaca di sini adalah referensi publik, bukan rahasia, dan tidak ada
+	// state yang berubah sebelum ValidateWebhook di bawah lulus.
 	webhookPayload, err := selectedProvider.ParseWebhook(rawPayload)
 	if err != nil {
 		if errors.Is(err, providerPkg.ErrTestWebhookEvent) {
@@ -63,6 +63,12 @@ func (s *PaymentService) ProcessWebhook(ctx context.Context, providerName string
 		logger.ErrorfCtx(ctx, "Payment not found for provider reference: %s", webhookPayload.ProviderReference)
 		s.failWebhookEvent(ctx, event.ID, nil, webhookPayload.ProviderReference, webhookEventType(webhookPayload.Status), webhookPayload.Status, err)
 		return err
+	}
+
+	if err := selectedProvider.ValidateWebhook(rawPayload, signature, p.MerchantID); err != nil {
+		logger.ErrorfCtx(ctx, "Webhook validation failed: %v", err)
+		s.failWebhookEvent(ctx, event.ID, &p.ID, webhookPayload.ProviderReference, "rejected", "rejected", payment.ErrWebhookValidationFailed)
+		return payment.ErrWebhookValidationFailed
 	}
 
 	if payment.IsTerminalStatus(p.Status) {

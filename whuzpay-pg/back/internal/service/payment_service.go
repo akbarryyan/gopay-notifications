@@ -95,22 +95,22 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req *payment.CreateP
 		err          error
 	)
 
-	// Sandbox never calls real providers (Cashi, etc.)
+	// Sandbox never calls real providers (gopay, etc.)
 	if env == payment.EnvironmentSandbox {
 		if s.sandboxProvider == nil {
 			return nil, fmt.Errorf("sandbox provider is not configured")
 		}
-		logger.InfofCtx(ctx, "Creating SANDBOX payment (mock provider, no Cashi call): %s", reference)
+		logger.InfofCtx(ctx, "Creating SANDBOX payment (mock provider, no gopay call): %s", reference)
 		providerReq := &provider.ProviderPaymentRequest{
-			InternalReference:     reference,
-			Amount:                req.Amount,
-			Currency:              req.Currency,
-			Description:           req.Description,
-			CustomerName:          req.CustomerName,
-			CustomerEmail:         req.CustomerEmail,
-			ExpiresAt:             expiresAt,
-			CallbackURL:           s.buildCallbackURL(s.sandboxProvider.GetName()),
-			UseCustomMerchantName: req.UseCustomMerchantName,
+			InternalReference: reference,
+			Amount:            req.Amount,
+			Currency:          req.Currency,
+			Description:       req.Description,
+			CustomerName:      req.CustomerName,
+			CustomerEmail:     req.CustomerEmail,
+			ExpiresAt:         expiresAt,
+			CallbackURL:       s.buildCallbackURL(s.sandboxProvider.GetName()),
+			MerchantID:        req.MerchantID,
 		}
 		providerResp, err = s.sandboxProvider.CreatePayment(ctx, providerReq)
 		if err != nil {
@@ -129,35 +129,21 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req *payment.CreateP
 				continue
 			}
 			providerReq := &provider.ProviderPaymentRequest{
-				InternalReference:     reference,
-				Amount:                req.Amount,
-				Currency:              req.Currency,
-				Description:           req.Description,
-				CustomerName:          req.CustomerName,
-				CustomerEmail:         req.CustomerEmail,
-				ExpiresAt:             expiresAt,
-				CallbackURL:           s.buildCallbackURL(selectedProvider.GetName()),
-				UseCustomMerchantName: req.UseCustomMerchantName,
+				InternalReference: reference,
+				Amount:            req.Amount,
+				Currency:          req.Currency,
+				Description:       req.Description,
+				CustomerName:      req.CustomerName,
+				CustomerEmail:     req.CustomerEmail,
+				ExpiresAt:         expiresAt,
+				CallbackURL:       s.buildCallbackURL(selectedProvider.GetName()),
+				MerchantID:        req.MerchantID,
 			}
 
 			logger.InfofCtx(ctx, "Creating PRODUCTION payment with provider: %s", selectedProvider.GetName())
 
 			providerResp, err = selectedProvider.CreatePayment(ctx, providerReq)
 			if err == nil {
-				if req.UseCustomMerchantName {
-					// Confirms whether the provider actually honored the
-					// custom-merchant-name request (e.g. Cashi silently
-					// falls back to its default name if QRIS Custom isn't
-					// enabled on that account yet — see
-					// docs/cashi-qris-custom.md). This is otherwise
-					// invisible: RawResponse isn't persisted or returned
-					// to the API caller.
-					logger.InfofCtx(ctx,
-						"Provider %s custom-merchant-name request for %s: is_qris_custom=%v expected_net=%v",
-						selectedProvider.GetName(), reference,
-						providerResp.RawResponse["is_qris_custom"], providerResp.RawResponse["expected_net"],
-					)
-				}
 				break
 			}
 
@@ -302,7 +288,7 @@ func (s *PaymentService) reconcilePaymentData(ctx context.Context, p *payment.Pa
 
 	logger.InfofCtx(ctx, "Reconciling payment %s with provider %s ref %s", p.Reference, p.ProviderName, *p.ProviderReference)
 
-	providerStatus, err := selectedProvider.GetPaymentStatus(ctx, *p.ProviderReference)
+	providerStatus, err := selectedProvider.GetPaymentStatus(ctx, *p.ProviderReference, p.MerchantID)
 	if err != nil {
 		logger.WarnfCtx(ctx, "Failed to check provider status for %s: %v", p.Reference, err)
 		// Fall back: if past expiry, expire locally even if provider check failed.

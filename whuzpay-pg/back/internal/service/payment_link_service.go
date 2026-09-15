@@ -32,7 +32,7 @@ func NewPaymentLinkService(linkRepo paymentLinkRepository, paymentRepo paymentRe
 	}
 }
 
-// CreateLink is a pure DB write — no provider/Cashi call happens here.
+// CreateLink is a pure DB write — no provider/gopay call happens here.
 // QRIS is only valid ~10 minutes, so pre-generating one for a reusable link
 // would be useless; the actual charge only happens at InitiateCheckout.
 func (s *PaymentLinkService) CreateLink(ctx context.Context, req *paymentlink.CreatePaymentLinkRequest) (*paymentlink.PaymentLink, error) {

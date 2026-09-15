@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainProvider "github.com/akbarryyan/pg-aggregator-back/internal/domain/provider"
+	"github.com/google/uuid"
 )
 
 type PaymentProvider interface {
@@ -15,9 +16,17 @@ type PaymentProvider interface {
 
 	CreatePayment(ctx context.Context, req *domainProvider.ProviderPaymentRequest) (*domainProvider.ProviderPaymentResponse, error)
 
-	GetPaymentStatus(ctx context.Context, providerReference string) (*domainProvider.NormalizedPaymentStatus, error)
+	// GetPaymentStatus butuh merchantID karena tiap merchant punya
+	// kredensial gopay-notifications sendiri (beda dari Cashi yang satu
+	// kredensial global) -- adapter yang mengimplementasikan ini mencari
+	// kredensial merchant tersebut secara internal.
+	GetPaymentStatus(ctx context.Context, providerReference string, merchantID uuid.UUID) (*domainProvider.NormalizedPaymentStatus, error)
 
-	ValidateWebhook(rawPayload []byte, signature string) error
+	// ValidateWebhook butuh merchantID untuk alasan yang sama --
+	// pemanggil (PaymentService.ProcessWebhook) WAJIB memanggil ini
+	// SETELAH ParseWebhook + pencarian payment (bukan sebelumnya seperti
+	// versi lama), supaya merchantID pemilik payment sudah diketahui.
+	ValidateWebhook(rawPayload []byte, signature string, merchantID uuid.UUID) error
 
 	ParseWebhook(rawPayload []byte) (*domainProvider.ProviderWebhookPayload, error)
 

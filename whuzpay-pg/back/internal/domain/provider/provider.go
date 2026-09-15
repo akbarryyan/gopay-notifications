@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ProviderCashi    = "cashi"
+	ProviderGopay    = "gopay"
 	ProviderMidtrans = "midtrans"
 	ProviderXendit   = "xendit"
 	ProviderDuitku   = "duitku"
@@ -28,12 +28,11 @@ type ProviderPaymentRequest struct {
 	CustomerEmail     *string
 	ExpiresAt         time.Time
 	CallbackURL       string
-	// UseCustomMerchantName requests that the provider display the
-	// merchant's custom name on the payment QR/page instead of its
-	// default account name, where supported (e.g. Cashi's QRIS Custom —
-	// see docs/cashi-qris-custom.md). Providers that don't support this
-	// silently ignore it.
-	UseCustomMerchantName bool
+	// MerchantID dipakai adapter yang butuh kredensial per merchant
+	// (mis. gopay) untuk mencari API key merchant ini. Adapter dengan
+	// kredensial global (tidak ada lagi sejak Cashi dihapus, tapi pola
+	// ini dipertahankan untuk provider masa depan) boleh mengabaikannya.
+	MerchantID uuid.UUID
 }
 
 type ProviderPaymentResponse struct {
