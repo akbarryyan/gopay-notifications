@@ -1,0 +1,24 @@
+[Unit]
+Description=WhuzPay Payment Gateway Aggregator frontend (Next.js)
+After=network.target whuzpay-pg-backend.service
+
+[Service]
+Type=simple
+User=whuzpay-pg
+Group=whuzpay-pg
+WorkingDirectory=/opt/whuzpay-pg/front
+Environment=NODE_ENV=production
+Environment=PORT=3020
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/whuzpay-pg/front
+
+[Install]
+WantedBy=multi-user.target

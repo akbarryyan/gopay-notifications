@@ -1,0 +1,23 @@
+[Unit]
+Description=WhuzPay Payment Gateway Aggregator API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=whuzpay-pg
+Group=whuzpay-pg
+WorkingDirectory=/opt/whuzpay-pg
+EnvironmentFile=/opt/whuzpay-pg/.env
+ExecStart=/opt/whuzpay-pg/server
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/whuzpay-pg
+
+[Install]
+WantedBy=multi-user.target

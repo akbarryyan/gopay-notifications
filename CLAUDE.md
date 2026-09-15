@@ -174,6 +174,19 @@ ke sana dan sebutkan bagian mana yang perlu dijalankan (U1 backend, U2
 dashboard, U3 vendor-dashboard, U5 bila ada env var baru) sesuai perubahan
 yang di-push.
 
+**`whuzpay-pg/` (payment gateway aggregator, provider "gopay" memanggil
+backend gopay-notifications di atas) dideploy ke VPS yang SAMA**, domain
+`pg.whuzpay.com`, port backend `8082`/frontend `3020`, database Postgres
+terpisah (`pg_aggregator`, role `whuzpay_pg` — bukan `gopay`). Panduan
+lengkap (setup awal + update rutin) ada di
+[`whuzpay-pg/deploy/README.md`](whuzpay-pg/deploy/README.md), terpisah
+dari `backend/deploy/README.md` karena ini produk/repo Go yang berbeda
+(module `pg-aggregator-back`, bukan bagian dari `backend/`).
+`GOPAY_BASE_URL` di `.env` whuzpay-pg produksi diisi
+`http://127.0.0.1:8080` (loopback ke backend gopay-notifications yang
+sama, bukan `https://whuzpay.com` publik) — satu mesin, tidak perlu
+round-trip keluar.
+
 ### Backend
 
 ```bash
