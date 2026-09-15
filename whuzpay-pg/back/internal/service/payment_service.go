@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/payment"
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/provider"
 	providerPkg "github.com/akbarryyan/pg-aggregator-back/internal/provider"
+	"github.com/akbarryyan/pg-aggregator-back/internal/repository"
 	"github.com/akbarryyan/pg-aggregator-back/pkg/logger"
 	"github.com/google/uuid"
 )
@@ -19,6 +21,7 @@ type PaymentService struct {
 	merchantProviderConfigRepo merchantProviderConfigRepository
 	webhookEventRepo           webhookEventRepository
 	callbackRepo               merchantCallbackRepository
+	gopayCredentialsRepo       gopayCredentialsRepository
 	providerRouter             *providerPkg.ProviderRouter
 	sandboxProvider            providerPkg.PaymentProvider
 	appBaseURL                 string
@@ -59,6 +62,33 @@ func (s *PaymentService) WithMerchantCallbackDeps(
 func (s *PaymentService) WithSandboxProvider(p providerPkg.PaymentProvider) *PaymentService {
 	s.sandboxProvider = p
 	return s
+}
+
+// WithGopayCredentialsRepo wires per-merchant gopay-notifications
+// credential storage -- dipakai halaman Settings merchant (lihat
+// MerchantHandler.GetGopayCredentials/UpdateGopayCredentials).
+func (s *PaymentService) WithGopayCredentialsRepo(repo gopayCredentialsRepository) *PaymentService {
+	s.gopayCredentialsRepo = repo
+	return s
+}
+
+// GetGopayCredentialsStatus TIDAK PERNAH mengembalikan nilai kredensial
+// asli -- cuma status terisi/tidak, pola sama smtp_password_set gopay-notifications.
+func (s *PaymentService) GetGopayCredentialsStatus(ctx context.Context, merchantID uuid.UUID) (apiKeySet, webhookSecretSet bool, err error) {
+	creds, err := s.gopayCredentialsRepo.Get(ctx, merchantID)
+	if errors.Is(err, repository.ErrGopayCredentialsNotFound) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	return creds.APIKey != nil && *creds.APIKey != "", creds.WebhookSecret != nil && *creds.WebhookSecret != "", nil
+}
+
+// UpdateGopayCredentials -- tri-state per field: nil = biarkan, ""=hapus,
+// isi=ganti (pola sama NotificationSettings gopay-notifications).
+func (s *PaymentService) UpdateGopayCredentials(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret *string) error {
+	return s.gopayCredentialsRepo.Upsert(ctx, merchantID, apiKey, webhookSecret)
 }
 
 func (s *PaymentService) CreatePayment(ctx context.Context, req *payment.CreatePaymentRequest) (*payment.Payment, error) {

@@ -65,7 +65,8 @@ func main() {
 
 	paymentService := service.NewPaymentService(paymentRepo, merchantProviderConfigRepo, webhookEventRepo, providerRouter, cfg.App.URL).
 		WithMerchantCallbackDeps(merchantRepo, callbackRepo).
-		WithSandboxProvider(sandboxAdapter)
+		WithSandboxProvider(sandboxAdapter).
+		WithGopayCredentialsRepo(gopayCredsRepo)
 	paymentLinkService := service.NewPaymentLinkService(paymentLinkRepo, paymentRepo, paymentService)
 	authService := service.NewAuthService(adminRepo, cfg.Security.JWTSecret).
 		WithMerchantAuth(merchantUserRepo, merchantRepo)
@@ -284,6 +285,8 @@ func setupRouter(
 	merchantDash.HandleFunc("/business", merchantHandler.UpdateBusiness).Methods("PUT")
 	merchantDash.HandleFunc("/webhook-secret", merchantHandler.GetWebhookSecret).Methods("GET")
 	merchantDash.Handle("/webhook-secret/regenerate", sensitiveRateLimiter.Limit(http.HandlerFunc(merchantHandler.RegenerateWebhookSecret))).Methods("POST")
+	merchantDash.HandleFunc("/gopay-credentials", merchantHandler.GetGopayCredentials).Methods("GET")
+	merchantDash.Handle("/gopay-credentials", sensitiveRateLimiter.Limit(http.HandlerFunc(merchantHandler.UpdateGopayCredentials))).Methods("PUT")
 	merchantDash.HandleFunc("/payment-links", paymentLinkHandler.ListPaymentLinks).Methods("GET")
 	merchantDash.HandleFunc("/payment-links", paymentLinkHandler.CreatePaymentLink).Methods("POST")
 	merchantDash.HandleFunc("/payment-links/{id}", paymentLinkHandler.GetPaymentLink).Methods("GET")

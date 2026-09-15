@@ -466,3 +466,62 @@ func (h *MerchantHandler) RegenerateWebhookSecret(w http.ResponseWriter, r *http
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"webhook_secret": secret})
 }
+
+type gopayCredentialsStatusResponse struct {
+	APIKeyConfigured        bool `json:"api_key_configured"`
+	WebhookSecretConfigured bool `json:"webhook_secret_configured"`
+}
+
+// GetGopayCredentials mengembalikan status saja -- tidak pernah nilai
+// aslinya (beda dari GetWebhookSecret di atas, yang boleh ditampilkan
+// balik karena generated-by-us; ini kredensial gopay-notifications MILIK
+// PIHAK LAIN yang di-paste merchant, jadi jangan pernah dikembalikan).
+func (h *MerchantHandler) GetGopayCredentials(w http.ResponseWriter, r *http.Request) {
+	merchantID, ok := middleware.MerchantIDFromContext(r.Context())
+	if !ok {
+		respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	apiKeySet, webhookSet, err := h.paymentService.GetGopayCredentialsStatus(r.Context(), merchantID)
+	if err != nil {
+		logger.ErrorfCtx(r.Context(), "Failed to get gopay credentials status for merchant %s: %v", merchantID, err)
+		respondError(w, http.StatusInternalServerError, "Failed to load gopay credentials")
+		return
+	}
+	respondJSON(w, http.StatusOK, gopayCredentialsStatusResponse{
+		APIKeyConfigured: apiKeySet, WebhookSecretConfigured: webhookSet,
+	})
+}
+
+type updateGopayCredentialsRequest struct {
+	APIKey        *string `json:"api_key"`
+	WebhookSecret *string `json:"webhook_secret"`
+}
+
+// UpdateGopayCredentials -- tri-state: field absen di JSON (nil setelah
+// decode) berarti biarkan, "" berarti hapus, isi berarti ganti.
+func (h *MerchantHandler) UpdateGopayCredentials(w http.ResponseWriter, r *http.Request) {
+	merchantID, ok := middleware.MerchantIDFromContext(r.Context())
+	if !ok {
+		respondError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	var req updateGopayCredentialsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if err := h.paymentService.UpdateGopayCredentials(r.Context(), merchantID, req.APIKey, req.WebhookSecret); err != nil {
+		logger.ErrorfCtx(r.Context(), "Failed to update gopay credentials for merchant %s: %v", merchantID, err)
+		respondError(w, http.StatusInternalServerError, "Failed to update gopay credentials")
+		return
+	}
+	apiKeySet, webhookSet, err := h.paymentService.GetGopayCredentialsStatus(r.Context(), merchantID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to load gopay credentials")
+		return
+	}
+	respondJSON(w, http.StatusOK, gopayCredentialsStatusResponse{
+		APIKeyConfigured: apiKeySet, WebhookSecretConfigured: webhookSet,
+	})
+}

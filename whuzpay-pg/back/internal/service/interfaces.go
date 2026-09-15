@@ -54,6 +54,16 @@ type webhookEventRepository interface {
 	) error
 }
 
+// gopayCredentialsRepository -- dipakai halaman Settings merchant (lihat
+// PaymentService.GetGopayCredentialsStatus/UpdateGopayCredentials dan
+// MerchantHandler.GetGopayCredentials/UpdateGopayCredentials). Instance
+// yang sama (*repository.MerchantGopayCredentialsRepository) juga dipakai
+// internal/provider/gopay.Adapter untuk memanggil API gopay-notifications.
+type gopayCredentialsRepository interface {
+	Get(ctx context.Context, merchantID uuid.UUID) (*repository.GopayCredentials, error)
+	Upsert(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret *string) error
+}
+
 type merchantRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*merchant.Merchant, error)
 	SetWebhookSecret(ctx context.Context, id uuid.UUID, secret string) error

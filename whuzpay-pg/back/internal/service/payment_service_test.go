@@ -7,6 +7,7 @@ import (
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/payment"
 	domainProvider "github.com/akbarryyan/pg-aggregator-back/internal/domain/provider"
 	providerPkg "github.com/akbarryyan/pg-aggregator-back/internal/provider"
+	"github.com/akbarryyan/pg-aggregator-back/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -209,5 +210,74 @@ func TestCreatePayment_ValidationErrorDoesNotPersist(t *testing.T) {
 	}
 	if len(paymentRepo.byID) != 0 {
 		t.Errorf("expected no payment to be persisted on validation failure")
+	}
+}
+
+type fakeGopayCredsRepo struct {
+	creds map[uuid.UUID]*repository.GopayCredentials
+}
+
+func newFakeGopayCredsRepo() *fakeGopayCredsRepo {
+	return &fakeGopayCredsRepo{creds: map[uuid.UUID]*repository.GopayCredentials{}}
+}
+
+func (f *fakeGopayCredsRepo) Get(ctx context.Context, merchantID uuid.UUID) (*repository.GopayCredentials, error) {
+	c, ok := f.creds[merchantID]
+	if !ok {
+		return nil, repository.ErrGopayCredentialsNotFound
+	}
+	return c, nil
+}
+
+func (f *fakeGopayCredsRepo) Upsert(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret *string) error {
+	existing, ok := f.creds[merchantID]
+	if !ok {
+		existing = &repository.GopayCredentials{MerchantID: merchantID}
+	}
+	if apiKey != nil {
+		existing.APIKey = apiKey
+	}
+	if webhookSecret != nil {
+		existing.WebhookSecret = webhookSecret
+	}
+	f.creds[merchantID] = existing
+	return nil
+}
+
+func TestGetGopayCredentialsStatus_BelumDiatur(t *testing.T) {
+	svc, _, _, _ := newTestPaymentService()
+	svc.WithGopayCredentialsRepo(newFakeGopayCredsRepo())
+
+	apiKeySet, webhookSet, err := svc.GetGopayCredentialsStatus(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("GetGopayCredentialsStatus: %v", err)
+	}
+	if apiKeySet || webhookSet {
+		t.Errorf("apiKeySet=%v webhookSet=%v, want false false", apiKeySet, webhookSet)
+	}
+}
+
+func TestUpdateGopayCredentials_LaluGetStatus(t *testing.T) {
+	svc, _, _, _ := newTestPaymentService()
+	repo := newFakeGopayCredsRepo()
+	svc.WithGopayCredentialsRepo(repo)
+	merchantID := uuid.New()
+
+	apiKey := "sk_test"
+	if err := svc.UpdateGopayCredentials(context.Background(), merchantID, &apiKey, nil); err != nil {
+		t.Fatalf("UpdateGopayCredentials (api key saja): %v", err)
+	}
+	apiKeySet, webhookSet, _ := svc.GetGopayCredentialsStatus(context.Background(), merchantID)
+	if !apiKeySet || webhookSet {
+		t.Errorf("apiKeySet=%v webhookSet=%v, want true false (baru isi api key)", apiKeySet, webhookSet)
+	}
+
+	secret := "whsec_test"
+	if err := svc.UpdateGopayCredentials(context.Background(), merchantID, nil, &secret); err != nil {
+		t.Fatalf("UpdateGopayCredentials (webhook secret): %v", err)
+	}
+	apiKeySet, webhookSet, _ = svc.GetGopayCredentialsStatus(context.Background(), merchantID)
+	if !apiKeySet || !webhookSet {
+		t.Errorf("apiKeySet=%v webhookSet=%v, want true true (dua-duanya sudah diisi)", apiKeySet, webhookSet)
 	}
 }
