@@ -9,14 +9,16 @@ import (
 
 // Jenis aktivitas di account_activity_log.action.
 const (
-	ActivityLoginSuccess    = "login_success"
-	ActivityLoginFailed     = "login_failed"
-	ActivityPasswordChanged = "password_changed"
-	ActivityPasswordReset   = "password_reset"
-	ActivityAPIKeyCreated   = "api_key_created"
-	ActivityAPIKeyRevoked   = "api_key_revoked"
-	ActivityDeviceAdded     = "device_added"
-	ActivityDeviceDeleted   = "device_deleted"
+	ActivityLoginSuccess     = "login_success"
+	ActivityLoginFailed      = "login_failed"
+	ActivityPasswordChanged  = "password_changed"
+	ActivityPasswordReset    = "password_reset"
+	ActivityAPIKeyCreated    = "api_key_created"
+	ActivityAPIKeyRevoked    = "api_key_revoked"
+	ActivityDeviceAdded      = "device_added"
+	ActivityDeviceDeleted    = "device_deleted"
+	ActivityQRISImageUpdated = "qris_image_updated"
+	ActivityQRISImageRemoved = "qris_image_removed"
 )
 
 // ActivityLogEntry adalah satu kejadian untuk dicatat.
