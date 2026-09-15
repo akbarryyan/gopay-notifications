@@ -132,8 +132,14 @@ export default function MerchantPaymentsPage() {
   async function handleQuickCreate() {
     setCreating(true);
     try {
+      // Production goes through the real gopay-notifications provider, which
+      // adds a random 1-999 "unique nominal" on top of this base amount to
+      // tell payments apart — so 1 here caps the actual payable amount at
+      // Rp 1.000, safe to pay with pocket change while testing.
+      // Sandbox is a mock adapter that enforces its own Rp 2.000 floor.
+      const amount = environment === "production" ? 1 : 2000;
       const p = await createMerchantPayment({
-        amount: 15000,
+        amount,
         description: "Quick test payment from dashboard",
         payment_method: "qris",
         environment,
