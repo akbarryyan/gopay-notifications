@@ -87,6 +87,9 @@ type accountProfileJSON struct {
 	// EmailVerified: pengingat untuk memverifikasi, bukan gerbang -- account
 	// tetap berfungsi penuh selama belum diverifikasi.
 	EmailVerified bool `json:"email_verified"`
+	// QRISImageConfigured: false berarti POST /invoices akan ditolak
+	// 409 qris_not_configured sampai account ini upload QRIS di Settings.
+	QRISImageConfigured bool `json:"qris_image_configured"`
 }
 
 // handleAdminGetAccount melayani halaman Settings Customer Dashboard.
@@ -108,9 +111,16 @@ func (a *API) handleAdminGetAccount(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
 		return
 	}
+	hasQRIS, err := a.store.HasQRISImage(r.Context(), accountID)
+	if err != nil {
+		slog.Error("cek qris image gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "account": accountProfileJSON{
 		Username: acc.Username, BusinessName: acc.BusinessName, Email: acc.Email, TelegramChatID: acc.TelegramChatID,
 		TelegramAvailable: settings.TelegramBotToken != "", EmailVerified: acc.EmailVerifiedAt != nil,
+		QRISImageConfigured: hasQRIS,
 	}})
 }
 

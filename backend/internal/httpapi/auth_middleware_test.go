@@ -76,7 +76,7 @@ func newTestStore(t *testing.T) *store.Store {
 	t.Cleanup(s.Close)
 
 	if _, err := s.Pool().Exec(ctx,
-		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log, notification_settings, notification_log, password_reset_tokens, telegram_link_codes, email_verification_tokens, account_activity_log, plans RESTART IDENTITY CASCADE"); err != nil {
+		"TRUNCATE notification_events, event_reviews, invoices, api_keys, webhook_deliveries, webhook_endpoints, devices, accounts, vendor_admins, audit_log, notification_settings, notification_log, password_reset_tokens, telegram_link_codes, email_verification_tokens, account_activity_log, plans, account_qris_images RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	seedDefaultPlans(t, s)

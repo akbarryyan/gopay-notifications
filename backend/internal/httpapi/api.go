@@ -131,6 +131,9 @@ func (a *API) Handler() http.Handler {
 	mux.Handle("GET /api/v1/admin/activity", a.requireAdmin(http.HandlerFunc(a.handleAdminActivityLog)))
 	mux.Handle("POST /api/v1/admin/account/telegram", a.requireAdmin(http.HandlerFunc(a.handleAdminSetTelegram)))
 	mux.Handle("POST /api/v1/admin/account/telegram/link", a.requireAdmin(http.HandlerFunc(a.handleAdminTelegramLink)))
+	mux.Handle("PUT /api/v1/admin/account/qris-image", a.requireAdmin(http.HandlerFunc(a.handleAdminUploadQRISImage)))
+	mux.Handle("GET /api/v1/admin/account/qris-image", a.requireAdmin(http.HandlerFunc(a.handleAdminGetQRISImage)))
+	mux.Handle("DELETE /api/v1/admin/account/qris-image", a.requireAdmin(http.HandlerFunc(a.handleAdminDeleteQRISImage)))
 	mux.Handle("GET /api/v1/admin/overview",
 		a.requireAdmin(a.requireActiveAccount(http.HandlerFunc(a.handleAdminOverview))))
 	mux.Handle("GET /api/v1/admin/devices",
