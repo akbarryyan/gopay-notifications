@@ -156,6 +156,16 @@ func (a *Adapter) ParseWebhook(rawPayload []byte) (*domainProvider.ProviderWebho
 		return nil, fmt.Errorf("gopay: decode webhook payload: %w", err)
 	}
 
+	// Tombol "Test" di halaman Webhooks gopay-notifications mengirim
+	// {"event":"test","invoice":null,...} untuk mengecek konektivitas --
+	// bukan event pembayaran sungguhan, jadi tidak punya invoice untuk
+	// dicocokkan. Tanpa pengecekan ini, GetByProviderReference("") di
+	// pemanggil (ProcessWebhook) selalu gagal "not found" dan test button
+	// selalu menjawab gagal walau endpoint+secret sudah benar.
+	if wh.Event == "test" {
+		return nil, providerPkg.ErrTestWebhookEvent
+	}
+
 	var paidAt *time.Time
 	if wh.Invoice.PaidAt != nil {
 		t, err := time.Parse(time.RFC3339, *wh.Invoice.PaidAt)

@@ -3,6 +3,7 @@ package gopay
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -167,6 +168,16 @@ func TestParseWebhook(t *testing.T) {
 	}
 	if out.Status != "paid" {
 		t.Errorf("Status = %q, want paid", out.Status)
+	}
+}
+
+func TestParseWebhook_TestEventIgnored(t *testing.T) {
+	adapter := NewAdapter("http://unused.invalid", &fakeCredsRepo{})
+	payload := []byte(`{"event":"test","invoice":null,"sent_at":"2026-09-15T09:36:00Z"}`)
+
+	_, err := adapter.ParseWebhook(payload)
+	if !errors.Is(err, providerPkg.ErrTestWebhookEvent) {
+		t.Fatalf("ParseWebhook error = %v, want providerPkg.ErrTestWebhookEvent", err)
 	}
 }
 
