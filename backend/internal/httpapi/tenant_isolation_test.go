@@ -50,6 +50,13 @@ func newAPITwoAccounts(t *testing.T) twoAccountsFixture {
 		t.Fatalf("create device b: %v", err)
 	}
 
+	if err := s.UpsertQRISImage(ctx, "acc_a", []byte{0x89, 0x50, 0x4E, 0x47}, "image/png"); err != nil {
+		t.Fatalf("upsert qris image a: %v", err)
+	}
+	if err := s.UpsertQRISImage(ctx, "acc_b", []byte{0x89, 0x50, 0x4E, 0x47}, "image/png"); err != nil {
+		t.Fatalf("upsert qris image b: %v", err)
+	}
+
 	keyIDA, _ := store.NewAPIKeyID()
 	rawKeyA, hashA, _ := store.GenerateAPIKeySecret()
 	if err := s.CreateAPIKey(ctx, "acc_a", keyIDA, "Key A", hashA); err != nil {

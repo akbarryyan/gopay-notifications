@@ -33,6 +33,9 @@ func newAPIWithAdminAndAPIKey(t *testing.T) (http.Handler, string) {
 	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
 	}
+	if err := s.UpsertQRISImage(ctx, "acc_1", []byte{0x89, 0x50, 0x4E, 0x47}, "image/png"); err != nil {
+		t.Fatalf("UpsertQRISImage: %v", err)
+	}
 
 	keyID, err := store.NewAPIKeyID()
 	if err != nil {

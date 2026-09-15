@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -25,6 +26,10 @@ type invoiceJSON struct {
 	CreatedAt       string  `json:"created_at"`
 	ExpiresAt       string  `json:"expires_at"`
 	PaidAt          *string `json:"paid_at"`
+	// QrisImage HANYA terisi di response POST /invoices (create) -- lihat
+	// handleCreateInvoice. GET /invoices/{id} (polling) sengaja tidak
+	// mengisi ini, sudah didapat sekali dari response create.
+	QrisImage *string `json:"qris_image,omitempty"`
 }
 
 func toInvoiceJSON(inv store.Invoice) invoiceJSON {
@@ -63,6 +68,21 @@ func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Gerbang sebelum invoice dibuat sama sekali -- invoice tanpa cara bayar
+	// tidak berguna buat integrator (lihat spec
+	// docs/superpowers/specs/2026-09-15-account-qris-image-design.md §3.3).
+	img, err := a.store.GetQRISImage(r.Context(), accountID)
+	if errors.Is(err, store.ErrQRISImageNotFound) {
+		a.writeError(w, http.StatusConflict, "qris_not_configured",
+			"QRIS belum diatur -- upload di halaman Settings dulu")
+		return
+	}
+	if err != nil {
+		slog.Error("ambil qris image gagal", "err", err)
+		a.writeError(w, http.StatusInternalServerError, "internal", "kesalahan internal")
+		return
+	}
+
 	inv, created, err := a.store.CreateInvoice(r.Context(), a.now(), accountID, req.ExternalRef, req.Amount)
 	switch {
 	case errors.Is(err, store.ErrInvoiceRefConflict):
@@ -83,7 +103,10 @@ func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, toInvoiceJSON(inv))
+	out := toInvoiceJSON(inv)
+	dataURI := "data:" + img.ContentType + ";base64," + base64.StdEncoding.EncodeToString(img.ImageData)
+	out.QrisImage = &dataURI
+	writeJSON(w, status, out)
 }
 
 // handleGetInvoice dipakai merchant untuk polling status sebelum webhook

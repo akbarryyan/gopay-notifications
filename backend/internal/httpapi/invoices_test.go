@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,11 @@ func newAPIWithAPIKey(t *testing.T) (http.Handler, string) {
 	seedActiveAccount(t, s, "acc_1")
 	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
 		t.Fatalf("CreateDevice: %v", err)
+	}
+	// QRIS wajib ada sebelum POST /invoices bisa berhasil -- lihat
+	// TestCreateInvoiceGagalTanpaQRISImage untuk test kasus sebaliknya.
+	if err := s.UpsertQRISImage(ctx, "acc_1", []byte{0x89, 0x50, 0x4E, 0x47}, "image/png"); err != nil {
+		t.Fatalf("UpsertQRISImage: %v", err)
 	}
 
 	id, err := store.NewAPIKeyID()
@@ -211,5 +217,126 @@ func TestInvoiceCocokLewatCallback(t *testing.T) {
 	}
 	if got.MatchedEventID == nil || *got.MatchedEventID != "evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c" {
 		t.Fatalf("MatchedEventID = %v, mau evt_3f9a2c8b1d4e5f6a7b8c9d0e1f2a3b4c", got.MatchedEventID)
+	}
+}
+
+func TestCreateInvoiceGagalTanpaQRISImage(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+	id, _ := store.NewAPIKeyID()
+	rawKey, hash, _ := store.GenerateAPIKeySecret()
+	if err := s.CreateAPIKey(ctx, "acc_1", id, "Website utama", hash); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(), func() time.Time { return fixedNow }).Handler()
+
+	rec := createInvoiceReq(t, h, rawKey, "ORDER-NOQRIS", 50000)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, mau 409 (body=%s)", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Error string `json:"error"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &errBody)
+	if errBody.Error != "qris_not_configured" {
+		t.Fatalf("error = %q, mau qris_not_configured", errBody.Error)
+	}
+}
+
+func TestCreateInvoiceGagalTanpaQRISImageTidakMenyimpanApaPun(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+	id, _ := store.NewAPIKeyID()
+	rawKey, hash, _ := store.GenerateAPIKeySecret()
+	if err := s.CreateAPIKey(ctx, "acc_1", id, "Website utama", hash); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(), func() time.Time { return fixedNow }).Handler()
+
+	createInvoiceReq(t, h, rawKey, "ORDER-NOQRIS-2", 50000)
+
+	invoices, err := s.ListInvoices(ctx, "acc_1", 10, 0, store.InvoiceFilter{})
+	if err != nil {
+		t.Fatalf("ListInvoices: %v", err)
+	}
+	if len(invoices) != 0 {
+		t.Fatalf("invoices = %+v, mau kosong -- gagal 409 tidak boleh menyimpan invoice", invoices)
+	}
+}
+
+func TestCreateInvoiceMenyertakanQRISImage(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+	id, _ := store.NewAPIKeyID()
+	rawKey, hash, _ := store.GenerateAPIKeySecret()
+	if err := s.CreateAPIKey(ctx, "acc_1", id, "Website utama", hash); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	png := []byte{0x89, 0x50, 0x4E, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	if err := s.UpsertQRISImage(ctx, "acc_1", png, "image/png"); err != nil {
+		t.Fatalf("UpsertQRISImage: %v", err)
+	}
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(), func() time.Time { return fixedNow }).Handler()
+
+	rec := createInvoiceReq(t, h, rawKey, "ORDER-QRIS", 50000)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, mau 201 (body=%s)", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		QRISImage *string `json:"qris_image"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &body)
+	if body.QRISImage == nil || !strings.HasPrefix(*body.QRISImage, "data:image/png;base64,") {
+		t.Fatalf("qris_image = %v, mau data URI image/png", body.QRISImage)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(*body.QRISImage, "data:image/png;base64,"))
+	if err != nil || string(decoded) != string(png) {
+		t.Fatalf("qris_image tidak decode balik ke byte yang sama dengan yang di-upload")
+	}
+}
+
+func TestGetInvoiceTidakMenyertakanQRISImage(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedActiveAccount(t, s, "acc_1")
+	if err := s.CreateDevice(ctx, encKey(), "acc_1", "dev_01ABC", "HP Test", []byte(testSecret)); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+	id, _ := store.NewAPIKeyID()
+	rawKey, hash, _ := store.GenerateAPIKeySecret()
+	if err := s.CreateAPIKey(ctx, "acc_1", id, "Website utama", hash); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	if err := s.UpsertQRISImage(ctx, "acc_1", []byte("x"), "image/png"); err != nil {
+		t.Fatalf("UpsertQRISImage: %v", err)
+	}
+	h := httpapi.New(s, encKey(), adminSessionKey(), webhookSecretKey(), vendorSessionKey(), settingsSecretKey(), func() time.Time { return fixedNow }).Handler()
+
+	created := createInvoiceReq(t, h, rawKey, "ORDER-POLL", 50000)
+	inv := decodeInvoice(t, created)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/invoices/"+inv.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+rawKey)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	var body struct {
+		QRISImage *string `json:"qris_image"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &body)
+	if body.QRISImage != nil {
+		t.Fatalf("qris_image = %v, mau tidak ada di response GET (polling)", *body.QRISImage)
 	}
 }
