@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS merchant_gopay_credentials (
 
 COMMENT ON TABLE merchant_gopay_credentials IS 'Kredensial gopay-notifications milik tiap merchant -- API key untuk memanggil POST /invoices, webhook secret untuk verifikasi X-Webhook-Signature. Disimpan polos (plaintext), pola sama dengan merchants.webhook_secret (migrasi 013): keamanan mengandalkan akses database, bukan enkripsi aplikasi.';
 COMMENT ON COLUMN merchant_gopay_credentials.api_key IS 'sk_... dari halaman API Keys gopay-notifications milik merchant ini.';
-COMMENT ON COLUMN merchant_gopay_credentials.webhook_secret IS 'whsec_... dari webhook endpoint yang dibuat merchant di gopay-notifications, mengarah ke {APP_BASE_URL}/webhooks/gopay.';
+COMMENT ON COLUMN merchant_gopay_credentials.webhook_secret IS 'whsec_... dari webhook endpoint yang dibuat merchant di gopay-notifications, mengarah ke {APP_BASE_URL}/api/v1/provider-webhooks/gopay.';
 ```
 
 `merchant_id` sebagai primary key (relasi 1:1, sama pola dengan `account_qris_images` di gopay-notifications sub-project 1). Kedua kolom **nullable** dan independen — merchant boleh mengisi `api_key` dulu (bisa langsung coba buat payment) sebelum sempat membuat webhook endpoint dan mengisi `webhook_secret`; tidak ada gerbang all-or-nothing.
@@ -190,14 +190,14 @@ Card baru **"Provider Pembayaran GoPay"** di `whuzpay-pg/front/app/dashboard/set
 
 Isi:
 
-- Instruksi 4 langkah singkat (teks statis): 1) Daftar/login ke gopay-notifications, 2) Upload QRIS di halaman Settings gopay-notifications, 3) Buat API key di halaman API Keys, 4) Buat webhook endpoint mengarah ke `{APP_BASE_URL}/webhooks/gopay` dengan event `invoice.paid` di halaman Webhooks gopay-notifications.
+- Instruksi 4 langkah singkat (teks statis): 1) Daftar/login ke gopay-notifications, 2) Upload QRIS di halaman Settings gopay-notifications, 3) Buat API key di halaman API Keys, 4) Buat webhook endpoint mengarah ke `{APP_BASE_URL}/api/v1/provider-webhooks/gopay` dengan event `invoice.paid` di halaman Webhooks gopay-notifications.
 - Dua field password-masked: **API Key** dan **Webhook Secret**, masing-masing dengan status "Sudah diatur"/"Belum diatur" (TIDAK PERNAH menampilkan nilai asli balik, pola sama `smtp_password_set` gopay-notifications) + tombol simpan per field.
 
 Backend baru:
 
 ```
-GET /api/merchant/gopay-credentials    -- {api_key_configured: bool, webhook_secret_configured: bool}
-PUT /api/merchant/gopay-credentials    -- {api_key?: string, webhook_secret?: string} (tri-state: absen=biarkan, ""=hapus, isi=ganti)
+GET /api/v1/merchant/gopay-credentials    -- {api_key_configured: bool, webhook_secret_configured: bool}
+PUT /api/v1/merchant/gopay-credentials    -- {api_key?: string, webhook_secret?: string} (tri-state: absen=biarkan, ""=hapus, isi=ganti)
 ```
 
 Keduanya di belakang middleware auth merchant yang sudah ada (`merchantAuth`/sesi dashboard, BUKAN API-key aggregator — ini halaman Settings merchant, bukan endpoint publik).
