@@ -1142,7 +1142,7 @@ Sub-project 1 ini murni di gopay-notifications sendiri (belum menyentuh
 `POST /invoices` menyertakannya ke integrator, menolak `409
 qris_not_configured` kalau belum diatur.
 
-**Ringkasan:** `PASS` 12 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+**Ringkasan:** `PASS` 13 · `FAIL` 0 · `NEEDS-DEVICE` 0 · `PENDING` 0
 
 ### 27a. Backend
 
@@ -1165,7 +1165,7 @@ qris_not_configured` kalau belum diatur.
 | Card "QRIS Pembayaran" di Settings: upload/ganti/hapus, preview `<img>` langsung dari endpoint backend (tanpa decode base64 di frontend), validasi ukuran+tipe di klien sebelum kirim | `PASS` | `npx tsc --noEmit`, `npx eslint .` (0 error/warning setelah perbaikan posisi komentar `eslint-disable-next-line`), `npx next build` bersih setelah `rm -rf .next` |
 | Halaman Logs mengenali 2 aktivitas baru (`qris_image_updated`/`qris_image_removed`) di `ACTION_LABEL`/`ACTION_BADGE`/`ActionIcon` (`Record<ActivityAction, ...>` exhaustive — `tsc` akan gagal kalau ada yang terlewat) | `PASS` | Bagian dari `npx tsc --noEmit` di atas |
 | API Docs (`/api-docs`): contoh response `POST /invoices` memuat `qris_image`, baris baru di tabel field invoice, baris baru `409 qris_not_configured` di tabel error | `PASS` | Tinjauan kode + build bersih di atas |
-| Uji end-to-end sungguhan di browser (upload gambar asli, lihat preview, buat invoice API sungguhan dan cek `qris_image` di response, hapus lalu coba buat invoice lagi dan lihat `409`) | `NEEDS-DEVICE` | Menunggu dicek Akbar di `npm run dev` |
+| Uji end-to-end sungguhan di browser (upload gambar asli, lihat preview, buat invoice API sungguhan dan cek `qris_image` di response, hapus lalu coba buat invoice lagi dan lihat `409`) | `PASS` | Dicek Akbar di `npm run dev` (2026-09-15): upload JPEG asli di Settings → `POST /invoices` (`external_ref=TEST-001`) balas `201` dengan `qris_image` berupa `data:image/jpeg;base64,/9j/4AAQSkZJRgAB...` (signature JFIF asli, cocok dengan file yang di-upload) → hapus QRIS di Settings → `POST /invoices` (`external_ref=TEST-002`) balas persis `{"success":false,"error":"qris_not_configured","message":"QRIS belum diatur -- upload di halaman Settings dulu"}` |
 
 ### Keseluruhan suite
 
