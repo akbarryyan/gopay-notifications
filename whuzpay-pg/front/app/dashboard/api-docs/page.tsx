@@ -246,7 +246,6 @@ export default function ApiDocsPage() {
             { field: "customer_email", type: "string", required: false, description: "Optional." },
             { field: "callback_url", type: "string", required: false, description: "Per-payment webhook override. Falls back to the webhook URL set in Dashboard → Settings if omitted." },
             { field: "expires_in_minutes", type: "integer", required: false, description: "Defaults to 30. Max 1440 (24h)." },
-            { field: "use_custom_merchant_name", type: "boolean", required: false, description: "Requests a custom merchant name on the QR, where the provider supports it. Currently only takes effect on Cashi if that feature is enabled on your Cashi account — otherwise silently ignored." },
           ]}
         />
 
@@ -272,7 +271,7 @@ export default function ApiDocsPage() {
   "amount": 50042,
   "currency": "IDR",
   "payment_method": "qris",
-  "provider_name": "cashi",
+  "provider_name": "gopay",
   "provider_reference": "INV-9921",
   "status": "pending",
   "description": "Order #1234",
@@ -385,7 +384,7 @@ export default function ApiDocsPage() {
   "amount": 50042,
   "currency": "IDR",
   "merchant_id": "11111111-...",
-  "provider": "cashi",
+  "provider": "gopay",
   "provider_reference": "INV-9921",
   "paid_at": "2026-07-25T13:15:40Z",
   "occurred_at": "2026-07-25T13:15:41Z"
@@ -483,7 +482,7 @@ app.post('/webhooks/payments', (req, res) => {
             { code: "403", label: "Forbidden", description: "Merchant account is inactive." },
             { code: "404", label: "Not Found", description: "Payment doesn't exist, or belongs to a different merchant." },
             { code: "429", label: "Too Many Requests", description: "Rate limit exceeded — back off and retry." },
-            { code: "502", label: "Bad Gateway", description: "The payment provider (e.g. Cashi) returned an error." },
+            { code: "502", label: "Bad Gateway", description: "The payment provider (e.g. gopay) returned an error." },
             { code: "503", label: "Service Unavailable", description: "No healthy provider available for this payment method right now." },
           ]}
         />

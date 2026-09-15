@@ -255,7 +255,7 @@ export default function AdminProviderDetailPage() {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
-                placeholder="e.g. Cashi API timeouts since 14:00 — fail over to next provider"
+                placeholder="e.g. gopay API timeouts since 14:00 — fail over to next provider"
                 className="w-full resize-y rounded-lg border border-[#e8eef4] bg-white px-3 py-2.5 text-[13px] text-[#1f2a37] outline-none placeholder:text-[#a8b3c2] focus:border-[#3b9eff] focus:ring-2 focus:ring-[#3b9eff]/15"
               />
             </label>

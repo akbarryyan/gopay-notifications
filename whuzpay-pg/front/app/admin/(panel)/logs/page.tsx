@@ -56,7 +56,7 @@ const PROCESSED_OPTIONS = [
 
 const PROVIDER_OPTIONS = [
   { value: "", label: "All providers" },
-  { value: "cashi", label: "Cashi" },
+  { value: "gopay", label: "GoPay" },
 ];
 
 const PAGE_SIZE_OPTIONS = [

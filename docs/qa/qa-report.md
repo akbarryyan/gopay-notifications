@@ -1170,3 +1170,45 @@ qris_not_configured` kalau belum diatur.
 ### Keseluruhan suite
 
 `make test`: `ok` untuk `auth`, `connector`, `devicealert`, `httpapi` (37.4s), `notify`, `reminder`, `secretbox`, `store` (17.4s), `telegram`, `telegrambot`.
+
+---
+
+## 28. Provider "gopay" di whuzpay-pg + pencabutan Cashi (sub-project 2 migrasi Cashi → gopay-notifications)
+
+Permintaan langsung Akbar, lanjutan sub-project 1 (§27, QRIS statis per
+account). Spec:
+[`docs/superpowers/specs/2026-09-15-whuzpay-pg-gopay-provider-design.md`](../superpowers/specs/2026-09-15-whuzpay-pg-gopay-provider-design.md).
+Sepenuhnya di `whuzpay-pg/` (folder terpisah dalam repo ini). Interface
+`PaymentProvider` diperluas dengan `merchantID` (gopay-notifications
+butuh kredensial per merchant, beda dari Cashi yang satu kredensial
+global), tabel+adapter+wiring provider "gopay", urutan `ProcessWebhook`
+dibalik (parse+cari payment dulu, baru validasi tanda tangan, supaya
+webhook secret per-merchant bisa ditemukan), endpoint self-service +
+UI Settings kredensial merchant, dan Cashi dihapus total.
+
+**Ringkasan:** `PASS` 10 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+
+### 28a. Backend (`whuzpay-pg/back`)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| `PaymentProvider` interface: `merchantID` ditambahkan di `CreatePayment` (field baru `MerchantID` di request)/`GetPaymentStatus`/`ValidateWebhook`; sandbox adapter mengabaikannya; Cashi dihapus total (adapter, config, env var, referensi dokumentasi/bruno, field `UseCustomMerchantName`) | `PASS` | `go build`/`go vet` bersih setelah perubahan; `grep -rn -i cashi` lintas `whuzpay-pg/back` (di luar `internal/domain/paymentlink` yang sengaja dibiarkan — lihat spec §6 — dan string fixture test yang memang bukan Cashi sungguhan) nihil |
+| Tabel `merchant_gopay_credentials` (dua kolom independen, plaintext) + repository `Get`/`Upsert` (tri-state) | `PASS` | Migrasi `016` konsisten dengan pola `013_add_webhook_secret_to_merchants.sql`; `go build` bersih |
+| Adapter `internal/provider/gopay/`: `CreatePayment` (map `unique_amount`/`qris_image`, deteksi `409 qris_not_configured`), `GetPaymentStatus`, `ValidateWebhook` (HMAC-SHA256 per-merchant, secret belum diatur → ditolak), `ParseWebhook` (`invoice.id` jadi `ProviderReference`, bukan `external_ref`), `NormalizeStatus` | `PASS` | `go test ./internal/provider/gopay/... -v` → 8 test lulus |
+| `ProcessWebhook`: urutan baru (parse→cari payment→validate) benar-benar meneruskan `MerchantID` milik payment yang ditemukan ke `ValidateWebhook`, bukan `uuid.Nil`/merchant lain | `PASS` | `TestProcessWebhook_ValidatesWithPaymentsOwnMerchantID` — lulus |
+| Header signature webhook diganti `X-Webhook-Signature` (punya gopay-notifications, bukan `x-gateway-signature` konvensi Cashi lama) | `PASS` | Tinjauan kode `webhook_handler.go`; test yang memakai header ini diperbarui mengikuti |
+| `gopayAdapter` terdaftar di `main.go` untuk payment method `qris`; `respondCreatePaymentError` memetakan `gopay.ErrCredentialsNotConfigured`/`ErrQRISNotConfigured` jadi `400` jelas | `PASS` | `TestPaymentHandler_CreatePayment_CredentialsNotConfigured` — lulus |
+| `GET`/`PUT /api/v1/merchant/gopay-credentials` (sesi JWT merchant): status saja yang dikembalikan, tidak pernah nilai kredensial asli; tri-state per field | `PASS` | `TestGetGopayCredentialsStatus_BelumDiatur`, `TestUpdateGopayCredentials_LaluGetStatus` — lulus |
+| `go build`/`go vet`/`gofmt -l .` bersih | `PASS` | Dijalankan langsung, keluaran kosong |
+| `go test ./...` (seluruh suite backend whuzpay-pg) | `PASS` | `317 passed in 16 packages` |
+
+### 28b. Frontend (`whuzpay-pg/front`)
+
+| Butir | Status | Bukti |
+|---|---|---|
+| Card "GoPay provider" baru di Settings merchant (instruksi 4 langkah, field API key + webhook secret, status configured/not set, tidak pernah menampilkan nilai asli); default provider di UI admin routing diganti `cashi`→`gopay`; API Docs merchant (`/dashboard/api-docs`) diperbarui (contoh response `provider_name`/`provider` jadi `gopay`, field `use_custom_merchant_name` yang sudah tidak ada di API dihapus dari dokumentasi, kode error `502` tidak lagi menyebut Cashi); filter provider di Admin Logs diganti `cashi`→`gopay` | `PASS` | `npm run build` dan `npm run lint` bersih setelah seluruh perubahan; `grep -rn -i cashi` lintas `whuzpay-pg/front/**/*.{ts,tsx}` nihil |
+| Uji end-to-end sungguhan (merchant isi kredensial gopay-notifications asli, buat payment lewat whuzpay-pg, scan QR sungguhan, bayar, webhook gopay-notifications benar-benar sampai ke whuzpay-pg dan payment berubah status) | `NEEDS-DEVICE` | Butuh `whuzpay-pg` bisa diakses dari internet publik (tunnel atau deploy) supaya gopay-notifications bisa mengirim webhook ke situ — belum ada infrastruktur produksi untuk `whuzpay-pg` (lihat spec §9) |
+
+### Keseluruhan suite
+
+`go test ./...` (whuzpay-pg/back): `317 passed in 16 packages`. `npm run build` dan `npm run lint` (whuzpay-pg/front): bersih.
