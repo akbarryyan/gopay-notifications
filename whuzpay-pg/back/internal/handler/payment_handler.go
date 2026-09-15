@@ -10,6 +10,7 @@ import (
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/payment"
 	"github.com/akbarryyan/pg-aggregator-back/internal/middleware"
 	providerPkg "github.com/akbarryyan/pg-aggregator-back/internal/provider"
+	"github.com/akbarryyan/pg-aggregator-back/internal/provider/gopay"
 	"github.com/akbarryyan/pg-aggregator-back/internal/service"
 	"github.com/akbarryyan/pg-aggregator-back/pkg/logger"
 	"github.com/google/uuid"
@@ -197,6 +198,10 @@ func respondCreatePaymentError(w http.ResponseWriter, err error) {
 		respondError(w, http.StatusServiceUnavailable, "Payment provider is temporarily unavailable")
 	case errors.Is(err, providerPkg.ErrUnsupportedPaymentMethod):
 		respondError(w, http.StatusBadRequest, "Unsupported payment method")
+	case errors.Is(err, gopay.ErrCredentialsNotConfigured):
+		respondError(w, http.StatusBadRequest, "Merchant belum mengatur kredensial gopay-notifications (lihat Settings)")
+	case errors.Is(err, gopay.ErrQRISNotConfigured):
+		respondError(w, http.StatusBadRequest, "Merchant belum mengatur QRIS di akun gopay-notifications-nya")
 	case errors.Is(err, payment.ErrProviderError):
 		respondError(w, http.StatusBadGateway, "Payment provider error")
 	default:

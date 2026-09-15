@@ -292,3 +292,32 @@ func TestExpirePayments_OnlyExpiresPendingPastDeadline(t *testing.T) {
 		t.Errorf("expected already-terminal payment to be left untouched, got %q", got.Status)
 	}
 }
+
+// TestProcessWebhook_ValidatesWithPaymentsOwnMerchantID membuktikan urutan
+// parse->cari payment->validate benar-benar meneruskan MerchantID milik
+// payment yang ditemukan ke ValidateWebhook -- bukan uuid.Nil atau
+// merchant lain -- karena tiap merchant gopay punya webhook secret sendiri.
+func TestProcessWebhook_ValidatesWithPaymentsOwnMerchantID(t *testing.T) {
+	svc, paymentRepo, _, router := newWebhookTestService()
+	p := seedPayment(t, paymentRepo, payment.StatusPending, "prov-ref-a")
+
+	var gotMerchantID uuid.UUID
+	prov := &fakeProvider{
+		name: "cashi",
+		parseResp: &domainProvider.ProviderWebhookPayload{
+			ProviderReference: "prov-ref-a", Status: "paid",
+		},
+		validateFn: func(rawPayload []byte, signature string, merchantID uuid.UUID) error {
+			gotMerchantID = merchantID
+			return nil
+		},
+	}
+	router.RegisterProvider(prov)
+
+	if err := svc.ProcessWebhook(context.Background(), "cashi", []byte(`{}`), "any-sig"); err != nil {
+		t.Fatalf("ProcessWebhook: %v", err)
+	}
+	if gotMerchantID != p.MerchantID {
+		t.Errorf("ValidateWebhook dipanggil dengan merchantID = %v, want %v (MerchantID milik payment yang ditemukan)", gotMerchantID, p.MerchantID)
+	}
+}

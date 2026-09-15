@@ -102,7 +102,7 @@ func TestWebhookHandler_HandleProviderWebhook_InvalidSignatureRejected(t *testin
 	h := NewWebhookHandler(svc)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/provider-webhooks/testprov", strings.NewReader(`{}`))
-	req.Header.Set("x-gateway-signature", "bad-signature")
+	req.Header.Set("X-Webhook-Signature", "bad-signature")
 	req = mux.SetURLVars(req, map[string]string{"providerName": "testprov"})
 	rec := httptest.NewRecorder()
 

@@ -14,6 +14,7 @@ import (
 	"github.com/akbarryyan/pg-aggregator-back/internal/handler"
 	"github.com/akbarryyan/pg-aggregator-back/internal/middleware"
 	"github.com/akbarryyan/pg-aggregator-back/internal/provider"
+	"github.com/akbarryyan/pg-aggregator-back/internal/provider/gopay"
 	"github.com/akbarryyan/pg-aggregator-back/internal/provider/sandbox"
 	"github.com/akbarryyan/pg-aggregator-back/internal/repository"
 	"github.com/akbarryyan/pg-aggregator-back/internal/scheduler"
@@ -50,11 +51,15 @@ func main() {
 	apiKeyRepo := repository.NewMerchantAPIKeyRepository(db)
 	merchantUserRepo := repository.NewMerchantUserRepository(db)
 	adminRepo := repository.NewAdminRepository(db)
+	gopayCredsRepo := repository.NewMerchantGopayCredentialsRepository(db)
+	gopayAdapter := gopay.NewAdapter(cfg.Gopay.BaseURL, gopayCredsRepo)
 	sandboxAdapter := sandbox.NewAdapter()
 
 	providerRouter := provider.NewProviderRouter()
+	providerRouter.RegisterProvider(gopayAdapter)
 	providerRouter.RegisterProvider(sandboxAdapter)
-	// TODO(Task 3): daftarkan gopayAdapter + RegisterPaymentMethodProvider("qris", ...)
+	// Production QRIS routing uses real gopay-notifications only
+	providerRouter.RegisterPaymentMethodProvider("qris", gopayAdapter.GetName())
 
 	paymentLinkRepo := repository.NewPaymentLinkRepository(db)
 

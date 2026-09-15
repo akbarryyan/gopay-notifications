@@ -36,7 +36,9 @@ func (h *WebhookHandler) HandleProviderWebhook(w http.ResponseWriter, r *http.Re
 	}
 	defer r.Body.Close()
 
-	signature := r.Header.Get("x-gateway-signature")
+	// Nama header gopay-notifications, bukan konvensi Cashi lama
+	// ("x-gateway-signature") yang sudah dihapus bersama Cashi.
+	signature := r.Header.Get("X-Webhook-Signature")
 
 	logger.InfofCtx(r.Context(), "Received webhook from provider %s, signature present: %v", providerName, signature != "")
 

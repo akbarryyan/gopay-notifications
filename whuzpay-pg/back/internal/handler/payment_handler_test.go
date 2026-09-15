@@ -11,6 +11,7 @@ import (
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/payment"
 	"github.com/akbarryyan/pg-aggregator-back/internal/middleware"
 	providerPkg "github.com/akbarryyan/pg-aggregator-back/internal/provider"
+	"github.com/akbarryyan/pg-aggregator-back/internal/provider/gopay"
 	"github.com/akbarryyan/pg-aggregator-back/internal/provider/sandbox"
 	"github.com/akbarryyan/pg-aggregator-back/internal/service"
 	"github.com/google/uuid"
@@ -130,6 +131,44 @@ func TestPaymentHandler_CreatePayment_UnsupportedProviderInProduction(t *testing
 
 	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 400 or 503, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestPaymentHandler_CreatePayment_CredentialsNotConfigured membuktikan
+// gopay.ErrCredentialsNotConfigured (merchant belum isi API key
+// gopay-notifications di Settings) dipetakan respondCreatePaymentError
+// jadi 400 dengan pesan jelas, bukan 500 generik.
+func TestPaymentHandler_CreatePayment_CredentialsNotConfigured(t *testing.T) {
+	paymentRepo := newFakePaymentRepo()
+	router := providerPkg.NewProviderRouter()
+	fp := &fakeProvider{name: "gopay", createErr: gopay.ErrCredentialsNotConfigured}
+	router.RegisterProvider(fp)
+	router.RegisterPaymentMethodProvider("qris", "gopay")
+
+	svc := service.NewPaymentService(
+		paymentRepo,
+		&fakeMerchantProviderConfigRepo{},
+		newFakeWebhookEventRepo(),
+		router,
+		"http://localhost:8080",
+	)
+	h := NewPaymentHandler(svc, "http://localhost:3000")
+
+	body := map[string]interface{}{
+		"merchant_id":    uuid.New().String(),
+		"amount":         50000,
+		"payment_method": "qris",
+		"description":    "Test payment",
+		"environment":    "production",
+	}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/payments", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+
+	h.CreatePayment(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
