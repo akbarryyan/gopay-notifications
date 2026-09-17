@@ -22,6 +22,9 @@ const PUBLIC_PATHS = new Set([
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  // Merchant baru perlu mengunduh aplikasi Android bridge sebelum atau
+  // sambil membuat akun -- lihat docs/superpowers/specs/2026-09-17-android-bridge-apk-distribution-design.md.
+  "/download-app",
 ]);
 
 export function proxy(request: NextRequest) {
