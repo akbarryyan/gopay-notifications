@@ -44,3 +44,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# APK diunggah manual saat deploy (lihat backend/deploy/README.md), bukan
+# lewat commit -- file biner besar, di-refresh tiap kali eas build baru.
+/public/downloads/*.apk
