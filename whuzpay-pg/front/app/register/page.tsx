@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { registerMerchant } from "@/lib/merchant-auth";
+import { registerMerchant, saveMerchantSession } from "@/lib/merchant-auth";
 
 function EyeIcon({ open }: { open: boolean }) {
   if (open) {
@@ -36,9 +36,24 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [qrisFile, setQrisFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // reader.result adalah data URL "data:image/png;base64,XXXX" --
+        // backend cuma butuh bagian setelah koma.
+        resolve(result.split(",")[1] ?? "");
+      };
+      reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
+      reader.readAsDataURL(file);
+    });
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,15 +78,26 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await registerMerchant({
+      const qrisBase64 = qrisFile ? await fileToBase64(qrisFile) : undefined;
+      const result = await registerMerchant({
         name: name.trim(),
         business_name: businessName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
         password,
+        qris_image_base64: qrisBase64,
       });
-      toast.success("Pendaftaran berhasil. Silakan masuk.");
-      router.replace("/login");
+      saveMerchantSession(result);
+      if (result.gopay_message) {
+        toast(result.gopay_message, { icon: "ℹ️" });
+      }
+      if (result.gopay_device) {
+        sessionStorage.setItem("gopay_pairing_device", JSON.stringify(result.gopay_device));
+        router.replace("/pair-device");
+      } else {
+        toast.success("Pendaftaran berhasil.");
+        router.replace("/dashboard");
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -185,6 +211,22 @@ export default function RegisterPage() {
                 placeholder="08123456789"
                 className="mt-1.5 block w-full rounded-md border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-navy-light focus:outline-none focus:ring-2 focus:ring-brand-navy-light/20"
               />
+            </div>
+
+            <div>
+              <label htmlFor="qrisImage" className="block text-sm font-medium text-slate-700">
+                Gambar QRIS <span className="text-slate-400">(opsional, bisa diisi belakangan)</span>
+              </label>
+              <input
+                id="qrisImage"
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={(e) => setQrisFile(e.target.files?.[0] ?? null)}
+                className="mt-1.5 block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-navy file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-navy-light"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Boleh dilewati sekarang -- bisa diisi kapan saja lewat Settings setelah masuk.
+              </p>
             </div>
 
             <div>

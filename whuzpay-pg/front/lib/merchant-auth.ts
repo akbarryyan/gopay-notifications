@@ -154,16 +154,17 @@ export async function loginMerchant(
   return body as MerchantLoginResponse;
 }
 
-export type RegisteredMerchant = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  business_name: string;
-  webhook_url?: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+export type GopayDeviceInfo = {
+  device_id: string;
+  device_secret: string;
+  backend_url: string;
+};
+
+export type RegisterMerchantResponse = MerchantLoginResponse & {
+  gopay_connected: boolean;
+  gopay_username?: string;
+  gopay_message?: string;
+  gopay_device?: GopayDeviceInfo;
 };
 
 export async function registerMerchant(payload: {
@@ -172,14 +173,15 @@ export async function registerMerchant(payload: {
   email: string;
   phone?: string;
   password: string;
-}): Promise<RegisteredMerchant> {
+  qris_image_base64?: string;
+}): Promise<RegisterMerchantResponse> {
   const res = await fetch(`${API_URL}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const body = (await res.json().catch(() => null)) as
-    | RegisteredMerchant
+    | RegisterMerchantResponse
     | ApiErrorBody
     | null;
   if (res.status === 409) {
@@ -191,7 +193,7 @@ export async function registerMerchant(payload: {
   if (!res.ok) {
     throw new Error("Gagal mendaftar. Periksa kembali data Anda.");
   }
-  return body as RegisteredMerchant;
+  return body as RegisterMerchantResponse;
 }
 
 function authHeaders(): HeadersInit {

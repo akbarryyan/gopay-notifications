@@ -404,6 +404,8 @@ export async function regenerateMerchantWebhookSecret(): Promise<{
 export type GopayCredentialsStatus = {
   api_key_configured: boolean;
   webhook_secret_configured: boolean;
+  qris_configured: boolean;
+  gopay_username?: string;
 };
 
 export function fetchGopayCredentialsStatus() {

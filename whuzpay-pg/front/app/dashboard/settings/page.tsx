@@ -271,6 +271,26 @@ function GopayCredentialsCard() {
         <li>Paste the API key and webhook secret you got below.</li>
       </ol>
 
+      {status?.gopay_username && (
+        <p className="mt-3 text-[12.5px] text-[#6b7c93]">
+          Akun gopay-notifications kamu: <span className="font-mono font-semibold">{status.gopay_username}</span>{" "}
+          -- bisa dipakai login langsung ke{" "}
+          <a href="https://whuzpay.com/login" target="_blank" rel="noreferrer" className="text-[#3b9eff] hover:underline">
+            whuzpay.com
+          </a>{" "}
+          kapan saja.
+        </p>
+      )}
+      {status && !status.qris_configured && (
+        <p className="mt-2 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12.5px] text-[#c27a00]">
+          QRIS belum diisi -- pembayaran production akan ditolak sampai kamu{" "}
+          <a href="https://whuzpay.com/settings" target="_blank" rel="noreferrer" className="font-semibold underline">
+            upload QRIS langsung di gopay-notifications
+          </a>
+          .
+        </p>
+      )}
+
       {loading ? (
         <div className="mt-3 text-[12.5px] text-[#8a97a8]">Loading...</div>
       ) : (
