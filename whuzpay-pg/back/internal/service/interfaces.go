@@ -61,7 +61,8 @@ type webhookEventRepository interface {
 // internal/provider/gopay.Adapter untuk memanggil API gopay-notifications.
 type gopayCredentialsRepository interface {
 	Get(ctx context.Context, merchantID uuid.UUID) (*repository.GopayCredentials, error)
-	Upsert(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret *string) error
+	Upsert(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret, username *string) error
+	MarkQRISConfigured(ctx context.Context, merchantID uuid.UUID) error
 }
 
 type merchantRepository interface {

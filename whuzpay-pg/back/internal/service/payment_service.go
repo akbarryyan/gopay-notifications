@@ -74,21 +74,31 @@ func (s *PaymentService) WithGopayCredentialsRepo(repo gopayCredentialsRepositor
 
 // GetGopayCredentialsStatus TIDAK PERNAH mengembalikan nilai kredensial
 // asli -- cuma status terisi/tidak, pola sama smtp_password_set gopay-notifications.
-func (s *PaymentService) GetGopayCredentialsStatus(ctx context.Context, merchantID uuid.UUID) (apiKeySet, webhookSecretSet bool, err error) {
+// username dan qrisConfigured ditambah untuk onboarding terpadu (lihat
+// spec 2026-09-17-whuzpay-pg-unified-onboarding-design.md).
+func (s *PaymentService) GetGopayCredentialsStatus(ctx context.Context, merchantID uuid.UUID) (apiKeySet, webhookSecretSet, qrisConfigured bool, username string, err error) {
 	creds, err := s.gopayCredentialsRepo.Get(ctx, merchantID)
 	if errors.Is(err, repository.ErrGopayCredentialsNotFound) {
-		return false, false, nil
+		return false, false, false, "", nil
 	}
 	if err != nil {
-		return false, false, err
+		return false, false, false, "", err
 	}
-	return creds.APIKey != nil && *creds.APIKey != "", creds.WebhookSecret != nil && *creds.WebhookSecret != "", nil
+	if creds.Username != nil {
+		username = *creds.Username
+	}
+	return creds.APIKey != nil && *creds.APIKey != "",
+		creds.WebhookSecret != nil && *creds.WebhookSecret != "",
+		creds.QRISConfiguredAt != nil,
+		username, nil
 }
 
 // UpdateGopayCredentials -- tri-state per field: nil = biarkan, ""=hapus,
-// isi=ganti (pola sama NotificationSettings gopay-notifications).
+// isi=ganti (pola sama NotificationSettings gopay-notifications). username
+// selalu nil di sini -- field itu HANYA diisi oleh cascade onboarding
+// otomatis (AuthService.RegisterMerchant), bukan lewat form Settings ini.
 func (s *PaymentService) UpdateGopayCredentials(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret *string) error {
-	return s.gopayCredentialsRepo.Upsert(ctx, merchantID, apiKey, webhookSecret)
+	return s.gopayCredentialsRepo.Upsert(ctx, merchantID, apiKey, webhookSecret, nil)
 }
 
 func (s *PaymentService) CreatePayment(ctx context.Context, req *payment.CreatePaymentRequest) (*payment.Payment, error) {

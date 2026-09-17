@@ -468,8 +468,10 @@ func (h *MerchantHandler) RegenerateWebhookSecret(w http.ResponseWriter, r *http
 }
 
 type gopayCredentialsStatusResponse struct {
-	APIKeyConfigured        bool `json:"api_key_configured"`
-	WebhookSecretConfigured bool `json:"webhook_secret_configured"`
+	APIKeyConfigured        bool   `json:"api_key_configured"`
+	WebhookSecretConfigured bool   `json:"webhook_secret_configured"`
+	QRISConfigured          bool   `json:"qris_configured"`
+	GopayUsername           string `json:"gopay_username,omitempty"`
 }
 
 // GetGopayCredentials mengembalikan status saja -- tidak pernah nilai
@@ -482,7 +484,7 @@ func (h *MerchantHandler) GetGopayCredentials(w http.ResponseWriter, r *http.Req
 		respondError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	apiKeySet, webhookSet, err := h.paymentService.GetGopayCredentialsStatus(r.Context(), merchantID)
+	apiKeySet, webhookSet, qrisConfigured, username, err := h.paymentService.GetGopayCredentialsStatus(r.Context(), merchantID)
 	if err != nil {
 		logger.ErrorfCtx(r.Context(), "Failed to get gopay credentials status for merchant %s: %v", merchantID, err)
 		respondError(w, http.StatusInternalServerError, "Failed to load gopay credentials")
@@ -490,6 +492,7 @@ func (h *MerchantHandler) GetGopayCredentials(w http.ResponseWriter, r *http.Req
 	}
 	respondJSON(w, http.StatusOK, gopayCredentialsStatusResponse{
 		APIKeyConfigured: apiKeySet, WebhookSecretConfigured: webhookSet,
+		QRISConfigured: qrisConfigured, GopayUsername: username,
 	})
 }
 
@@ -516,12 +519,13 @@ func (h *MerchantHandler) UpdateGopayCredentials(w http.ResponseWriter, r *http.
 		respondError(w, http.StatusInternalServerError, "Failed to update gopay credentials")
 		return
 	}
-	apiKeySet, webhookSet, err := h.paymentService.GetGopayCredentialsStatus(r.Context(), merchantID)
+	apiKeySet, webhookSet, qrisConfigured, username, err := h.paymentService.GetGopayCredentialsStatus(r.Context(), merchantID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to load gopay credentials")
 		return
 	}
 	respondJSON(w, http.StatusOK, gopayCredentialsStatusResponse{
 		APIKeyConfigured: apiKeySet, WebhookSecretConfigured: webhookSet,
+		QRISConfigured: qrisConfigured, GopayUsername: username,
 	})
 }

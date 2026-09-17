@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/payment"
 	domainProvider "github.com/akbarryyan/pg-aggregator-back/internal/domain/provider"
@@ -229,7 +230,7 @@ func (f *fakeGopayCredsRepo) Get(ctx context.Context, merchantID uuid.UUID) (*re
 	return c, nil
 }
 
-func (f *fakeGopayCredsRepo) Upsert(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret *string) error {
+func (f *fakeGopayCredsRepo) Upsert(ctx context.Context, merchantID uuid.UUID, apiKey, webhookSecret, username *string) error {
 	existing, ok := f.creds[merchantID]
 	if !ok {
 		existing = &repository.GopayCredentials{MerchantID: merchantID}
@@ -240,6 +241,20 @@ func (f *fakeGopayCredsRepo) Upsert(ctx context.Context, merchantID uuid.UUID, a
 	if webhookSecret != nil {
 		existing.WebhookSecret = webhookSecret
 	}
+	if username != nil {
+		existing.Username = username
+	}
+	f.creds[merchantID] = existing
+	return nil
+}
+
+func (f *fakeGopayCredsRepo) MarkQRISConfigured(ctx context.Context, merchantID uuid.UUID) error {
+	existing, ok := f.creds[merchantID]
+	if !ok {
+		existing = &repository.GopayCredentials{MerchantID: merchantID}
+	}
+	now := time.Now()
+	existing.QRISConfiguredAt = &now
 	f.creds[merchantID] = existing
 	return nil
 }
@@ -248,7 +263,7 @@ func TestGetGopayCredentialsStatus_BelumDiatur(t *testing.T) {
 	svc, _, _, _ := newTestPaymentService()
 	svc.WithGopayCredentialsRepo(newFakeGopayCredsRepo())
 
-	apiKeySet, webhookSet, err := svc.GetGopayCredentialsStatus(context.Background(), uuid.New())
+	apiKeySet, webhookSet, _, _, err := svc.GetGopayCredentialsStatus(context.Background(), uuid.New())
 	if err != nil {
 		t.Fatalf("GetGopayCredentialsStatus: %v", err)
 	}
@@ -267,7 +282,7 @@ func TestUpdateGopayCredentials_LaluGetStatus(t *testing.T) {
 	if err := svc.UpdateGopayCredentials(context.Background(), merchantID, &apiKey, nil); err != nil {
 		t.Fatalf("UpdateGopayCredentials (api key saja): %v", err)
 	}
-	apiKeySet, webhookSet, _ := svc.GetGopayCredentialsStatus(context.Background(), merchantID)
+	apiKeySet, webhookSet, _, _, _ := svc.GetGopayCredentialsStatus(context.Background(), merchantID)
 	if !apiKeySet || webhookSet {
 		t.Errorf("apiKeySet=%v webhookSet=%v, want true false (baru isi api key)", apiKeySet, webhookSet)
 	}
@@ -276,7 +291,7 @@ func TestUpdateGopayCredentials_LaluGetStatus(t *testing.T) {
 	if err := svc.UpdateGopayCredentials(context.Background(), merchantID, nil, &secret); err != nil {
 		t.Fatalf("UpdateGopayCredentials (webhook secret): %v", err)
 	}
-	apiKeySet, webhookSet, _ = svc.GetGopayCredentialsStatus(context.Background(), merchantID)
+	apiKeySet, webhookSet, _, _, _ = svc.GetGopayCredentialsStatus(context.Background(), merchantID)
 	if !apiKeySet || !webhookSet {
 		t.Errorf("apiKeySet=%v webhookSet=%v, want true true (dua-duanya sudah diisi)", apiKeySet, webhookSet)
 	}
