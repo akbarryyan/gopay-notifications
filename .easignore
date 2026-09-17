@@ -1,0 +1,26 @@
+# EAS Build resolves the project root as this repo's git top-level
+# directory -- a monorepo with several unrelated sub-projects (backend/,
+# dashboard/, vendor-dashboard/, whuzpay-pg/, mobile/) -- even though
+# `eas build` is run from inside mobile/ per Expo's own monorepo guide
+# (https://docs.expo.dev/build-reference/build-with-monorepos). Presence
+# of this file makes EAS ignore ALL .gitignore files repo-wide (see EAS
+# CLI docs), so exclusions are written fresh here, not inherited.
+#
+# Exclude everything, then whitelist only mobile/ -- the one sub-project
+# this build needs. This is also what fixes the original failure: EAS
+# tried to copy whuzpay-pg/.codegraph/daemon.sock (a live Unix socket
+# from an unrelated local tool), which a plain file copy cannot handle.
+/*
+!/mobile
+
+# Generated native folders inside mobile/ must stay excluded so EAS runs
+# its own `expo prebuild` from app.config.ts (managed/CNG workflow) --
+# not whatever variant happens to be regenerated locally on this laptop
+# at the time of upload, which would silently bypass app.config.ts
+# entirely (same reasoning as mobile/.gitignore's own `/android`/`/ios`).
+/mobile/android
+/mobile/ios
+/mobile/.expo
+/mobile/node_modules
+/mobile/modules/*/android/build
+/mobile/modules/*/android/.gradle
