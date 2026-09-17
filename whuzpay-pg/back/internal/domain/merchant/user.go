@@ -56,6 +56,13 @@ type RegisterRequest struct {
 	Email        string `json:"email"`
 	Phone        string `json:"phone,omitempty"`
 	Password     string `json:"password"`
+	// QRISImageBase64 opsional -- lihat spec
+	// 2026-09-17-whuzpay-pg-unified-onboarding-design.md §4.2. Kalau diisi,
+	// diteruskan ke gopay-notifications selagi sesi dari langkah signup
+	// (internal/gopayonboard) masih hidup di request yang sama. Validasi
+	// ukuran/tipe gambar terjadi di gopay-notifications sendiri saat
+	// diteruskan -- tidak divalidasi lagi di sini.
+	QRISImageBase64 string `json:"qris_image_base64,omitempty"`
 }
 
 func (r *RegisterRequest) Validate() error {
@@ -162,4 +169,31 @@ func ToUserResponse(u *User) *UserResponse {
 		CreatedAt:   u.CreatedAt,
 		UpdatedAt:   u.UpdatedAt,
 	}
+}
+
+// GopayDeviceInfo -- device_secret di sini SENGAJA TIDAK PERNAH disimpan
+// ke database whuzpay-pg. Field ini cuma ada di response registrasi
+// SEKALI, dipegang state React di frontend untuk dirender jadi QR di
+// layar "Pasangkan HP" (lihat spec 2026-09-17-whuzpay-pg-unified-onboarding-design.md §4.1/§6).
+type GopayDeviceInfo struct {
+	DeviceID     string `json:"device_id"`
+	DeviceSecret string `json:"device_secret"`
+	BackendURL   string `json:"backend_url"`
+}
+
+// RegisterMerchantResponse -- gabungan hasil login (Token dkk, SELALU ada
+// karena akun whuzpay-pg selalu berhasil dibuat) dan hasil cascade
+// onboarding gopay-notifications (GopayConnected dkk, best-effort --
+// lihat AuthService.RegisterMerchant). GopayMessage diisi HANYA kalau ada
+// bagian cascade yang gagal/dilewati, untuk ditampilkan ke merchant
+// sebagai penjelasan kenapa sebagian belum otomatis tersambung.
+type RegisterMerchantResponse struct {
+	Token          string           `json:"token"`
+	TokenType      string           `json:"token_type"`
+	ExpiresIn      int64            `json:"expires_in"`
+	User           *UserResponse    `json:"user"`
+	GopayConnected bool             `json:"gopay_connected"`
+	GopayUsername  string           `json:"gopay_username,omitempty"`
+	GopayMessage   string           `json:"gopay_message,omitempty"`
+	GopayDevice    *GopayDeviceInfo `json:"gopay_device,omitempty"`
 }
