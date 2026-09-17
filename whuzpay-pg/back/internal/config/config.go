@@ -39,11 +39,17 @@ type RedisConfig struct {
 	Password string
 }
 
-// GopayConfig -- BaseURL saja, tidak ada API key/secret global karena
-// kredensial gopay-notifications disimpan per merchant (lihat
-// internal/repository/merchant_gopay_credentials_repository.go).
+// GopayConfig -- BaseURL boleh loopback di produksi (http://127.0.0.1:8080,
+// satu mesin dengan gopay-notifications, tidak perlu round-trip keluar).
+// PublicBaseURL WAJIB SELALU url publik (https://whuzpay.com) -- dipakai
+// membangun backend_url di payload QR pairing onboarding otomatis
+// (internal/gopayonboard), yang harus bisa diakses HP lewat internet,
+// bukan loopback VPS. Di dev lokal keduanya sama nilainya. Tidak ada API
+// key/secret global karena kredensial gopay-notifications disimpan per
+// merchant (lihat internal/repository/merchant_gopay_credentials_repository.go).
 type GopayConfig struct {
-	BaseURL string
+	BaseURL       string
+	PublicBaseURL string
 }
 
 type SecurityConfig struct {
@@ -77,7 +83,8 @@ func Load() (*Config, error) {
 			Password: getEnv("REDIS_PASSWORD", ""),
 		},
 		Gopay: GopayConfig{
-			BaseURL: getEnv("GOPAY_BASE_URL", "https://whuzpay.com"),
+			BaseURL:       getEnv("GOPAY_BASE_URL", "https://whuzpay.com"),
+			PublicBaseURL: getEnv("GOPAY_PUBLIC_BASE_URL", "https://whuzpay.com"),
 		},
 		Security: SecurityConfig{
 			JWTSecret: getEnv("JWT_SECRET", "change-this-secret"),

@@ -69,7 +69,8 @@ func main() {
 		WithGopayCredentialsRepo(gopayCredsRepo)
 	paymentLinkService := service.NewPaymentLinkService(paymentLinkRepo, paymentRepo, paymentService)
 	authService := service.NewAuthService(adminRepo, cfg.Security.JWTSecret).
-		WithMerchantAuth(merchantUserRepo, merchantRepo)
+		WithMerchantAuth(merchantUserRepo, merchantRepo).
+		WithGopayOnboarding(cfg.Gopay.BaseURL, cfg.Gopay.PublicBaseURL, gopayCredsRepo)
 	apiKeyService := service.NewMerchantAPIKeyService(apiKeyRepo, merchantRepo)
 	// AdminService (the original god-object) has been fully split, per
 	// project backlog item #9, into these cohesive services — it no longer
