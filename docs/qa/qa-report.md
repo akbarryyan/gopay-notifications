@@ -1186,7 +1186,7 @@ dibalik (parse+cari payment dulu, baru validasi tanda tangan, supaya
 webhook secret per-merchant bisa ditemukan), endpoint self-service +
 UI Settings kredensial merchant, dan Cashi dihapus total.
 
-**Ringkasan:** `PASS` 10 · `FAIL` 0 · `NEEDS-DEVICE` 1 · `PENDING` 0
+**Ringkasan:** `PASS` 11 · `FAIL` 0 · `NEEDS-DEVICE` 0 · `PENDING` 0
 
 ### 28a. Backend (`whuzpay-pg/back`)
 
@@ -1207,7 +1207,7 @@ UI Settings kredensial merchant, dan Cashi dihapus total.
 | Butir | Status | Bukti |
 |---|---|---|
 | Card "GoPay provider" baru di Settings merchant (instruksi 4 langkah, field API key + webhook secret, status configured/not set, tidak pernah menampilkan nilai asli); default provider di UI admin routing diganti `cashi`→`gopay`; API Docs merchant (`/dashboard/api-docs`) diperbarui (contoh response `provider_name`/`provider` jadi `gopay`, field `use_custom_merchant_name` yang sudah tidak ada di API dihapus dari dokumentasi, kode error `502` tidak lagi menyebut Cashi); filter provider di Admin Logs diganti `cashi`→`gopay` | `PASS` | `npm run build` dan `npm run lint` bersih setelah seluruh perubahan; `grep -rn -i cashi` lintas `whuzpay-pg/front/**/*.{ts,tsx}` nihil |
-| Uji end-to-end sungguhan (merchant isi kredensial gopay-notifications asli, buat payment lewat whuzpay-pg, scan QR sungguhan, bayar, webhook gopay-notifications benar-benar sampai ke whuzpay-pg dan payment berubah status) | `NEEDS-DEVICE` | Butuh `whuzpay-pg` bisa diakses dari internet publik (tunnel atau deploy) supaya gopay-notifications bisa mengirim webhook ke situ — belum ada infrastruktur produksi untuk `whuzpay-pg` (lihat spec §9) |
+| Uji end-to-end sungguhan (merchant isi kredensial gopay-notifications asli, buat payment lewat whuzpay-pg, scan QR sungguhan, bayar, webhook gopay-notifications benar-benar sampai ke whuzpay-pg dan payment berubah status) | `PASS` | Dilakukan 2026-09-15/17 setelah `whuzpay-pg` dideploy ke `pg.whuzpay.com` (VPS produksi yang sama dengan `whuzpay.com`): merchant isi API key + webhook secret gopay-notifications asli di Settings, buat payment lewat tombol quick-create (`amount=1`, unique nominal gopay-notifications menghasilkan Rp702 lalu Rp168 di percobaan berikutnya), dibayar sungguhan via GoPay, notifikasi ditangkap Android bridge produksi (device dipasangkan lewat QR self-service dari Customer Dashboard gopay-notifications), payment berubah `PAID` di kedua dashboard. Dua bug produksi ditemukan+diperbaiki di jalan: (1) `gopay.Adapter.ParseWebhook` belum menangani event `"test"` dari tombol Test Webhook gopay-notifications → selalu `400` walau kredensial benar (`d9d1951`); (2) blok `basic_auth` Caddy peninggalan endpoint debug `GET /api/v1/events` yang sudah dihapus (plan multitenant task 9) ikut memblokir `POST /api/v1/events` produksi sungguhan karena path matcher tidak peduli method (`5bec746` + edit manual `/etc/caddy/Caddyfile` di VPS) |
 
 ### Keseluruhan suite
 

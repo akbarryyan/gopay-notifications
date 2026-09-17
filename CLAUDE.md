@@ -47,7 +47,7 @@ Aturan yang paling mudah dilanggar dan paling penting ditegakkan:
 | 2 | Android bridge (Expo + Kotlin) | sedang dikerjakan |
 | 3 | Gateway: invoice, nominal unik, matching, webhook, API key, konsol pengecualian | seluruh 4 fase selesai |
 | 4 | Dashboard admin (Next.js) — Overview, Devices, Events, Transactions, API Keys, Webhooks, Exceptions, License | sedang dikerjakan |
-| 5 | Platform akun multi-tenant — fase 1 (tabel `accounts`, `account_id` di seluruh tabel data, endpoint vendor, Vendor Dashboard) | fase 1 selesai (`make test` PASS), deploy VPS `NEEDS-DEVICE`. Fase 2 (signup publik) dan fase 6 (landing page) sudah selesai — lihat di bawah. Fase 3-5 (penyesuaian lanjutan Customer Dashboard swalayan tambah device, mobile bridge) belum dimulai |
+| 5 | Platform akun multi-tenant — fase 1 (tabel `accounts`, `account_id` di seluruh tabel data, endpoint vendor, Vendor Dashboard) | fase 1 selesai (`make test` PASS); pipeline produksi (login, device swalayan+QR, ingestion HMAC) sudah terbukti jalan sungguhan di `whuzpay.com` 2026-09-17. 3 item `NEEDS-DEVICE` yang tersisa di qa-report.md §15 spesifik ke alur CRUD Vendor Dashboard (buat account via Vendor Dashboard, suspend → langsung 402) — belum dilangkahi. Fase 2 (signup publik) dan fase 6 (landing page) sudah selesai — lihat di bawah. Customer Dashboard swalayan tambah device (fase 3) **sudah ada**, sisa fase 4-5 belum dimulai |
 
 Sub-project 3 dipecah jadi 4 fase, urutan dan rinciannya ada di spec #2–#4
 di atas. Seluruhnya sudah selesai — kalau ada permintaan fitur baru untuk
@@ -117,9 +117,14 @@ License Server yang berdiri sendiri. Vendor bikin/kelola account langsung
 (business_name/email/username/plan/expires_at), password awal digenerate
 dan ditampilkan sekali.
 
-Device dibuat lewat `cmd/devicetool -account <id> -name "..."` (flag
-`-account` sekarang wajib) sampai Customer Dashboard punya fitur swalayan
-tambah device (sub-project #3 di spec §0, belum dikerjakan).
+Vendor masih pakai `cmd/devicetool -account <id> -name "..."` (flag
+`-account` wajib) untuk device darurat/administratif. Customer sendiri
+punya jalur swalayan: halaman Devices di Customer Dashboard (`POST
+/api/v1/admin/devices`, di belakang `requireAdmin`+`requireActiveAccount`
+— nama historis, bukan sesi vendor) menampilkan dialog QR code sekali
+tampil (`backend_url`+`device_id`+`device_secret`) yang langsung dipindai
+tombol "Scan QR dari Dashboard" di Settings aplikasi Android — sub-project
+#3 di spec §0 ini **sudah ada**, bukan lagi menunggu.
 
 ## Keputusan arsitektur yang tidak boleh dilanggar diam-diam
 
@@ -425,7 +430,11 @@ sub-project 1 dari rencana migrasi `whuzpay-pg/` (payment gateway
 aggregator, folder terpisah di repo ini) dari provider Cashi ke
 gopay-notifications sendiri -- lihat
 `docs/superpowers/specs/2026-09-15-account-qris-image-design.md`.
-Sub-project 2 (provider adapter di `whuzpay-pg/`) belum dikerjakan.
+Sub-project 2 (provider adapter di `whuzpay-pg/`, spec
+`2026-09-15-whuzpay-pg-gopay-provider-design.md`) **selesai** -- Cashi
+sudah dihapus total, adapter "gopay" terpasang, dan sudah dibuktikan
+sungguhan ujung-ke-ujung di produksi (`pg.whuzpay.com`) 2026-09-17, lihat
+qa-report.md §28.
 
 **Section Harga di landing page (`/`, `PricingSection` di
 `components/landing/pricing-faq-footer.tsx`) diambil dari
