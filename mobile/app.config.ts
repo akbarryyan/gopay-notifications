@@ -40,6 +40,52 @@ if (!v) {
   )
 }
 
+// expo-dev-client cuma perlu di development/uat -- ini yang dipakai Metro
+// untuk terhubung ke laptop saat `expo run:android`. Production sengaja
+// TIDAK menyertakannya: aplikasi yang dipasang merchant lewat APK hasil
+// EAS Build (lihat mobile/eas.json) harus langsung masuk ke aplikasi itu
+// sendiri, bukan layar dev-client yang minta connect ke dev server -- dan
+// dev-menu (bisa terpicu shake gesture) tidak semestinya ada di aplikasi
+// yang dipegang pengguna akhir.
+const plugins: ExpoConfig['plugins'] = [
+  // Menyuntikkan NotificationListenerService ke AndroidManifest.
+  './plugins/withGopayListener',
+  [
+    'expo-camera',
+    {
+      cameraPermission: 'Dipakai untuk memindai QR pairing dari Dashboard.',
+      // Tidak butuh audio sama sekali -- recordAudioAndroid: false
+      // membuat plugin TIDAK menambahkan izin RECORD_AUDIO ke manifest,
+      // yang tidak pernah dipakai di sini.
+      recordAudioAndroid: false,
+      barcodeScannerEnabled: true,
+    },
+  ],
+  [
+    'expo-build-properties',
+    {
+      android: {
+        // Hanya minSdkVersion yang dipatok. compileSdk dan targetSdk
+        // dibiarkan mengikuti bawaan Expo SDK 57 — memaksanya ke versi
+        // lebih rendah justru merusak pustaka yang menuntut versi baru.
+        //
+        // 26 dipilih karena EncryptedSharedPreferences menuntut API 23,
+        // requestRebind menuntut 24, dan java.time menuntut 26.
+        minSdkVersion: 26,
+
+        // UAT dan production tidak menyetelnya sama sekali, dan Android
+        // sejak targetSdk 28 memblokir cleartext secara default — jadi
+        // keduanya HTTPS-only tanpa konfigurasi apa pun.
+        usesCleartextTraffic: v.cleartext,
+      },
+    },
+  ],
+]
+
+if (VARIANT !== 'production') {
+  plugins.unshift('expo-dev-client')
+}
+
 const config: ExpoConfig = {
   name: v.name,
   slug: 'gopay-bridge',
@@ -57,41 +103,7 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     permissions: ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE'],
   },
-  plugins: [
-    'expo-dev-client',
-    // Menyuntikkan NotificationListenerService ke AndroidManifest.
-    './plugins/withGopayListener',
-    [
-      'expo-camera',
-      {
-        cameraPermission: 'Dipakai untuk memindai QR pairing dari Dashboard.',
-        // Tidak butuh audio sama sekali -- recordAudioAndroid: false
-        // membuat plugin TIDAK menambahkan izin RECORD_AUDIO ke manifest,
-        // yang tidak pernah dipakai di sini.
-        recordAudioAndroid: false,
-        barcodeScannerEnabled: true,
-      },
-    ],
-    [
-      'expo-build-properties',
-      {
-        android: {
-          // Hanya minSdkVersion yang dipatok. compileSdk dan targetSdk
-          // dibiarkan mengikuti bawaan Expo SDK 57 — memaksanya ke versi
-          // lebih rendah justru merusak pustaka yang menuntut versi baru.
-          //
-          // 26 dipilih karena EncryptedSharedPreferences menuntut API 23,
-          // requestRebind menuntut 24, dan java.time menuntut 26.
-          minSdkVersion: 26,
-
-          // UAT dan production tidak menyetelnya sama sekali, dan Android
-          // sejak targetSdk 28 memblokir cleartext secara default — jadi
-          // keduanya HTTPS-only tanpa konfigurasi apa pun.
-          usesCleartextTraffic: v.cleartext,
-        },
-      },
-    ],
-  ],
+  plugins,
 }
 
 export default config
