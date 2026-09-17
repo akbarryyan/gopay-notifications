@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/admin"
 	"github.com/akbarryyan/pg-aggregator-back/internal/domain/merchant"
+	"github.com/akbarryyan/pg-aggregator-back/internal/gopayonboard"
 	"github.com/akbarryyan/pg-aggregator-back/pkg/logger"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -72,10 +74,13 @@ type authAdminRepository interface {
 }
 
 type AuthService struct {
-	adminRepo        authAdminRepository
-	merchantUserRepo authMerchantUserRepository
-	merchantRepo     authMerchantRepository
-	jwtSecret        []byte
+	adminRepo            authAdminRepository
+	merchantUserRepo     authMerchantUserRepository
+	merchantRepo         authMerchantRepository
+	gopayCredentialsRepo gopayCredentialsRepository
+	gopayBaseURL         string
+	gopayPublicURL       string
+	jwtSecret            []byte
 }
 
 func NewAuthService(adminRepo authAdminRepository, jwtSecret string) *AuthService {
@@ -91,6 +96,20 @@ func (s *AuthService) WithMerchantAuth(
 ) *AuthService {
 	s.merchantUserRepo = merchantUserRepo
 	s.merchantRepo = merchantRepo
+	return s
+}
+
+// WithGopayOnboarding mengaktifkan cascade onboarding otomatis (lihat
+// tryConnectGopay) -- gopayBaseURL dan gopayPublicURL BEDA secara
+// sengaja: gopayBaseURL boleh loopback (mis. http://127.0.0.1:8080 di
+// produksi, lebih cepat, satu mesin dengan gopay-notifications),
+// gopayPublicURL WAJIB selalu URL publik (https://whuzpay.com) karena
+// dipakai membangun backend_url di payload QR pairing yang harus bisa
+// diakses HP lewat internet, bukan loopback VPS.
+func (s *AuthService) WithGopayOnboarding(gopayBaseURL, gopayPublicURL string, repo gopayCredentialsRepository) *AuthService {
+	s.gopayBaseURL = gopayBaseURL
+	s.gopayPublicURL = gopayPublicURL
+	s.gopayCredentialsRepo = repo
 	return s
 }
 
@@ -301,23 +320,7 @@ func (s *AuthService) LoginMerchant(ctx context.Context, req *merchant.UserLogin
 	}
 
 	now := time.Now().UTC()
-	expiresAt := now.Add(merchantTokenTTL)
-	claims := MerchantClaims{
-		UserID:     u.ID,
-		MerchantID: u.MerchantID,
-		Email:      u.Email,
-		Role:       u.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    adminTokenIssuer,
-			Audience:  []string{merchantTokenAudience},
-			Subject:   u.ID.String(),
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			NotBefore: jwt.NewNumericDate(now),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString(s.jwtSecret)
+	signed, err := s.signMerchantToken(u, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign merchant token: %w", err)
 	}
@@ -341,7 +344,7 @@ func (s *AuthService) LoginMerchant(ctx context.Context, req *merchant.UserLogin
 	}, nil
 }
 
-func (s *AuthService) RegisterMerchant(ctx context.Context, req *merchant.RegisterRequest) (*merchant.MerchantResponse, error) {
+func (s *AuthService) RegisterMerchant(ctx context.Context, req *merchant.RegisterRequest) (*merchant.RegisterMerchantResponse, error) {
 	if s.merchantRepo == nil || s.merchantUserRepo == nil {
 		return nil, fmt.Errorf("merchant auth not configured")
 	}
@@ -380,7 +383,7 @@ func (s *AuthService) RegisterMerchant(ctx context.Context, req *merchant.Regist
 		return nil, fmt.Errorf("failed to create merchant: %w", err)
 	}
 
-	_, err = s.merchantUserRepo.Create(ctx, &merchant.User{
+	createdUser, err := s.merchantUserRepo.Create(ctx, &merchant.User{
 		MerchantID:   createdMerchant.ID,
 		Name:         name,
 		Email:        email,
@@ -395,7 +398,140 @@ func (s *AuthService) RegisterMerchant(ctx context.Context, req *merchant.Regist
 		return nil, fmt.Errorf("failed to create merchant owner account: %w", err)
 	}
 
-	return merchant.ToMerchantResponse(createdMerchant), nil
+	now := time.Now().UTC()
+	token, err := s.signMerchantToken(createdUser, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign merchant token: %w", err)
+	}
+	_ = s.merchantUserRepo.UpdateLastLoginAt(ctx, createdUser.ID, now)
+
+	userResp := merchant.ToUserResponse(createdUser)
+	userResp.BusinessName = businessName
+	resp := &merchant.RegisterMerchantResponse{
+		Token:     token,
+		TokenType: "Bearer",
+		ExpiresIn: int64(merchantTokenTTL.Seconds()),
+		User:      userResp,
+	}
+
+	// Best-effort dari sini -- akun whuzpay-pg di atas SUDAH final. Tidak
+	// ada apa pun di bawah ini yang boleh mengubah resp jadi error. Lihat
+	// spec 2026-09-17-whuzpay-pg-unified-onboarding-design.md §4.3.
+	s.tryConnectGopay(ctx, createdMerchant.ID, businessName, email, req.Password, req.QRISImageBase64, resp)
+
+	return resp, nil
+}
+
+func (s *AuthService) signMerchantToken(u *merchant.User, now time.Time) (string, error) {
+	expiresAt := now.Add(merchantTokenTTL)
+	claims := MerchantClaims{
+		UserID:     u.ID,
+		MerchantID: u.MerchantID,
+		Email:      u.Email,
+		Role:       u.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    adminTokenIssuer,
+			Audience:  []string{merchantTokenAudience},
+			Subject:   u.ID.String(),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(s.jwtSecret)
+}
+
+// tryConnectGopay menjalankan cascade onboarding gopay-notifications
+// (spec 2026-09-17-whuzpay-pg-unified-onboarding-design.md §4.1-§4.3).
+// Best-effort murni -- setiap kegagalan dicatat di resp.GopayMessage,
+// tidak pernah dikembalikan sebagai error ke pemanggil.
+func (s *AuthService) tryConnectGopay(
+	ctx context.Context,
+	merchantID uuid.UUID,
+	businessName, email, password, qrisImageBase64 string,
+	resp *merchant.RegisterMerchantResponse,
+) {
+	if s.gopayCredentialsRepo == nil || s.gopayBaseURL == "" {
+		return
+	}
+
+	client, err := gopayonboard.NewClient(s.gopayBaseURL, s.gopayPublicURL)
+	if err != nil {
+		logger.ErrorfCtx(ctx, "gopay onboarding: buat client gagal untuk merchant %s: %v", merchantID, err)
+		resp.GopayMessage = "Sedang ada gangguan menyambungkan otomatis, hubungkan manual lewat Settings."
+		return
+	}
+
+	baseUsername := gopayonboard.SanitizeUsername(email)
+	username := baseUsername
+	var signErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		candidate := baseUsername
+		if attempt > 0 {
+			candidate = fmt.Sprintf("%s%d", baseUsername, attempt)
+		}
+		signErr = client.SignUp(ctx, businessName, email, candidate, password)
+		if signErr == nil {
+			username = candidate
+			break
+		}
+		if !errors.Is(signErr, gopayonboard.ErrUsernameTaken) {
+			break // ErrEmailTaken atau error lain -- retry username tidak akan menolong
+		}
+	}
+	if signErr != nil {
+		if errors.Is(signErr, gopayonboard.ErrEmailTaken) {
+			resp.GopayMessage = "Akun whuzpay-pg berhasil dibuat. Email ini sudah terdaftar di gopay-notifications -- hubungkan manual lewat Settings."
+		} else {
+			logger.ErrorfCtx(ctx, "gopay onboarding: signup gagal untuk merchant %s: %v", merchantID, signErr)
+			resp.GopayMessage = "Akun whuzpay-pg berhasil dibuat. Sedang ada gangguan menyambungkan otomatis, hubungkan manual lewat Settings."
+		}
+		return
+	}
+	resp.GopayUsername = username
+	resp.GopayConnected = true
+
+	var apiKey, webhookSecret *string
+	if key, err := client.CreateAPIKey(ctx, "whuzpay-pg"); err != nil {
+		logger.ErrorfCtx(ctx, "gopay onboarding: create api key gagal untuk merchant %s: %v", merchantID, err)
+		resp.GopayMessage = "Akun gopay-notifications tersambung, tapi API key gagal dibuat otomatis -- buat manual lewat Settings."
+	} else {
+		apiKey = &key
+	}
+
+	if secret, err := client.CreateWebhook(ctx, "whuzpay-pg",
+		"https://pg.whuzpay.com/api/v1/provider-webhooks/gopay",
+		[]string{"invoice.paid", "invoice.expired"}); err != nil {
+		logger.ErrorfCtx(ctx, "gopay onboarding: create webhook gagal untuk merchant %s: %v", merchantID, err)
+		if resp.GopayMessage == "" {
+			resp.GopayMessage = "Akun gopay-notifications tersambung, tapi webhook gagal dibuat otomatis -- buat manual lewat Settings."
+		}
+	} else {
+		webhookSecret = &secret
+	}
+
+	if err := s.gopayCredentialsRepo.Upsert(ctx, merchantID, apiKey, webhookSecret, &username); err != nil {
+		logger.ErrorfCtx(ctx, "gopay onboarding: simpan kredensial gagal untuk merchant %s: %v", merchantID, err)
+	}
+
+	if deviceID, deviceSecret, err := client.CreateDevice(ctx, businessName+" - Bridge"); err != nil {
+		logger.ErrorfCtx(ctx, "gopay onboarding: create device gagal untuk merchant %s: %v", merchantID, err)
+	} else {
+		resp.GopayDevice = &merchant.GopayDeviceInfo{
+			DeviceID:     deviceID,
+			DeviceSecret: deviceSecret,
+			BackendURL:   client.PublicBackendURL(),
+		}
+	}
+
+	if qrisImageBase64 != "" {
+		if err := client.UploadQRISImage(ctx, qrisImageBase64); err != nil {
+			logger.ErrorfCtx(ctx, "gopay onboarding: upload qris gagal untuk merchant %s: %v", merchantID, err)
+		} else if err := s.gopayCredentialsRepo.MarkQRISConfigured(ctx, merchantID); err != nil {
+			logger.ErrorfCtx(ctx, "gopay onboarding: tandai qris gagal untuk merchant %s: %v", merchantID, err)
+		}
+	}
 }
 
 func (s *AuthService) ParseMerchantToken(tokenString string) (*MerchantClaims, error) {
