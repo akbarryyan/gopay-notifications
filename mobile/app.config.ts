@@ -104,6 +104,14 @@ const config: ExpoConfig = {
     permissions: ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE'],
   },
   plugins,
+  // Satu project EAS dipakai untuk ketiga varian -- config dinamis (file
+  // .ts ini) tidak bisa ditulis otomatis oleh `eas build`, jadi projectId
+  // ditaruh manual di sini sekali (dari `eas build` pertama kali, 2026-09-17).
+  extra: {
+    eas: {
+      projectId: '10aebdbe-f315-4e3a-936f-2e3f2b720a1c',
+    },
+  },
 }
 
 export default config
